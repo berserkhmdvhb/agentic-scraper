@@ -1,0 +1,75 @@
+# === Python cache files ===
+__pycache__/
+*.py[cod]
+*$py.class
+
+# === Virtual environments ===
+.venv/
+env/
+venv/
+env_train/
+ENV/
+env.bak/
+venv.bak/
+
+# === Environment config ===
+.env
+.env.*
+!.env.example
+.env.override
+.env.test
+
+# === SQLite or test DBs ===
+*.db
+*.sqlite3
+
+# === Editor/IDE settings ===
+.vscode/
+.idea/
+.vs/
+
+# === Build artifacts ===
+build/
+dist/
+*.egg-info/
+
+# === Installer logs ===
+pip-log.txt
+pip-delete-this-directory.txt
+
+# === Test artifacts ===
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.coveralls.yml
+.cache
+pytest_cache/
+.pytest_cache/
+coverage.xml
+
+# === MyPy ===
+.mypy_cache/
+
+# === Ruff ===
+.ruff_cache/
+
+# === Jupyter Notebook ===
+.ipynb_checkpoints/
+
+# === Logs (recursive) ===
+**/*.log
+**/*.log.*
+
+# === OS files ===
+.DS_Store
+Thumbs.db
+
+# === Binary files ===
+*.bin
+
+# === Project-specific cache ===
+
+# === Dev-only files (not for release) ===
+MANIFEST-dev.in

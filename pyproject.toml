@@ -1,0 +1,111 @@
+[project]
+name = "agentic-scraper"
+dynamic = ["version"]
+description = "A modular, async, LLM-powered web scraper with a Streamlit interface."
+authors = [{ name = "Hamed VAHEB", email = "hamed.vaheb@protonmail.com" }]
+keywords = ["scraping", "llm", "streamlit", "agent", "openai", "web"]
+readme = { file = "README.md", content-type = "text/markdown" }
+license = { text = "MIT" }
+requires-python = ">=3.10"
+
+dependencies = [
+  "httpx>=0.27.0",
+  "beautifulsoup4>=4.12.3",
+  "openai>=1.30.1",
+  "pydantic>=2.7.1",
+  "pydantic-settings>=2.10.1",
+  "tenacity>=8.2.3",
+  "python-dotenv>=1.0",
+  "streamlit>=1.35.0"
+]
+
+classifiers = [
+  "Intended Audience :: Developers",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Utilities",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Typing :: Typed",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12"
+]
+
+[project.optional-dependencies]
+dev = [
+  "build",
+  "coverage==7.5.0",
+  "coveralls>=3.3.2 ; python_version < '3.13'",
+  "mypy",
+  "pytest",
+  "pytest-cov",
+  "pytest-watch",
+  "ruff",
+  "twine",
+  "types-beautifulsoup4"
+]
+
+[project.urls]
+Homepage = "https://github.com/berserkhmdvhb/agentic-scraper"
+Source = "https://github.com/berserkhmdvhb/agentic-scraper"
+Issues = "https://github.com/berserkhmdvhb/agentic-scraper/issues"
+Changelog = "https://github.com/berserkhmdvhb/agentic-scraper/releases"
+CI = "https://github.com/berserkhmdvhb/agentic-scraper/actions"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { "attr" = "agentic_scraper.__version__" }
+
+[tool.mypy]
+files = ["src", "tests"]
+exclude = "(\\.ipynb$|tests/helpers/.*$)"
+strict = true
+ignore_missing_imports = true
+show_error_codes = true
+pretty = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+fix = true
+show-fixes = true
+exclude = ["tests/manual/*", "tests/*"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "D",
+  "TD",
+  "FIX002",
+  "TC003",
+  "COM812"
+]
+per-file-ignores = {"tests/*" = ["S101", "S603"]}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--maxfail=1 -v"
+norecursedirs = ["tests/cli/old"]
+filterwarnings = [
+  "ignore::pytest.PytestUnhandledThreadExceptionWarning"
+]
+markers = [
+  "unit: marks tests as unit tests"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError"
+]
