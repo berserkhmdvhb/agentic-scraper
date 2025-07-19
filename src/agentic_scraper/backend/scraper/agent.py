@@ -94,9 +94,7 @@ async def extract_structured_data(text: str, url: str) -> ScrapedItem:
             raise ValueError(MSG_ERROR_JSON_DECODING_FAILED.format(error=e)) from e
 
         try:
-            screenshot = await capture_screenshot(
-                url, output_dir=Path(settings.screenshot_dir), name_hint=raw_data.get("title")
-            )
+            screenshot = await capture_screenshot(url, output_dir=Path(settings.screenshot_dir))
             raw_data["screenshot_path"] = screenshot
         except Exception:
             logger.exception(MSG_ERROR_SCREENSHOT_FAILED)

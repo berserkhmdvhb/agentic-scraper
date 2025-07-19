@@ -1,9 +1,20 @@
 import asyncio
 import logging
+import sys
 
 import pandas as pd
 import streamlit as st
 
+# --- WINDOWS ASYNCIO FIX ---
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+from st_aggrid import AgGrid, GridOptionsBuilder  # 👈 NEW
+
+from agentic_scraper.backend.config.messages import (
+    MSG_INFO_EXTRACTION_COMPLETE,
+    MSG_INFO_FETCHING_URLS,
+)
 from agentic_scraper.backend.core.logger_setup import setup_logging
 from agentic_scraper.backend.core.settings import get_environment
 from agentic_scraper.backend.scraper.agent import extract_structured_data
@@ -11,11 +22,6 @@ from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
-
-from agentic_scraper.backend.config.messages import (
-    MSG_INFO_FETCHING_URLS,
-    MSG_INFO_EXTRACTION_COMPLETE,
-)
 
 # --- LOGGING SETUP ---
 setup_logging(reset=True)
@@ -83,7 +89,6 @@ if st.button("🚀 Run Extraction") and raw_input.strip():
 
         st.session_state.extracted_items = items
 
-
 # --- RESULTS DISPLAY ---
 if "extracted_items" in st.session_state and st.session_state.extracted_items:
     df_extracted_data = pd.DataFrame(
@@ -103,30 +108,49 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
     st.session_state.results_df = df_extracted_data
 
     st.success("✅ Extraction complete.")
-    st.dataframe(df_extracted_data, use_container_width=True)
 
-    st.download_button(
-        "💾 Download JSON",
-        df_extracted_data.to_json(orient="records", indent=2),
-        "results.json",
-        mime="application/json",
-    )
+    tab1, tab2 = st.tabs(["📊 Table Preview", "🖼️ Screenshot Preview"])
 
-    st.download_button(
-        "📄 Download CSV",
-        df_extracted_data.to_csv(index=False),
-        "results.csv",
-        mime="text/csv",
-    )
+    with tab1:
+        display_df = df_extracted_data.drop(columns=["screenshot_path"], errors="ignore")
+        gb = GridOptionsBuilder.from_dataframe(display_df)
+        gb.configure_column("screenshot_path", hide=True)
+        gb.configure_pagination(paginationAutoPageSize=True)
+        gb.configure_default_column(filter=True, sortable=True, resizable=True)
+        grid_options = gb.build()
 
-    # --- Screenshot Preview ---
-    if "screenshot_path" in df_extracted_data.columns:
-        st.markdown("### 🖼️ Screenshots (if available)")
+        AgGrid(
+            display_df,
+            gridOptions=grid_options,
+            enable_enterprise_modules=False,
+            fit_columns_on_grid_load=True,
+            theme="streamlit",
+        )
+
+        # --- DOWNLOADS ---
+        st.download_button(
+            "💾 Download JSON",
+            df_extracted_data.to_json(orient="records", indent=2),
+            "results.json",
+            mime="application/json",
+        )
+
+        st.download_button(
+            "📄 Download CSV",
+            df_extracted_data.to_csv(index=False),
+            "results.csv",
+            mime="text/csv",
+        )
+
+    with tab2:
         for item in st.session_state.extracted_items:
             if item.screenshot_path:
-                st.image(
-                    item.screenshot_path, caption=item.title or "Screenshot", use_column_width=True
-                )
+                with st.expander(f"🔗 [{item.url}]({item.url})"):
+                    if item.title:
+                        st.markdown(f"### {item.title}")
+                    st.markdown(f"**URL:** [{item.url}]({item.url})")
+                    st.markdown(f"**Description:** {item.description or '_No description_'}")
+                    st.image(item.screenshot_path, width=500)
 
 elif "extracted_items" in st.session_state and not st.session_state.extracted_items:
     st.error("No successful extractions.")
