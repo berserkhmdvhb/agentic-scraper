@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 
 
 def extract_main_text(html: str) -> str:
@@ -33,7 +34,8 @@ def extract_title(html: str) -> str | None:
         str | None: The title of the page, or None if not found.
     """
     soup = BeautifulSoup(html, "html.parser")
-    if title_tag := soup.find("title"):
+    title_tag = soup.find("title")
+    if isinstance(title_tag, Tag):
         return title_tag.text.strip()
     return None
 
@@ -49,8 +51,11 @@ def extract_meta_description(html: str) -> str | None:
         str | None: Meta description content, or None if not found.
     """
     soup = BeautifulSoup(html, "html.parser")
-    if meta_tag := soup.find("meta", attrs={"name": "description"}):
-        return meta_tag.get("content", "").strip()
+    meta_tag = soup.find("meta", attrs={"name": "description"})
+    if isinstance(meta_tag, Tag):
+        content = meta_tag.get("content", "")
+        if isinstance(content, str):
+            return content.strip()
     return None
 
 
@@ -68,6 +73,8 @@ def extract_author(html: str) -> str | None:
     candidates = [{"name": "author"}, {"property": "article:author"}, {"name": "byline"}]
     for attr in candidates:
         tag = soup.find("meta", attrs=attr)
-        if tag and tag.get("content"):
-            return tag["content"].strip()
+        if isinstance(tag, Tag):
+            content = tag.get("content")
+            if isinstance(content, str):
+                return content.strip()
     return None
