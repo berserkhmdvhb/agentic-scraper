@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     llm_max_tokens: int = Field(default=500, validation_alias="LLM_MAX_TOKENS")
     llm_temperature: float = Field(default=0.0, validation_alias="LLM_TEMPERATURE")
 
+    # Screenshotting
+    screenshot_enabled: bool = Field(default=True, validation_alias="SCREENSHOT_ENABLED")
+    screenshot_dir: str = Field(default="screenshots", validation_alias="SCREENSHOT_DIR")
+
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
         logger.debug(MSG_DEBUG_SETTINGS_LOADED, self.model_dump())

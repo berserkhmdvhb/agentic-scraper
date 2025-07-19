@@ -86,6 +86,14 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
             for item in st.session_state.extracted_items
         ]
     )
+
+    # Reorder columns for UX: move screenshot_path to the end
+    if "screenshot_path" in df_extracted_data.columns:
+        df_extracted_data = df_extracted_data[
+            [col for col in df_extracted_data.columns if col != "screenshot_path"]
+            + ["screenshot_path"]
+        ]
+
     st.session_state.results_df = df_extracted_data
 
     st.success("✅ Extraction complete.")
@@ -104,6 +112,15 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
         "results.csv",
         mime="text/csv",
     )
+
+    # --- Screenshot Preview ---
+    if "screenshot_path" in df_extracted_data.columns:
+        st.markdown("### 🖼️ Screenshots (if available)")
+        for item in st.session_state.extracted_items:
+            if item.screenshot_path:
+                st.image(
+                    item.screenshot_path, caption=item.title or "Screenshot", use_column_width=True
+                )
 
 elif "extracted_items" in st.session_state and not st.session_state.extracted_items:
     st.error("No successful extractions.")

@@ -10,6 +10,7 @@ class ScrapedItem(BaseModel):
     price: float | None = Field(default=None, description="Numeric price if detected")
     author: str | None = Field(default=None, description="Author or source of the content")
     date_published: str | None = Field(default=None, description="Publication date if known")
+    screenshot_path: str | None = Field(default=None, description="Path to screenshot image")
 
     class Config:
         extra = "allow"  # Allow LLM to return more fields than expected

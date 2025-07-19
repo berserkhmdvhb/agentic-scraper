@@ -16,7 +16,11 @@ dependencies = [
   "pydantic-settings>=2.10.1",
   "tenacity>=8.2.3",
   "python-dotenv>=1.0",
-  "streamlit>=1.35.0"
+  "streamlit>=1.35.0",
+  "playwright>=1.44.0",
+  "langdetect>=1.0.9",
+  "deep-translator>=1.11.4",
+  "pandas>=1.5.3"
 ]
 
 classifiers = [

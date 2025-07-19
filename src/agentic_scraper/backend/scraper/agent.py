@@ -19,10 +19,12 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_OPENAI_UNEXPECTED_LOG,
     MSG_ERROR_RATE_LIMIT,
     MSG_ERROR_RATE_LIMIT_LOG,
+    MSG_ERROR_SCREENSHOT_FAILED,
     MSG_SYSTEM_PROMPT,
 )
 from agentic_scraper.backend.core.settings import load_settings
 from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
@@ -40,18 +42,27 @@ client = AsyncOpenAI(api_key=settings.openai_api_key, project=settings.openai_pr
 )
 async def extract_structured_data(text: str, url: str) -> ScrapedItem:
     """
-    Use an LLM to extract structured data from raw page text.
+    Extract structured data from a page's text using a language model,
+    and optionally capture a screenshot of the source URL.
+
+    This function sends a prompt to the OpenAI API to extract structured
+    fields (e.g., title, price, author) from the provided page content.
+    It then attempts to capture a full-page screenshot of the URL and
+    attach the screenshot path to the resulting data model.
+
+    The function includes retry logic to handle transient OpenAI API errors.
 
     Args:
-        text (str): Cleaned text content extracted from the webpage.
-        url (str): Source URL of the page (included in returned schema).
+        text (str): Cleaned main content of the web page to be analyzed.
+        url (str): The original URL of the web page (used for metadata and screenshot).
 
     Returns:
-        ScrapedItem: Pydantic model with structured data.
+        ScrapedItem: A validated data model with extracted fields and optional screenshot path.
 
     Raises:
-        ValueError: If LLM output is not valid JSON or schema is malformed.
+        ValueError: If the model response is empty, malformed, non-JSON, or if API errors occur.
     """
+
     messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": MSG_SYSTEM_PROMPT},
         {"role": "user", "content": text[:4000]},
@@ -81,6 +92,15 @@ async def extract_structured_data(text: str, url: str) -> ScrapedItem:
             logger.exception(MSG_ERROR_LLM_JSON_DECODE_LOG, content)
             raise ValueError(MSG_ERROR_JSON_DECODING_FAILED.format(error=e)) from e
 
+        try:
+            screenshot = await capture_screenshot(
+                url, output_dir=settings.screenshot_dir, name_hint=raw_data.get("title")
+            )
+            raw_data["screenshot_path"] = screenshot
+        except Exception:
+            logger.exception(MSG_ERROR_SCREENSHOT_FAILED, url)
+            
+        print("DEBUG raw_data:", raw_data)
         return ScrapedItem(url=HttpUrl(url), **raw_data)
 
     except RateLimitError as e:

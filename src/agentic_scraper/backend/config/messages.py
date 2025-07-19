@@ -59,6 +59,9 @@ MSG_INFO_FETCH_SUCCESS = "Fetched %s successfully"
 MSG_WARNING_FETCH_FAILED = "Failed to fetch %s: %s"
 MSG_FETCH_ERROR_PREFIX = "__FETCH_ERROR__"
 
+# screenshotter.py
+MSG_ERROR_SCREENSHOT_FAILED = "Failed to capture screenshot for %s"
+
 # ---------------------------------------------------------------------
 # common/logging.py
 # ---------------------------------------------------------------------
