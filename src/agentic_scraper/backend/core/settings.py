@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str = Field(..., env="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-3.5-turbo")
+    openai_project_id: str | None = Field(default=None, env="OPENAI_PROJECT_ID")
 
     # Network
     request_timeout: int = Field(default=10, description="HTTP request timeout in seconds")
@@ -37,6 +38,7 @@ class Settings(BaseSettings):
         logger.debug("Max tokens: %d", self.llm_max_tokens)
         logger.debug("Temperature: %.2f", self.llm_temperature)
         logger.debug("OpenAI key loaded with prefix: %s", self.openai_api_key[:8])
+        logger.debug("Using project ID: %s", self.openai_project_id)
 
         logger.debug("Environment: %s", self.env)
         logger.debug("Debug mode: %s", self.debug_mode)

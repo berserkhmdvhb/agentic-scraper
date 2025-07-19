@@ -11,10 +11,12 @@ from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.validators import clean_input_urls, deduplicate_urls
 
 # --- LOGGING SETUP ---
+logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+
 
 # --- STREAMLIT CONFIG ---
 st.set_page_config(page_title="Agentic Scraper", layout="wide")

@@ -6,11 +6,11 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from agentic_scraper.backend.core.settings import settings
 from agentic_scraper.backend.scraper.models import ScrapedItem
 
-
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-
 logger = logging.getLogger(__name__)
-client = AsyncOpenAI(api_key=settings.openai_api_key)
+client = AsyncOpenAI(
+    api_key=settings.openai_api_key,
+    project=settings.openai_project_id
+)
 
 SYSTEM_PROMPT = """
 You are a web extraction assistant. Your job is to extract key data from webpage content.
@@ -56,7 +56,7 @@ async def extract_structured_data(text: str, url: str) -> ScrapedItem:
             messages=messages,
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
-            response_format="json",
+            #response_format="json",
         )
 
         try:
