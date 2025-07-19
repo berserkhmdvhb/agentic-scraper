@@ -1,3 +1,8 @@
+# frontend/app.py
+
+MSG_INFO_FETCHING_URLS = "Fetching and processing %d URLs"
+MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for %d URLs"
+
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------
@@ -58,6 +63,20 @@ MSG_ERROR_OPENAI_UNEXPECTED_LOG = "Unexpected OpenAI error: %s"
 MSG_INFO_FETCH_SUCCESS = "Fetched %s successfully"
 MSG_WARNING_FETCH_FAILED = "Failed to fetch %s: %s"
 MSG_FETCH_ERROR_PREFIX = "__FETCH_ERROR__"
+
+# parser.py
+MSG_DEBUG_PARSED_TITLE = "Parsed <title>: %s"
+MSG_DEBUG_PARSED_META_DESCRIPTION = "Parsed meta description: %s"
+MSG_DEBUG_PARSED_AUTHOR = "Parsed author from %s: %s"
+MSG_INFO_NO_TITLE = "No <title> tag found."
+MSG_INFO_NO_META_DESCRIPTION = "No meta description found."
+MSG_INFO_NO_AUTHOR = "No author meta tag found."
+
+
+# screenshotter.py
+MSG_ERROR_SCREENSHOT_FAILED = "Failed to capture screenshot for %s"
+MSG_INFO_SCREENSHOT_SAVED = "Screenshot saved: %s"
+
 
 # ---------------------------------------------------------------------
 # common/logging.py

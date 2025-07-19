@@ -70,6 +70,7 @@ Thumbs.db
 *.bin
 
 # === Project-specific cache ===
+screenshots/
 
 # === Dev-only files (not for release) ===
 MANIFEST-dev.in
