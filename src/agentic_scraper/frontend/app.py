@@ -8,7 +8,7 @@ from agentic_scraper.backend.scraper.agent import extract_structured_data
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
-from agentic_scraper.backend.validators import clean_input_urls, deduplicate_urls
+from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
 
 # --- LOGGING SETUP ---
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ elif input_method == "Upload .txt file":
 @st.cache_data(show_spinner=False)
 def run_pipeline(urls: list[str]) -> list[ScrapedItem]:
     def sync_wrapper() -> list[ScrapedItem]:
-        async def run():
+        async def run() -> list[ScrapedItem]:
             fetch_results = await fetch_all(urls)
             tasks = []
 

@@ -3,56 +3,70 @@ import logging
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
+from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_API_KEY_PREFIX,
+    MSG_DEBUG_CONCURRENCY,
+    MSG_DEBUG_DEBUG_MODE,
+    MSG_DEBUG_ENVIRONMENT,
+    MSG_DEBUG_MAX_TOKENS,
+    MSG_DEBUG_PROJECT_ID,
+    MSG_DEBUG_SETTINGS_LOADED,
+    MSG_DEBUG_TEMPERATURE,
+    MSG_DEBUG_USING_MODEL,
+    MSG_ERROR_MISSING_API_KEY,
+)
+
 logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
     # General
     project_name: str = "Agentic Scraper"
-    debug_mode: bool = Field(default=False, env="DEBUG")
-    env: str = Field(default="dev", env="ENV")
+    debug_mode: bool = Field(default=False, validation_alias="DEBUG")
+    env: str = Field(default="dev", validation_alias="ENV")
 
     # OpenAI
-    openai_api_key: str = Field(..., env="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-3.5-turbo")
-    openai_project_id: str | None = Field(default=None, env="OPENAI_PROJECT_ID")
+    openai_api_key: str = Field(..., validation_alias="OPENAI_API_KEY")
+    openai_model: str = "gpt-3.5-turbo"
+    openai_project_id: str | None = Field(default=None, validation_alias="OPENAI_PROJECT_ID")
 
     # Network
-    request_timeout: int = Field(default=10, description="HTTP request timeout in seconds")
+    request_timeout: int = 10
     max_concurrent_requests: int = Field(
-        default=10, env="MAX_CONCURRENT_REQUESTS", description="Max simultaneous fetches"
+        default=10,
+        validation_alias="MAX_CONCURRENT_REQUESTS",
+        description="Max simultaneous fetches",
     )
 
     # Agent behavior
-    llm_max_tokens: int = Field(default=500, env="LLM_MAX_TOKENS")
-    llm_temperature: float = Field(default=0.0, env="LLM_TEMPERATURE")
+    llm_max_tokens: int = Field(default=500, validation_alias="LLM_MAX_TOKENS")
+    llm_temperature: float = Field(default=0.0, validation_alias="LLM_TEMPERATURE")
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
-        logger.debug("Loaded settings: %s", self.model_dump())
+        logger.debug(MSG_DEBUG_SETTINGS_LOADED, self.model_dump())
+
         if not self.openai_api_key:
-            raise ValueError("OPENAI_API_KEY is required in your .env file.")
+            raise ValueError(MSG_ERROR_MISSING_API_KEY)
 
-        # Custom log summary
-        logger.debug("Using model: %s", self.openai_model)
-        logger.debug("Max tokens: %d", self.llm_max_tokens)
-        logger.debug("Temperature: %.2f", self.llm_temperature)
-        logger.debug("OpenAI key loaded with prefix: %s", self.openai_api_key[:8])
-        logger.debug("Using project ID: %s", self.openai_project_id)
+        logger.debug(MSG_DEBUG_USING_MODEL, self.openai_model)
+        logger.debug(MSG_DEBUG_MAX_TOKENS, self.llm_max_tokens)
+        logger.debug(MSG_DEBUG_TEMPERATURE, self.llm_temperature)
+        logger.debug(MSG_DEBUG_API_KEY_PREFIX, self.openai_api_key[:8])
+        logger.debug(MSG_DEBUG_PROJECT_ID, self.openai_project_id)
 
-        logger.debug("Environment: %s", self.env)
-        logger.debug("Debug mode: %s", self.debug_mode)
-        logger.debug("Model: %s", self.openai_model)
-        logger.debug("Tokens: %d", self.llm_max_tokens)
-        logger.debug("Temperature: %.2f", self.llm_temperature)
-        logger.debug("Concurrency: %d", self.max_concurrent_requests)
+        logger.debug(MSG_DEBUG_ENVIRONMENT, self.env)
+        logger.debug(MSG_DEBUG_DEBUG_MODE, self.debug_mode)
+        logger.debug(MSG_DEBUG_CONCURRENCY, self.max_concurrent_requests)
 
         return self
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
-settings = Settings()
+def load_settings() -> Settings:
+    return Settings()  # type: ignore[call-arg]
