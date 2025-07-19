@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from openai import APIError, AsyncOpenAI, OpenAIError, RateLimitError
@@ -22,14 +23,14 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_SCREENSHOT_FAILED,
     MSG_SYSTEM_PROMPT,
 )
-from agentic_scraper.backend.core.settings import load_settings
+from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
 
-settings = load_settings()
+settings = get_settings()
 logger = logging.getLogger(__name__)
 client = AsyncOpenAI(api_key=settings.openai_api_key, project=settings.openai_project_id)
 
@@ -79,28 +80,28 @@ async def extract_structured_data(text: str, url: str) -> ScrapedItem:
         try:
             content = response.choices[0].message.content
         except (IndexError, AttributeError) as e:
-            logger.exception(MSG_ERROR_LLM_RESPONSE_MALFORMED, response)
+            logger.exception(MSG_ERROR_LLM_RESPONSE_MALFORMED)
             raise ValueError(MSG_ERROR_MISSING_LLM_CONTENT) from e
 
         if content is None:
-            logger.exception(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT, response)
+            logger.error(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT)
             raise ValueError(MSG_ERROR_MISSING_LLM_CONTENT)
 
         try:
             raw_data = json.loads(content)
         except json.JSONDecodeError as e:
-            logger.exception(MSG_ERROR_LLM_JSON_DECODE_LOG, content)
+            logger.exception(MSG_ERROR_LLM_JSON_DECODE_LOG)
             raise ValueError(MSG_ERROR_JSON_DECODING_FAILED.format(error=e)) from e
 
         try:
             screenshot = await capture_screenshot(
-                url, output_dir=settings.screenshot_dir, name_hint=raw_data.get("title")
+                url, output_dir=Path(settings.screenshot_dir), name_hint=raw_data.get("title")
             )
             raw_data["screenshot_path"] = screenshot
         except Exception:
-            logger.exception(MSG_ERROR_SCREENSHOT_FAILED, url)
-            
-        print("DEBUG raw_data:", raw_data)
+            logger.exception(MSG_ERROR_SCREENSHOT_FAILED)
+
+        logger.debug("Parsed structured data: %s", raw_data)
         return ScrapedItem(url=HttpUrl(url), **raw_data)
 
     except RateLimitError as e:

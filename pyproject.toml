@@ -72,7 +72,7 @@ version = { "attr" = "agentic_scraper.__version__" }
 
 [tool.mypy]
 files = ["src", "tests"]
-exclude = "(\\.ipynb$|tests/helpers/.*$)"
+exclude = "(\\.ipynb$|tests/manual/.*$)"
 strict = true
 ignore_missing_imports = true
 show_error_codes = true

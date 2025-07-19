@@ -4,6 +4,8 @@ import logging
 import pandas as pd
 import streamlit as st
 
+from agentic_scraper.backend.core.logger_setup import setup_logging
+from agentic_scraper.backend.core.settings import get_environment
 from agentic_scraper.backend.scraper.agent import extract_structured_data
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import ScrapedItem
@@ -11,14 +13,13 @@ from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
 
 # --- LOGGING SETUP ---
+setup_logging(reset=True)
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
 
 # --- STREAMLIT CONFIG ---
 st.set_page_config(page_title="Agentic Scraper", layout="wide")
+st.sidebar.markdown(f"**Environment:** `{get_environment()}`")
+
 st.title("🕵️ Agentic Scraper")
 st.markdown("Extract structured data from any list of URLs using LLM-powered parsing.")
 
@@ -39,20 +40,20 @@ elif input_method == "Upload .txt file":
 # --- CACHED PROCESSING PIPELINE ---
 @st.cache_data(show_spinner=False)
 def run_pipeline(urls: list[str]) -> list[ScrapedItem]:
-    def sync_wrapper() -> list[ScrapedItem]:
-        async def run() -> list[ScrapedItem]:
-            fetch_results = await fetch_all(urls)
-            tasks = []
-            for url, html in fetch_results.items():
-                if html.startswith("__FETCH_ERROR__"):
-                    continue
-                text = extract_main_text(html)
-                tasks.append(extract_structured_data(text, url=url))
-            return await asyncio.gather(*tasks)
+    async def pipeline() -> list[ScrapedItem]:
+        logger.info("Fetching and processing %d URLs", len(urls))
+        fetch_results = await fetch_all(urls)
+        tasks = []
+        for url, html in fetch_results.items():
+            if html.startswith("__FETCH_ERROR__"):
+                continue
+            text = extract_main_text(html)
+            tasks.append(extract_structured_data(text, url=url))
+        results = await asyncio.gather(*tasks)
+        logger.info("Completed extraction for %d URLs", len(results))
+        return results
 
-        return asyncio.run(run())
-
-    return asyncio.run(asyncio.to_thread(sync_wrapper))
+    return asyncio.run(pipeline())
 
 
 # --- EXECUTION TRIGGER ---
@@ -127,6 +128,6 @@ elif "extracted_items" in st.session_state and not st.session_state.extracted_it
 
 
 # --- RESET BUTTON ---
-if st.button("🔄 Reset"):
+if st.sidebar.button("🔄 Reset"):
     st.session_state.clear()
     st.rerun()
