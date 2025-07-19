@@ -1,3 +1,8 @@
+# frontend/app.py
+
+MSG_INFO_FETCHING_URLS = "Fetching and processing %d URLs"
+MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for %d URLs"
+
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------

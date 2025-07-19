@@ -12,6 +12,11 @@ from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
 
+from agentic_scraper.backend.config.messages import (
+    MSG_INFO_FETCHING_URLS,
+    MSG_INFO_EXTRACTION_COMPLETE,
+)
+
 # --- LOGGING SETUP ---
 setup_logging(reset=True)
 logger = logging.getLogger(__name__)
@@ -41,7 +46,7 @@ elif input_method == "Upload .txt file":
 @st.cache_data(show_spinner=False)
 def run_pipeline(urls: list[str]) -> list[ScrapedItem]:
     async def pipeline() -> list[ScrapedItem]:
-        logger.info("Fetching and processing %d URLs", len(urls))
+        logger.info(MSG_INFO_FETCHING_URLS, len(urls))
         fetch_results = await fetch_all(urls)
         tasks = []
         for url, html in fetch_results.items():
@@ -50,7 +55,7 @@ def run_pipeline(urls: list[str]) -> list[ScrapedItem]:
             text = extract_main_text(html)
             tasks.append(extract_structured_data(text, url=url))
         results = await asyncio.gather(*tasks)
-        logger.info("Completed extraction for %d URLs", len(results))
+        logger.info(MSG_INFO_EXTRACTION_COMPLETE, len(results))
         return results
 
     return asyncio.run(pipeline())
