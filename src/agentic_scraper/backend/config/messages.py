@@ -10,17 +10,25 @@ MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for %d URLs"
 # core/settings.py
 
 MSG_DEBUG_SETTINGS_LOADED = "Loaded settings: %s"
-MSG_ERROR_MISSING_API_KEY = "OPENAI_API_KEY is required in your .env file."
-
 MSG_DEBUG_USING_MODEL = "Using model: %s"
 MSG_DEBUG_MAX_TOKENS = "Max tokens: %d"
 MSG_DEBUG_TEMPERATURE = "Temperature: %.2f"
 MSG_DEBUG_API_KEY_PREFIX = "OpenAI key loaded with prefix: %s"
 MSG_DEBUG_PROJECT_ID = "Using project ID: %s"
-
 MSG_DEBUG_ENVIRONMENT = "Environment: %s"
 MSG_DEBUG_DEBUG_MODE = "Debug mode: %s"
 MSG_DEBUG_CONCURRENCY = "Concurrency: %d"
+
+MSG_ERROR_MISSING_API_KEY = "OPENAI_API_KEY is required in your .env file."
+MSG_ERROR_INVALID_MODEL_NAME = "Invalid OpenAI model: {model}. Valid options: {valid_options}"
+MSG_ERROR_INVALID_TEMPERATURE = "Temperature must be between 0.0 and 2.0. Got: {value}"
+MSG_ERROR_INVALID_TOKENS = "Max tokens must be a positive integer. Got: {value}"
+MSG_ERROR_INVALID_CONCURRENCY = "Concurrency must be greater than 0. Got: {value}"
+MSG_ERROR_INVALID_TIMEOUT = "Request timeout must be greater than 0 seconds. Got: {value}"
+MSG_ERROR_INVALID_LOG_LEVEL = "Invalid log level: {value}. Valid options: {valid_options}"
+MSG_ERROR_INVALID_LOG_BYTES = "Log max bytes must be greater than 0. Got: {value}"
+MSG_ERROR_INVALID_BACKUP_COUNT = "Log backup count must be greater than 0. Got: {value}"
+MSG_ERROR_INVALID_ENV = "Invalid environment: {value}. Valid options: {valid_options}"
 
 
 # ---------------------------------------------------------------------

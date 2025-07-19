@@ -1,7 +1,7 @@
 import logging
 from functools import cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
@@ -18,9 +18,10 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_USING_MODEL,
     MSG_ERROR_MISSING_API_KEY,
 )
+from agentic_scraper.backend.core.settings_helpers import validated_settings
 
 logger = logging.getLogger(__name__)
-
+print("model_validator origin:", model_validator)
 
 class Settings(BaseSettings):
     # General
@@ -55,6 +56,11 @@ class Settings(BaseSettings):
     log_max_bytes: int = Field(default=1_000_000, validation_alias="LOG_MAX_BYTES")
     log_backup_count: int = Field(default=5, validation_alias="LOG_BACKUP_COUNT")
     log_format: Literal["plain", "json"] = Field(default="plain", validation_alias="LOG_FORMAT")
+
+    @model_validator(mode="before", check_fields=False)  # type: ignore[call-overload, misc]
+    @classmethod
+    def apply_validations(cls, values: dict[str, Any]) -> dict[str, Any]:
+        return validated_settings(values)
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
