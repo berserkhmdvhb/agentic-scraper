@@ -91,7 +91,7 @@ if st.button("🚀 Run Extraction") and raw_input.strip():
         urls = deduplicate_urls(valid_urls)
 
     if invalid_lines:
-        st.info(f"ℹ️ {len(invalid_lines)} line(s) were skipped due to invalid URL formatting.")
+        st.info(f"⚠️ {len(invalid_lines)} line(s) were skipped due to invalid URL formatting.")
 
     if not urls:
         st.warning("⚠️ No valid URLs found.")
@@ -119,7 +119,9 @@ if st.button("🚀 Run Extraction") and raw_input.strip():
                 if items:
                     with st.expander("🔍 View individual results"):
                         for item in items:
-                            st.markdown(f"- 🔗 [{item.url}]({item.url}) — ✅ **{item.title or 'Untitled'}**")
+                            st.markdown(
+                                f"- 🔗 [{item.url}]({item.url}) — ✅ **{item.title or 'Untitled'}**"
+                            )
 
             except ValueError as e:
                 st.error(f"❌ LLM extraction failed: {e}")
