@@ -53,6 +53,8 @@ dev = [
   "types-beautifulsoup4"
 ]
 
+hpc = ["ray[default]>=2.9.0 ; python_version < '3.13'"]
+
 [project.urls]
 Homepage = "https://github.com/berserkhmdvhb/agentic-scraper"
 Source = "https://github.com/berserkhmdvhb/agentic-scraper"

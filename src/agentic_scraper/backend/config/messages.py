@@ -25,7 +25,15 @@ MSG_DEBUG_SETTING_OVERRIDDEN = "Overridden {key} = {validated!r} (from env: {ori
 MSG_DEBUG_SETTING_SKIPPED = "Skipping {key}: blank or unset → using default"
 MSG_WARNING_SETTING_INVALID = "Invalid {key}={original!r}: {error}"
 
-
+# parallel.py
+MSG_ERROR_TASK_FAILED = "Task {idx} failed: {error}"
+MSG_ERROR_PARALLEL_TASK_ABORTED = "Parallel task {idx} failed"
+MSG_ERROR_RAY_NOT_INSTALLED = (
+    "Ray is not installed. Please install with `pip install 'ray[default]'` "
+    "on Python < 3.13 to use distributed parallelism."
+)
+MSG_ERROR_RAY_EXECUTION_FAILED = "Ray-based parallel execution failed"
+MSG_ERROR_RAY_RUNTIME_FAILED = "Ray parallel execution failed"
 # ---------------------------------------------------------------------
 # scraper/
 # ---------------------------------------------------------------------
