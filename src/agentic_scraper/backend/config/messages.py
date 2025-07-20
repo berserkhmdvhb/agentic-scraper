@@ -1,6 +1,7 @@
 # frontend/app.py
 MSG_INFO_FETCHING_URLS = "Fetching and processing {} URLs"
 MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for {} URLs"
+MSG_INFO_FETCH_SKIPPED = "Skipped %d URLs due to fetch errors"
 
 # ---------------------------------------------------------------------
 # core/
@@ -40,11 +41,14 @@ Return only a JSON object with the following fields:
 - date_published (string or null)
 
 All values must be valid JSON. If a field is not found, return null for it."""
-MSG_ERROR_MISSING_LLM_CONTENT = "No valid message content returned from OpenAI."
-MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT = "LLM response message was present but content was None."
-MSG_ERROR_JSON_DECODING_FAILED = "Failed to parse structured output from LLM: {error}"
-MSG_ERROR_LLM_RESPONSE_MALFORMED = "LLM response missing or malformed: {} ({})"
-MSG_ERROR_LLM_JSON_DECODE_LOG = "Failed to decode JSON from LLM response: {} ({})"
+MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL = "LLM response missing or malformed. [URL: %s]"
+MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL = "LLM response was None. [URL: %s]"
+MSG_ERROR_JSON_DECODING_FAILED_WITH_URL = "Failed to parse LLM output: %s [URL: %s]"
+MSG_ERROR_SCREENSHOT_FAILED_WITH_URL = "Failed to capture screenshot. [URL: %s]"
+MSG_ERROR_RATE_LIMIT_LOG_WITH_URL = "OpenAI rate limit exceeded. [URL: %s]"
+MSG_ERROR_RATE_LIMIT_DETAIL = "Rate limit detail: %s"
+MSG_ERROR_API_LOG_WITH_URL = "OpenAI API error occurred. [URL: %s]"
+MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL = "Unexpected OpenAI error. [URL: %s]"
 MSG_ERROR_RATE_LIMIT = (
     "OpenAI quota exceeded. Please check your usage and billing at "
     "https://platform.openai.com/account/usage."
@@ -56,6 +60,8 @@ MSG_ERROR_OPENAI_UNEXPECTED = "Unexpected OpenAI error: {error}"
 MSG_ERROR_OPENAI_UNEXPECTED_LOG = "Unexpected OpenAI error: {}"
 MSG_DEBUG_API_EXCEPTION = "Full exception details:"
 MSG_DEBUG_PARSED_STRUCTURED_DATA = "Parsed structured data: %s"
+MSG_ERROR_LLM_JSON_DECODE_LOG = "Failed to decode JSON from LLM response: %r [URL: %s]"
+
 
 # fetcher.py
 MSG_INFO_FETCH_SUCCESS = "Fetched {} successfully"
@@ -77,6 +83,11 @@ MSG_INFO_NO_AUTHOR = "No author meta tag found."
 # screenshotter.py
 MSG_ERROR_SCREENSHOT_FAILED = "Failed to capture screenshot"
 MSG_INFO_SCREENSHOT_SAVED = "Screenshot saved: %s"
+
+# worker_pool.py
+MSG_ERROR_WORKER_FAILED = "Worker failed for URL: %s"
+MSG_WARNING_WORKER_FAILED_SHORT = "Worker failed for URL: %s: %s"
+
 
 # ---------------------------------------------------------------------
 # common/logging.py
