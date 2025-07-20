@@ -5,10 +5,12 @@ on:
     paths:
       - "pyproject.toml"
       - "requirements.txt"
+      - ".github/workflows/check-requirements.yml"
   push:
     paths:
       - "pyproject.toml"
       - "requirements.txt"
+      - ".github/workflows/check-requirements.yml"
 
 jobs:
   check-requirements:
