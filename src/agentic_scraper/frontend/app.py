@@ -33,6 +33,10 @@ st.sidebar.markdown(f"**Environment:** `{get_environment()}`")
 st.title("🕵️ Agentic Scraper")
 st.markdown("Extract structured data from any list of URLs using LLM-powered parsing.")
 
+# --- SIDEBAR OPTIONS ---
+screenshot_enabled = st.sidebar.checkbox("📸 Enable Screenshot Preview", value=False)
+st.session_state["screenshot_enabled"] = screenshot_enabled
+
 # --- INPUT METHOD ---
 input_method = st.radio("Input method:", ["Paste URLs", "Upload .txt file"], horizontal=True)
 
@@ -54,7 +58,7 @@ elif input_method == "Upload .txt file":
 
 # --- CACHED PROCESSING PIPELINE ---
 @st.cache_data(show_spinner=False)
-def run_pipeline(urls: list[str]) -> list[ScrapedItem]:
+def run_pipeline(urls: list[str], *, take_screenshots: bool) -> list[ScrapedItem]:
     async def pipeline() -> list[ScrapedItem]:
         logger.info(MSG_INFO_FETCHING_URLS.format(len(urls)))
         fetch_results = await fetch_all(urls)
@@ -63,7 +67,7 @@ def run_pipeline(urls: list[str]) -> list[ScrapedItem]:
             if html.startswith("__FETCH_ERROR__"):
                 continue
             text = extract_main_text(html)
-            tasks.append(extract_structured_data(text, url=url))
+            tasks.append(extract_structured_data(text, url=url, take_screenshot=take_screenshots))
 
         num_failures = sum(
             1 for html in fetch_results.values() if html.startswith("__FETCH_ERROR__")
@@ -99,7 +103,7 @@ if st.button("🚀 Run Extraction") and raw_input.strip():
         st.markdown("---")
         with st.spinner("⏳ Processing..."):
             try:
-                items = run_pipeline(urls)
+                items = run_pipeline(urls, take_screenshots=screenshot_enabled)
             except ValueError as e:
                 st.error(f"❌ LLM extraction failed: {e}")
                 items = []
@@ -115,6 +119,9 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
         ]
     )
 
+    if not screenshot_enabled and "screenshot_path" in df_extracted_data.columns:
+        df_extracted_data = df_extracted_data.drop(columns=["screenshot_path"])
+
     if "screenshot_path" in df_extracted_data.columns:
         df_extracted_data = df_extracted_data[
             [col for col in df_extracted_data.columns if col != "screenshot_path"]
@@ -125,7 +132,10 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
 
     st.success("✅ Extraction complete.")
 
-    tab1, tab2 = st.tabs(["📊 Table Preview", "🖼️ Screenshot Preview"])
+    if screenshot_enabled:
+        tab1, tab2 = st.tabs(["📊 Table Preview", "🖼️ Screenshot Preview"])
+    else:
+        (tab1,) = st.tabs(["📊 Table Preview"])
 
     with tab1:
         display_df = df_extracted_data.drop(columns=["screenshot_path"], errors="ignore")
@@ -157,15 +167,16 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
             mime="text/csv",
         )
 
-    with tab2:
-        for item in st.session_state.extracted_items:
-            if item.screenshot_path:
-                with st.expander(f"🔗 [{item.url}]({item.url})"):
-                    if item.title:
-                        st.markdown(f"### {item.title}")
-                    st.markdown(f"**URL:** [{item.url}]({item.url})")
-                    st.markdown(f"**Description:** {item.description or '_No description_'}")
-                    st.image(item.screenshot_path, width=500)
+    if screenshot_enabled:
+        with tab2:
+            for item in st.session_state.extracted_items:
+                if item.screenshot_path:
+                    with st.expander(f"🔗 [{item.url}]({item.url})"):
+                        if item.title:
+                            st.markdown(f"### {item.title}")
+                        st.markdown(f"**URL:** [{item.url}]({item.url})")
+                        st.markdown(f"**Description:** {item.description or '_No description_'}")
+                        st.image(item.screenshot_path, width=500)
 
 elif "extracted_items" in st.session_state and not st.session_state.extracted_items:
     st.error("No successful extractions.")

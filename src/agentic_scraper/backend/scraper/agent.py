@@ -42,21 +42,24 @@ client = AsyncOpenAI(api_key=settings.openai_api_key, project=settings.openai_pr
     retry=retry_if_exception_type(OpenAIError),
     reraise=True,
 )
-async def extract_structured_data(text: str, url: str) -> ScrapedItem:
+async def extract_structured_data(
+    text: str, url: str, *, take_screenshot: bool = False
+) -> ScrapedItem:
     """
     Extract structured data from a page's text using a language model,
     and optionally capture a screenshot of the source URL.
 
     This function sends a prompt to the OpenAI API to extract structured
     fields (e.g., title, price, author) from the provided page content.
-    It then attempts to capture a full-page screenshot of the URL and
-    attach the screenshot path to the resulting data model.
+    If requested, it captures a full-page screenshot of the URL and
+    includes the screenshot path in the resulting data model.
 
     The function includes retry logic to handle transient OpenAI API errors.
 
     Args:
         text (str): Cleaned main content of the web page to be analyzed.
         url (str): The original URL of the web page (used for metadata and screenshot).
+        take_screenshot (bool): Whether to capture a screenshot of the page (default is False).
 
     Returns:
         ScrapedItem: A validated data model with extracted fields and optional screenshot path.
@@ -94,11 +97,13 @@ async def extract_structured_data(text: str, url: str) -> ScrapedItem:
             logger.exception(MSG_ERROR_LLM_JSON_DECODE_LOG)
             raise ValueError(MSG_ERROR_JSON_DECODING_FAILED.format(error=e)) from e
 
-        try:
-            screenshot = await capture_screenshot(url, output_dir=Path(settings.screenshot_dir))
-            raw_data["screenshot_path"] = screenshot
-        except Exception:
-            logger.exception(MSG_ERROR_SCREENSHOT_FAILED)
+        # 🖼️ Conditional Screenshot
+        if take_screenshot:
+            try:
+                screenshot = await capture_screenshot(url, output_dir=Path(settings.screenshot_dir))
+                raw_data["screenshot_path"] = screenshot
+            except Exception:
+                logger.exception(MSG_ERROR_SCREENSHOT_FAILED)
 
         logger.debug(MSG_DEBUG_PARSED_STRUCTURED_DATA, raw_data)
         return ScrapedItem(url=HttpUrl(url), **raw_data)
