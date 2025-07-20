@@ -117,3 +117,12 @@ exclude_lines = [
   "if TYPE_CHECKING:",
   "raise NotImplementedError"
 ]
+
+[tool.poetry]
+name = "agentic-scraper"
+version = "0.0.0"  # placeholder required
+[tool.poetry-dynamic-versioning]
+enable = true
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"

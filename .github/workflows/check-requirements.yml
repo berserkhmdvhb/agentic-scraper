@@ -1,0 +1,36 @@
+name: 🔁 Check requirements.txt Sync
+
+on:
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "requirements.txt"
+  push:
+    paths:
+      - "pyproject.toml"
+      - "requirements.txt"
+
+jobs:
+  check-requirements:
+    name: Ensure requirements.txt is up to date with pyproject.toml
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ✅ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 📦 Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: 📥 Install Make dependencies (if needed)
+        run: sudo apt-get update && sudo apt-get install -y make
+
+      - name: 🔍 Check requirements.txt sync
+        run: make check-requirements-sync

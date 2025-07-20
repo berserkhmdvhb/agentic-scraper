@@ -6,7 +6,8 @@
         env-check env-debug env-clear env-show dotenv-debug env-example \
         check-updates check-toml \
         clean clean-logs clean-cache clean-coverage clean-build clean-pyc clean-all \
-        build publish publish-test upload-coverage
+        build publish publish-test upload-coverage \
+		export-requirements check-requirements-sync
 
 PYTHON := python
 
@@ -52,7 +53,9 @@ help::
 	@echo "  publish-test           Upload to TestPyPI"
 	@echo "  publish                Upload to PyPI"
 	@echo "  upload-coverage        Upload coverage report to Coveralls"
-
+	@echo "  export-requirements    Export requirements.txt from pyproject.toml"
+	@echo "  check-requirements-sync  Check if requirements.txt matches pyproject.toml"
+	
 install:
 	$(PYTHON) -m pip install -e .
 
@@ -180,3 +183,18 @@ publish:
 
 upload-coverage:
 	coveralls
+
+export-requirements:
+	@echo "Exporting requirements.txt from pyproject.toml..."
+	poetry export --without-hashes -f requirements.txt -o requirements.txt
+	@echo "Done: requirements.txt updated."
+
+check-requirements-sync:
+	@echo "Checking if requirements.txt is up-to-date..."
+	poetry export --without-hashes -f requirements.txt -o .requirements.txt.check
+	@$(PYTHON) -c "import sys; a=open('requirements.txt').read(); b=open('.requirements.txt.check').read(); sys.exit(0) if a == b else sys.exit(1)" || \
+		(echo "" && \
+		echo "requirements.txt is out of sync with pyproject.toml." && \
+		echo "   Run 'make export-requirements' to fix it." && exit 1)
+	@$(PYTHON) -c "import os; os.remove('.requirements.txt.check')"
+	@echo "requirements.txt is in sync."
