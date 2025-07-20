@@ -47,43 +47,83 @@ Built with modern Python, this project blends async scraping, schema-aware extra
 
 ---
 
-## 🛠 Getting Started
+## 🚀 Usage
 
-### 1. Clone the Repo
+This section shows how to install, run, and integrate **Agentic Scraper**, whether you're an end user exploring LLM-powered extraction or a developer integrating scraping into your workflow.
+
+### Installation
+
+#### 👤 For Users
+
+##### GitHub (Recommended)
 
 ```bash
-git clone https://github.com/yourusername/agentic-scraper.git
-cd agentic-scraper
+pip install git+https://github.com/berserkhmdvhb/agentic-scraper.git
 ```
+> Note: 📦 This installs all dependencies declared in pyproject.toml.
+> Note: You must also install and configure [Playwright](https://playwright.dev/python/docs/intro) separately if you need screenshot support.
 
-### 2. Install Dependencies
+##### Alternatively (pip + requirements.txt)
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Or, if using Poetry:
+> ⚠️ This file is auto-generated from pyproject.toml using poetry export. Keep it in sync during development.
+
+#### 💼 For Developers
+
+##### Clone and Install in Editable Mode
 
 ```bash
+git clone https://github.com/berserkhmdvhb/agentic-scraper.git
+cd agentic-scraper
+make develop
+```
+
+Alternatively:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 poetry install
 ```
 
-### 3. Set Up Environment
+---
 
-Create a `.env` file:
+### 💻 Run the App
 
-```
-OPENAI_API_KEY=your-key-here
-LOG_LEVEL=INFO
-```
-
-Optional config keys: `MAX_CONCURRENCY`, `LLM_MODEL`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT`
-
-### 4. Run the App
+Start the Streamlit UI locally:
 
 ```bash
 streamlit run src/agentic_scraper/frontend/app.py
 ```
+Or, if you prefer a shorter command:
+
+```bash
+python run.py
+```
+
+You'll be prompted to enter your OpenAI API key and URLs to scrape. Results will appear live, with metadata and screenshots exported.
+
+---
+
+### 🔢 Set Up Environment
+
+Create a `.env` file in the project root:
+
+```ini
+OPENAI_API_KEY=your-key-here
+LOG_LEVEL=INFO
+```
+
+Optional config keys:
+
+* `MAX_CONCURRENCY`
+* `LLM_MODEL`
+* `LOG_MAX_BYTES`
+* `LOG_BACKUP_COUNT`
+
 
 ---
 
