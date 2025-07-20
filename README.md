@@ -1,3 +1,7 @@
+[![License](https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper)](LICENSE)
+[![Tests](https://github.com/berserkhmdvhb/charfinder/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/charfinder/actions/workflows/tests.yml)
+[![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
+
 # 🕵️ Agentic Scraper
 
 **Agentic Scraper** is an intelligent, LLM-powered web scraping tool with a Streamlit interface. It processes multiple URLs in parallel, extracts structured data using adaptive agent logic, and presents results in an interactive UI.
