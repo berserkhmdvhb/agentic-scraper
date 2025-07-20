@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import sys
 
 import pandas as pd
@@ -9,13 +8,13 @@ import streamlit as st
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from st_aggrid import AgGrid, GridOptionsBuilder  # 👈 NEW
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 from agentic_scraper.backend.config.messages import (
     MSG_INFO_EXTRACTION_COMPLETE,
     MSG_INFO_FETCHING_URLS,
 )
-from agentic_scraper.backend.core.logger_setup import setup_logging
+from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import get_environment
 from agentic_scraper.backend.scraper.agent import extract_structured_data
 from agentic_scraper.backend.scraper.fetcher import fetch_all
@@ -25,7 +24,7 @@ from agentic_scraper.backend.utils.validators import clean_input_urls, deduplica
 
 # --- LOGGING SETUP ---
 setup_logging(reset=True)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # --- STREAMLIT CONFIG ---
 st.set_page_config(page_title="Agentic Scraper", layout="wide")
@@ -37,6 +36,7 @@ st.markdown("Extract structured data from any list of URLs using LLM-powered par
 # --- INPUT METHOD ---
 input_method = st.radio("Input method:", ["Paste URLs", "Upload .txt file"], horizontal=True)
 
+raw_input = ""
 if input_method == "Paste URLs":
     raw_input = st.text_area(
         "Enter one URL per line:",
@@ -44,15 +44,19 @@ if input_method == "Paste URLs":
         placeholder="https://example.com\nhttps://another.com",
     )
 elif input_method == "Upload .txt file":
-    uploaded_file = st.file_uploader("Upload a .txt file with URLs")
-    raw_input = uploaded_file.read().decode("utf-8") if uploaded_file else ""
+    uploaded_file = st.file_uploader("Upload a .txt file with URLs", type=["txt"])
+    if uploaded_file:
+        try:
+            raw_input = uploaded_file.read().decode("utf-8")
+        except UnicodeDecodeError:
+            st.error("\u274c Unable to decode file. Please upload a UTF-8 encoded .txt file.")
 
 
 # --- CACHED PROCESSING PIPELINE ---
 @st.cache_data(show_spinner=False)
 def run_pipeline(urls: list[str]) -> list[ScrapedItem]:
     async def pipeline() -> list[ScrapedItem]:
-        logger.info(MSG_INFO_FETCHING_URLS, len(urls))
+        logger.info(MSG_INFO_FETCHING_URLS.format(len(urls)))
         fetch_results = await fetch_all(urls)
         tasks = []
         for url, html in fetch_results.items():
@@ -60,8 +64,14 @@ def run_pipeline(urls: list[str]) -> list[ScrapedItem]:
                 continue
             text = extract_main_text(html)
             tasks.append(extract_structured_data(text, url=url))
+
+        num_failures = sum(
+            1 for html in fetch_results.values() if html.startswith("__FETCH_ERROR__")
+        )
+        logger.info("Skipped %d URLs due to fetch errors", num_failures)
+
         results = await asyncio.gather(*tasks)
-        logger.info(MSG_INFO_EXTRACTION_COMPLETE, len(results))
+        logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(len(results)))
         return results
 
     return asyncio.run(pipeline())
@@ -70,7 +80,14 @@ def run_pipeline(urls: list[str]) -> list[ScrapedItem]:
 # --- EXECUTION TRIGGER ---
 if st.button("🚀 Run Extraction") and raw_input.strip():
     with st.spinner("Validating URLs..."):
-        urls = deduplicate_urls(clean_input_urls(raw_input))
+        all_lines = [line.strip() for line in raw_input.strip().splitlines() if line.strip()]
+        valid_urls = clean_input_urls(raw_input)
+        invalid_lines = [line for line in all_lines if line not in valid_urls]
+
+        urls = deduplicate_urls(valid_urls)
+
+    if invalid_lines:
+        st.info(f"ℹ️ {len(invalid_lines)} line(s) were skipped due to invalid URL formatting.")  # noqa: RUF001
 
     if not urls:
         st.warning("No valid URLs found.")
@@ -98,7 +115,6 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
         ]
     )
 
-    # Reorder columns for UX: move screenshot_path to the end
     if "screenshot_path" in df_extracted_data.columns:
         df_extracted_data = df_extracted_data[
             [col for col in df_extracted_data.columns if col != "screenshot_path"]
@@ -127,7 +143,6 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
             theme="streamlit",
         )
 
-        # --- DOWNLOADS ---
         st.download_button(
             "💾 Download JSON",
             df_extracted_data.to_json(orient="records", indent=2),
@@ -154,7 +169,6 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
 
 elif "extracted_items" in st.session_state and not st.session_state.extracted_items:
     st.error("No successful extractions.")
-
 
 # --- RESET BUTTON ---
 if st.sidebar.button("🔄 Reset"):

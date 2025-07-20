@@ -10,6 +10,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_SCREENSHOT_FAILED,
     MSG_INFO_SCREENSHOT_SAVED,
 )
+from agentic_scraper.backend.utils.validators import is_valid_url, validate_path
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,14 @@ async def capture_screenshot(url: str, output_dir: Path) -> str | None:
     Returns:
         str | None: Path to the saved screenshot, or None if failed.
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if not is_valid_url(url):
+        logger.error("Invalid URL passed to capture_screenshot: %s", url)
+        return None
 
-    # Use title or fallback to domain
+    output_path = validate_path(str(output_dir))
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Use domain for base filename
     domain = urlparse(url).netloc
     base = slugify(domain)
 
@@ -40,7 +46,7 @@ async def capture_screenshot(url: str, output_dir: Path) -> str | None:
     hash_suffix = hashlib.blake2b(url.encode(), digest_size=4).hexdigest()
     filename = f"{base}-{hash_suffix}.png"
 
-    file_path = output_dir / filename
+    file_path = output_path / filename
 
     try:
         async with async_playwright() as p:

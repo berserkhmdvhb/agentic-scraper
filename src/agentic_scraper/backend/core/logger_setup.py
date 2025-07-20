@@ -1,5 +1,6 @@
 import logging
 
+from agentic_scraper.backend.config.constants import LOGGER_NAME
 from agentic_scraper.backend.core.logger_helpers import (
     CustomRotatingFileHandler,
     EnvironmentFilter,
@@ -13,8 +14,6 @@ from agentic_scraper.backend.core.settings import (
     get_log_level,
     get_log_max_bytes,
 )
-
-LOGGER_NAME = "agentic_scraper"
 
 
 def get_logger() -> logging.Logger:

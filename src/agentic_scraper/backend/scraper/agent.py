@@ -9,6 +9,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_API_EXCEPTION,
+    MSG_DEBUG_PARSED_STRUCTURED_DATA,
     MSG_ERROR_API,
     MSG_ERROR_API_LOG,
     MSG_ERROR_JSON_DECODING_FAILED,
@@ -99,7 +100,7 @@ async def extract_structured_data(text: str, url: str) -> ScrapedItem:
         except Exception:
             logger.exception(MSG_ERROR_SCREENSHOT_FAILED)
 
-        logger.debug("Parsed structured data: %s", raw_data)
+        logger.debug(MSG_DEBUG_PARSED_STRUCTURED_DATA, raw_data)
         return ScrapedItem(url=HttpUrl(url), **raw_data)
 
     except RateLimitError as e:

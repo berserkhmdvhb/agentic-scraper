@@ -1,60 +1,86 @@
 import logging
 from functools import cache
 from pathlib import Path
-from typing import Literal
+from typing import Any
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
+from agentic_scraper.backend.config.aliases import (
+    Environment,
+    LogFormat,
+    LogLevel,
+    OpenAIModel,
+)
+from agentic_scraper.backend.config.constants import (
+    DEFAULT_ENV,
+    DEFAULT_LLM_MAX_TOKENS,
+    DEFAULT_LLM_TEMPERATURE,
+    DEFAULT_LOG_BACKUP_COUNT,
+    DEFAULT_LOG_DIR,
+    DEFAULT_LOG_FORMAT,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_MAX_BYTES,
+    DEFAULT_MAX_CONCURRENT_REQUESTS,
+    DEFAULT_OPENAI_MODEL,
+    DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_SCREENSHOT_DIR,
+    DEFAULT_SCREENSHOT_ENABLED,
+    PROJECT_NAME,
+)
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_API_KEY_PREFIX,
-    MSG_DEBUG_CONCURRENCY,
-    MSG_DEBUG_DEBUG_MODE,
-    MSG_DEBUG_ENVIRONMENT,
-    MSG_DEBUG_MAX_TOKENS,
-    MSG_DEBUG_PROJECT_ID,
     MSG_DEBUG_SETTINGS_LOADED,
-    MSG_DEBUG_TEMPERATURE,
-    MSG_DEBUG_USING_MODEL,
     MSG_ERROR_MISSING_API_KEY,
 )
+from agentic_scraper.backend.core.settings_helpers import validated_settings
 
 logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
     # General
-    project_name: str = "Agentic Scraper"
+    project_name: str = PROJECT_NAME
     debug_mode: bool = Field(default=False, validation_alias="DEBUG")
-    env: str = Field(default="DEV", validation_alias="ENV")
+    env: Environment = Field(default=DEFAULT_ENV, validation_alias="ENV")
 
     # OpenAI
     openai_api_key: str = Field(..., validation_alias="OPENAI_API_KEY")
-    openai_model: str = "gpt-3.5-turbo"
+    openai_model: OpenAIModel = Field(default=DEFAULT_OPENAI_MODEL, validation_alias="OPENAI_MODEL")
     openai_project_id: str | None = Field(default=None, validation_alias="OPENAI_PROJECT_ID")
 
     # Network
-    request_timeout: int = 10
+    request_timeout: int = DEFAULT_REQUEST_TIMEOUT
     max_concurrent_requests: int = Field(
-        default=10,
+        default=DEFAULT_MAX_CONCURRENT_REQUESTS,
         validation_alias="MAX_CONCURRENT_REQUESTS",
         description="Max simultaneous fetches",
     )
 
     # Agent behavior
-    llm_max_tokens: int = Field(default=500, validation_alias="LLM_MAX_TOKENS")
-    llm_temperature: float = Field(default=0.0, validation_alias="LLM_TEMPERATURE")
+    llm_max_tokens: int = Field(default=DEFAULT_LLM_MAX_TOKENS, validation_alias="LLM_MAX_TOKENS")
+    llm_temperature: float = Field(
+        default=DEFAULT_LLM_TEMPERATURE, validation_alias="LLM_TEMPERATURE"
+    )
 
     # Screenshotting
-    screenshot_enabled: bool = Field(default=True, validation_alias="SCREENSHOT_ENABLED")
-    screenshot_dir: str = Field(default="screenshots", validation_alias="SCREENSHOT_DIR")
+    screenshot_enabled: bool = Field(
+        default=DEFAULT_SCREENSHOT_ENABLED, validation_alias="SCREENSHOT_ENABLED"
+    )
+    screenshot_dir: str = Field(default=DEFAULT_SCREENSHOT_DIR, validation_alias="SCREENSHOT_DIR")
 
     # Logging
-    log_dir: str = Field(default="logs", validation_alias="LOG_DIR")
-    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
-    log_max_bytes: int = Field(default=1_000_000, validation_alias="LOG_MAX_BYTES")
-    log_backup_count: int = Field(default=5, validation_alias="LOG_BACKUP_COUNT")
-    log_format: Literal["plain", "json"] = Field(default="plain", validation_alias="LOG_FORMAT")
+    log_dir: str = Field(default=DEFAULT_LOG_DIR, validation_alias="LOG_DIR")
+    log_level: LogLevel = Field(default=DEFAULT_LOG_LEVEL, validation_alias="LOG_LEVEL")
+    log_max_bytes: int = Field(default=DEFAULT_LOG_MAX_BYTES, validation_alias="LOG_MAX_BYTES")
+    log_backup_count: int = Field(
+        default=DEFAULT_LOG_BACKUP_COUNT, validation_alias="LOG_BACKUP_COUNT"
+    )
+    log_format: LogFormat = Field(default=DEFAULT_LOG_FORMAT, validation_alias="LOG_FORMAT")
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_validations(cls, values: dict[str, Any]) -> dict[str, Any]:
+        return validated_settings(values)
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
@@ -62,17 +88,6 @@ class Settings(BaseSettings):
 
         if not self.openai_api_key:
             raise ValueError(MSG_ERROR_MISSING_API_KEY)
-
-        logger.debug(MSG_DEBUG_USING_MODEL, self.openai_model)
-        logger.debug(MSG_DEBUG_MAX_TOKENS, self.llm_max_tokens)
-        logger.debug(MSG_DEBUG_TEMPERATURE, self.llm_temperature)
-        logger.debug(MSG_DEBUG_API_KEY_PREFIX, self.openai_api_key[:8])
-        logger.debug(MSG_DEBUG_PROJECT_ID, self.openai_project_id)
-
-        logger.debug(MSG_DEBUG_ENVIRONMENT, self.env)
-        logger.debug(MSG_DEBUG_DEBUG_MODE, self.debug_mode)
-        logger.debug(MSG_DEBUG_CONCURRENCY, self.max_concurrent_requests)
-
         return self
 
     model_config = {
