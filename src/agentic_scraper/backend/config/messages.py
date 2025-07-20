@@ -1,6 +1,7 @@
 # frontend/app.py
 MSG_INFO_FETCHING_URLS = "Fetching and processing {} URLs"
 MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for {} URLs"
+MSG_INFO_FETCH_SKIPPED = "Skipped %d URLs due to fetch errors"
 
 # ---------------------------------------------------------------------
 # core/
@@ -77,6 +78,11 @@ MSG_INFO_NO_AUTHOR = "No author meta tag found."
 # screenshotter.py
 MSG_ERROR_SCREENSHOT_FAILED = "Failed to capture screenshot"
 MSG_INFO_SCREENSHOT_SAVED = "Screenshot saved: %s"
+
+# worker_pool.py
+MSG_ERROR_WORKER_FAILED = "Worker failed for URL: %s"
+MSG_WARNING_WORKER_FAILED_SHORT = "Worker failed for URL: %s: %s"
+
 
 # ---------------------------------------------------------------------
 # common/logging.py
