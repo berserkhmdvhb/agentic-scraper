@@ -120,8 +120,8 @@ env-debug:
 	@echo "Debug: $${AGENTICSCRAPER_DEBUG_ENV_LOAD:-not set}"
 
 env-clear:
-	@echo "Clearing selected AGENTICSCRAPER_* and DOTENV_PATH environment variables..."
-	@$(PYTHON) -c "import os; vars = ['AGENTICSCRAPER_ENV','AGENTICSCRAPER_LOG_MAX_BYTES','AGENTICSCRAPER_LOG_BACKUP_COUNT','AGENTICSCRAPER_LOG_LEVEL','AGENTICSCRAPER_DEBUG_ENV_LOAD','AGENTICSCRAPER_CACHE_FILE_PATH','AGENTICSCRAPER_ROOT_DIR_FOR_TESTS','AGENTICSCRAPER_MATCH_THRESHOLD','AGENTICSCRAPER_NORMALIZATION_PROFILE','AGENTICSCRAPER_COLOR_MODE','AGENTICSCRAPER_SHOW_SCORE','DOTENV_PATH','UNICODE_DATA_URL','UNICODE_DATA_FILE_PATH']; [print(f'  Unsetting {v}') or os.environ.pop(v, None) for v in vars if v in os.environ]"
+	@echo "Clearing selected AGENTICSCRAPER-related and DOTENV_PATH environment variables..."
+	@$(PYTHON) -c "import os; vars = ['ENV','DEBUG','OPENAI_API_KEY','OPENAI_PROJECT_ID','LLM_MAX_TOKENS','LLM_TEMPERATURE','MAX_CONCURRENT_REQUESTS','SCREENSHOT_ENABLED','SCREENSHOT_DIR','LOG_LEVEL','LOG_DIR','LOG_MAX_BYTES','LOG_BACKUP_COUNT','LOG_FORMAT','DOTENV_PATH']; [print(f'  Unsetting {v}') or os.environ.pop(v, None) for v in vars if v in os.environ]"
 
 env-show:
 	@echo "Currently set AGENTICSCRAPER_* and DOTENV_PATH environment variables:"

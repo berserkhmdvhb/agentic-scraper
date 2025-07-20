@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -11,16 +12,22 @@ from agentic_scraper.backend.config.constants import (
     VALID_OPENAI_MODELS,
 )
 from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_SKIPPED_INVALID_URL,
+    MSG_ERROR_EMPTY_STRING,
     MSG_ERROR_INVALID_BACKUP_COUNT,
     MSG_ERROR_INVALID_CONCURRENCY,
     MSG_ERROR_INVALID_ENV,
     MSG_ERROR_INVALID_LOG_BYTES,
     MSG_ERROR_INVALID_LOG_LEVEL,
     MSG_ERROR_INVALID_MODEL_NAME,
+    MSG_ERROR_INVALID_PRICE,
     MSG_ERROR_INVALID_TEMPERATURE,
     MSG_ERROR_INVALID_TIMEOUT,
     MSG_ERROR_INVALID_TOKENS,
+    MSG_ERROR_NOT_A_DIRECTORY,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def format_with_valid_options(
@@ -61,7 +68,15 @@ def clean_input_urls(raw: str) -> list[str]:
     """
     lines = raw.strip().splitlines()
     cleaned = [line.strip() for line in lines if line.strip()]
-    return [url for url in cleaned if is_valid_url(url)]
+
+    valid_urls = []
+    for url in cleaned:
+        if is_valid_url(url):
+            valid_urls.append(url)
+        else:
+            logger.debug(MSG_DEBUG_SKIPPED_INVALID_URL.format(url=url))
+
+    return valid_urls
 
 
 def deduplicate_urls(urls: list[str]) -> list[str]:
@@ -183,3 +198,26 @@ def validate_env(env: str) -> str:
             )
         )
     return env.upper()
+
+
+def validate_optional_str(value: str | None, field_name: str = "value") -> str | None:
+    if value is None:
+        return None
+    if value.strip() == "":
+        raise ValueError(MSG_ERROR_EMPTY_STRING.format(field=field_name))
+    return value
+
+
+def validate_price(value: float | None) -> float | None:
+    """Ensure price is non-negative if present."""
+    if value is not None and value < 0:
+        raise ValueError(MSG_ERROR_INVALID_PRICE.format(value=value))
+    return value
+
+
+def ensure_directory(path: Path) -> Path:
+    path = path.resolve()
+    if path.exists() and not path.is_dir():
+        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY % path)
+    path.mkdir(parents=True, exist_ok=True)
+    return path

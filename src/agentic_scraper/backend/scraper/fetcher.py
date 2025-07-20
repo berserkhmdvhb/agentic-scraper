@@ -51,7 +51,7 @@ async def fetch_all(
                 try:
                     html = await fetch_url(client, url)
                     results[url] = html
-                    logger.info("%s: %s", MSG_INFO_FETCH_SUCCESS, url)
+                    logger.info(MSG_INFO_FETCH_SUCCESS.format(url))
                 except (httpx.HTTPError, httpx.RequestError, asyncio.TimeoutError) as e:
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
                     logger.warning("%s: %s (%s)", MSG_WARNING_FETCH_FAILED, url, e)
