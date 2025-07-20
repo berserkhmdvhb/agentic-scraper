@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from openai import APIError, AsyncOpenAI, OpenAIError, RateLimitError
+from playwright.async_api import Error as PlaywrightError
 from pydantic import HttpUrl
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
@@ -11,17 +12,16 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_API_EXCEPTION,
     MSG_DEBUG_PARSED_STRUCTURED_DATA,
     MSG_ERROR_API,
-    MSG_ERROR_API_LOG,
-    MSG_ERROR_JSON_DECODING_FAILED,
+    MSG_ERROR_API_LOG_WITH_URL,
+    MSG_ERROR_JSON_DECODING_FAILED_WITH_URL,
     MSG_ERROR_LLM_JSON_DECODE_LOG,
-    MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT,
-    MSG_ERROR_LLM_RESPONSE_MALFORMED,
-    MSG_ERROR_MISSING_LLM_CONTENT,
+    MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
+    MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL,
     MSG_ERROR_OPENAI_UNEXPECTED,
-    MSG_ERROR_OPENAI_UNEXPECTED_LOG,
-    MSG_ERROR_RATE_LIMIT,
-    MSG_ERROR_RATE_LIMIT_LOG,
-    MSG_ERROR_SCREENSHOT_FAILED,
+    MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL,
+    MSG_ERROR_RATE_LIMIT_DETAIL,
+    MSG_ERROR_RATE_LIMIT_LOG_WITH_URL,
+    MSG_ERROR_SCREENSHOT_FAILED_WITH_URL,
     MSG_SYSTEM_PROMPT,
 )
 from agentic_scraper.backend.core.settings import get_settings
@@ -44,30 +44,7 @@ client = AsyncOpenAI(api_key=settings.openai_api_key, project=settings.openai_pr
 )
 async def extract_structured_data(
     text: str, url: str, *, take_screenshot: bool = False
-) -> ScrapedItem:
-    """
-    Extract structured data from a page's text using a language model,
-    and optionally capture a screenshot of the source URL.
-
-    This function sends a prompt to the OpenAI API to extract structured
-    fields (e.g., title, price, author) from the provided page content.
-    If requested, it captures a full-page screenshot of the URL and
-    includes the screenshot path in the resulting data model.
-
-    The function includes retry logic to handle transient OpenAI API errors.
-
-    Args:
-        text (str): Cleaned main content of the web page to be analyzed.
-        url (str): The original URL of the web page (used for metadata and screenshot).
-        take_screenshot (bool): Whether to capture a screenshot of the page (default is False).
-
-    Returns:
-        ScrapedItem: A validated data model with extracted fields and optional screenshot path.
-
-    Raises:
-        ValueError: If the model response is empty, malformed, non-JSON, or if API errors occur.
-    """
-
+) -> ScrapedItem | None:
     messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": MSG_SYSTEM_PROMPT},
         {"role": "user", "content": text[:4000]},
@@ -83,40 +60,42 @@ async def extract_structured_data(
 
         try:
             content = response.choices[0].message.content
-        except (IndexError, AttributeError) as e:
-            logger.exception(MSG_ERROR_LLM_RESPONSE_MALFORMED)
-            raise ValueError(MSG_ERROR_MISSING_LLM_CONTENT) from e
+        except (IndexError, AttributeError):
+            logger.warning(MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL, url)
+            return None
 
         if content is None:
-            logger.error(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT)
-            raise ValueError(MSG_ERROR_MISSING_LLM_CONTENT)
+            logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL, url)
+            return None
 
         try:
             raw_data = json.loads(content)
         except json.JSONDecodeError as e:
-            logger.exception(MSG_ERROR_LLM_JSON_DECODE_LOG)
-            raise ValueError(MSG_ERROR_JSON_DECODING_FAILED.format(error=e)) from e
+            logger.warning(MSG_ERROR_JSON_DECODING_FAILED_WITH_URL, e, url)
+            logger.debug(MSG_ERROR_LLM_JSON_DECODE_LOG.format(e, url))
+            return None
 
-        # 🖼️ Conditional Screenshot
         if take_screenshot:
             try:
                 screenshot = await capture_screenshot(url, output_dir=Path(settings.screenshot_dir))
                 raw_data["screenshot_path"] = screenshot
-            except Exception:
-                logger.exception(MSG_ERROR_SCREENSHOT_FAILED)
+            except (PlaywrightError, OSError, ValueError):
+                logger.warning(MSG_ERROR_SCREENSHOT_FAILED_WITH_URL, url)
 
         logger.debug(MSG_DEBUG_PARSED_STRUCTURED_DATA, raw_data)
         return ScrapedItem(url=HttpUrl(url), **raw_data)
 
     except RateLimitError as e:
-        logger.exception(MSG_ERROR_RATE_LIMIT_LOG)
-        raise ValueError(MSG_ERROR_RATE_LIMIT) from e
+        logger.warning(MSG_ERROR_RATE_LIMIT_LOG_WITH_URL, url)
+        logger.debug(MSG_ERROR_RATE_LIMIT_DETAIL, e)
 
     except APIError as e:
-        logger.exception(MSG_ERROR_API_LOG)
+        logger.warning(MSG_ERROR_API_LOG_WITH_URL, url)
         logger.debug(MSG_DEBUG_API_EXCEPTION, exc_info=True)
-        raise ValueError(MSG_ERROR_API.format(error=e)) from e
+        logger.debug(MSG_ERROR_API.format(error=e))
 
     except OpenAIError as e:
-        logger.exception(MSG_ERROR_OPENAI_UNEXPECTED_LOG)
-        raise ValueError(MSG_ERROR_OPENAI_UNEXPECTED.format(error=e)) from e
+        logger.warning(MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL, url)
+        logger.debug(MSG_ERROR_OPENAI_UNEXPECTED.format(error=e))
+
+    return None

@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import httpx
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
+from tenacity import RetryError, retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from agentic_scraper.backend.config.constants import (
     FETCH_RETRY_ATTEMPTS,
@@ -52,6 +52,10 @@ async def fetch_all(
                     html = await fetch_url(client, url)
                     results[url] = html
                     logger.info(MSG_INFO_FETCH_SUCCESS.format(url))
+                except RetryError as e:
+                    cause = e.last_attempt.exception()
+                    results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {cause}"
+                    logger.warning("%s: %s (%s)", MSG_WARNING_FETCH_FAILED, url, cause)
                 except (httpx.HTTPError, httpx.RequestError, asyncio.TimeoutError) as e:
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
                     logger.warning("%s: %s (%s)", MSG_WARNING_FETCH_FAILED, url, e)

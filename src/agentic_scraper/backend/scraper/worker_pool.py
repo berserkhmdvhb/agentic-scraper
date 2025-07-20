@@ -31,10 +31,11 @@ async def worker(  # noqa: PLR0913
             url, text = await queue.get()
             try:
                 item = await extract_structured_data(text, url, take_screenshot=take_screenshot)
-                results.append(item)
+                if item is not None:
+                    results.append(item)
 
-                if on_item_processed:
-                    on_item_processed(item)
+                    if on_item_processed:
+                        on_item_processed(item)
 
             except Exception as e:
                 if log_tracebacks:
@@ -54,7 +55,7 @@ async def worker(  # noqa: PLR0913
 async def run_worker_pool(  # noqa: PLR0913
     inputs: list[ScrapeInput],
     *,
-    num_workers: int = 10,
+    concurrency: int = 10,
     take_screenshot: bool = False,
     max_queue_size: int | None = None,
     on_item_processed: OnSuccessCallback | None = None,
@@ -68,7 +69,7 @@ async def run_worker_pool(  # noqa: PLR0913
         inputs (list[ScrapeInput]):
             List of (url, cleaned_text) tuples.
 
-        num_workers (int):
+        concurrency (int):
             Number of concurrent workers.
 
         take_screenshot (bool):
@@ -106,7 +107,7 @@ async def run_worker_pool(  # noqa: PLR0913
                 log_tracebacks=log_tracebacks,
             )
         )
-        for _ in range(num_workers)
+        for _ in range(concurrency)
     ]
 
     await queue.join()

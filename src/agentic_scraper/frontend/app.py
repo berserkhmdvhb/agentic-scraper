@@ -40,8 +40,70 @@ st.markdown("Extract structured data from any list of URLs using LLM-powered par
 screenshot_enabled = st.sidebar.checkbox("📸 Enable Screenshot", value=False)
 st.session_state["screenshot_enabled"] = screenshot_enabled
 
-st.sidebar.markdown("### ⚙️ Performance Settings")
-num_workers = st.sidebar.slider("Concurrency (number of workers)", 1, 20, 10)
+with st.sidebar.expander("⚙️ Performance Settings", expanded=False):
+    
+    # ─── Concurrency Section ─────────────────────────────────────────────
+    st.markdown("### 🔷 Concurrency")
+
+    split = st.checkbox(
+        "🔧 Separate fetch and LLM controls",
+        help=(
+            "Enable this to control fetch and LLM concurrency separately.\n\n"
+            "Useful if:\n"
+            "• You want to fetch many pages but limit OpenAI load.\n"
+            "• You're tuning for different I/O vs compute bottlenecks."
+        ),
+    )
+
+    if split:
+        fetch_concurrency = st.slider(
+            "🌐 Fetch Concurrency",
+            min_value=1,
+            max_value=20,
+            value=10,
+            help="Max number of web pages fetched in parallel.",
+        )
+        llm_concurrency = st.slider(
+            "🤖 LLM Concurrency",
+            min_value=1,
+            max_value=20,
+            value=10,
+            help="Max number of pages sent to the AI model concurrently.",
+        )
+    else:
+        concurrency = st.slider(
+            "🔁 Max concurrency (fetch + LLM)",
+            min_value=1,
+            max_value=20,
+            value=10,
+            help=(
+                "Controls how many tasks run in parallel.\n\n"
+                "1. 🌐 Fetching: Limits how many web pages are fetched at the same time.\n"
+                "2. 🤖 LLM: Limits how many pages are processed by the AI model at once.\n\n"
+                "⚠️ High values may improve speed, but could hit rate limits or cause instability."
+            ),
+        )
+        fetch_concurrency = llm_concurrency = concurrency
+
+    # ─── Verbosity Section ───────────────────────────────────────────────
+    st.markdown("### 📣 Verbosity")
+
+    log_tracebacks = st.checkbox(
+        "🐞 Verbose error tracebacks",
+        value=False,
+        help=(
+            "When enabled, logs the full Python traceback if a scraping task fails.\n\n"
+            "✅ Use during development to debug issues.\n"
+            "🚫 Disable in production for cleaner logs.\n\n"
+            "Tracebacks include file names, line numbers, and full error context."
+        ),
+    )
+
+    # ─── Future: Parallelism Section ─────────────────────────────────────
+    # st.markdown("### 🧵 Parallelism")
+    # (To be added...)
+
+
 
 # --- INPUT METHOD ---
 input_method = st.radio("Input method:", ["Paste URLs", "Upload .txt file"], horizontal=True)
@@ -59,97 +121,99 @@ elif input_method == "Upload .txt file":
         try:
             raw_input = uploaded_file.read().decode("utf-8")
         except UnicodeDecodeError:
-            st.error("\u274c Unable to decode file. Please upload a UTF-8 encoded .txt file.")
-
+            st.error("❌ Unable to decode file. Please upload a UTF-8 encoded .txt file.")
 
 # --- EXECUTION TRIGGER ---
-if st.button("🚀 Run Extraction") and raw_input.strip():
-    with st.spinner("Validating URLs..."):
-        all_lines = [line.strip() for line in raw_input.strip().splitlines() if line.strip()]
-        valid_urls = clean_input_urls(raw_input)
-        invalid_lines = [line for line in all_lines if line not in valid_urls]
-
-        urls = deduplicate_urls(valid_urls)
-
-    if invalid_lines:
-        st.info(f"⚠️ {len(invalid_lines)} line(s) were skipped due to invalid URL formatting.")
-
-    if not urls:
-        st.warning("⚠️ No valid URLs found.")
-        st.session_state.valid_urls = []
-        st.session_state.extracted_items = []
+if st.button("🚀 Run Extraction"):
+    if not raw_input.strip():
+        st.warning("⚠️ Please provide at least one URL or upload a .txt file.")
     else:
-        st.session_state.valid_urls = urls
-        st.success(f"✅ {len(urls)} valid URLs detected.")
-        st.markdown("---")
+        # Proceed with normal validation + extraction
+        with st.spinner("Validating URLs..."):
+            all_lines = [line.strip() for line in raw_input.strip().splitlines() if line.strip()]
+            valid_urls = clean_input_urls(raw_input)
+            invalid_lines = [line for line in all_lines if line not in valid_urls]
 
-        with st.status("🔄 **Running scraping pipeline...**", expanded=True) as status:
-            st.write(f"📥 **Fetching `{len(urls)}` URLs...**")
+            urls = deduplicate_urls(valid_urls)
 
-            async def run_async_extraction() -> ScrapeResultWithSkipCount:
-                logger.info(MSG_INFO_FETCHING_URLS.format(len(urls)))
-                fetch_results = await fetch_all(urls)
+        if invalid_lines:
+            st.info(f"⚠️ {len(invalid_lines)} line(s) were skipped due to invalid URL formatting.")
 
-                skipped = 0
-                inputs = []
-                for url, html in fetch_results.items():
-                    if html.startswith("__FETCH_ERROR__"):
-                        skipped += 1
-                        continue
-                    text = extract_main_text(html)
-                    inputs.append((url, text))
+        if not urls:
+            st.warning("⚠️ No valid URLs found.")
+            st.session_state.valid_urls = []
+            st.session_state.extracted_items = []
+        else:
+            st.session_state.valid_urls = urls
+            st.success(f"✅ {len(urls)} valid URLs detected.")
+            st.markdown("---")
 
-                logger.info(MSG_INFO_FETCH_SKIPPED, skipped)
-                processed = 0
-                status_area = st.empty()
+            with st.status("🔄 **Running scraping pipeline...**", expanded=True) as status:
+                st.write(f"📥 **Fetching `{len(urls)}` URLs...**")
 
-                def on_item_processed(item: ScrapedItem) -> None:
-                    nonlocal processed
-                    processed += 1
-                    status_area.write(f"✅ {processed}/{len(inputs)}: {item.url}")
+                async def run_async_extraction() -> ScrapeResultWithSkipCount:
+                    logger.info(MSG_INFO_FETCHING_URLS.format(len(urls)))
+                    fetch_results = await fetch_all(urls, concurrency=fetch_concurrency)
 
-                def on_error(url: str, e: Exception) -> None:
-                    st.warning(f"⚠️ Failed to process {url}: {e}")
+                    skipped = 0
+                    inputs = []
+                    for url, html in fetch_results.items():
+                        if html.startswith("__FETCH_ERROR__"):
+                            skipped += 1
+                            continue
+                        text = extract_main_text(html)
+                        inputs.append((url, text))
 
-                items = await run_worker_pool(
-                    inputs=inputs,
-                    num_workers=num_workers,
-                    take_screenshot=screenshot_enabled,
-                    on_item_processed=on_item_processed,
-                    on_error=on_error,
-                    log_tracebacks=False,
-                )
+                    logger.info(MSG_INFO_FETCH_SKIPPED, skipped)
+                    processed = 0
+                    status_area = st.empty()
 
-                logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(len(items)))
-                return items, skipped
+                    def on_item_processed(item: ScrapedItem) -> None:
+                        nonlocal processed
+                        processed += 1
+                        status_area.write(f"✅ {processed}/{len(inputs)}: {item.url}")
 
-            try:
-                items, skipped = asyncio.run(run_async_extraction())
+                    def on_error(url: str, e: Exception) -> None:
+                        st.warning(f"⚠️ Failed to process {url}: {e}")
 
-                if items:
-                    st.write(f"✅ **Extracted structured data from `{len(items)}` URLs.**")
-                    if skipped > 0:
-                        st.warning(f"⚠️ Skipped `{skipped}` URL(s) due to fetch or parse errors.")
-                else:
-                    st.write("⚠️ No structured data extracted.")
+                    items = await run_worker_pool(
+                        inputs=inputs,
+                        concurrency=llm_concurrency,
+                        take_screenshot=screenshot_enabled,
+                        on_item_processed=on_item_processed,
+                        on_error=on_error,
+                        log_tracebacks=log_tracebacks,
+                    )
 
-                status.update(label="✅ **Scraping completed!**", state="complete")
+                    logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(len(items)))
+                    return items, skipped
 
-                if items:
-                    with st.expander("🔍 View individual results"):
-                        for item in items:
-                            st.markdown(
-                                f"- 🔗 [{item.url}]({item.url}) — ✅ **{item.title or 'Untitled'}**"
-                            )
+                try:
+                    items, skipped = asyncio.run(run_async_extraction())
 
-            except ValueError as e:
-                st.error(f"❌ LLM extraction failed: {e}")
-                st.write("🚫 Aborting due to an error.")
-                status.update(label="❌ **Error during scraping**", state="error")
-                items = []
+                    if items:
+                        st.write(f"✅ **Extracted structured data from `{len(items)}` URLs.**")
+                        if skipped > 0:
+                            st.warning(f"⚠️ Skipped {skipped} URL(s) due to fetch or parse errors.")
+                    else:
+                        st.write("⚠️ No structured data extracted.")
 
-            st.session_state.extracted_items = items
+                    status.update(label="✅ **Scraping completed!**", state="complete")
 
+                    if items:
+                        with st.expander("🔍 View individual results"):
+                            for item in items:
+                                st.markdown(
+                                    f"- 🔗 [{item.url}]({item.url}) — ✅ **{item.title or 'Untitled'}**"
+                                )
+
+                except ValueError as e:
+                    st.error(f"❌ LLM extraction failed: {e}")
+                    st.write("🚫 Aborting due to an error.")
+                    status.update(label="❌ **Error during scraping**", state="error")
+                    items = []
+
+                st.session_state.extracted_items = items
 
 # --- RESULTS DISPLAY ---
 if "extracted_items" in st.session_state and st.session_state.extracted_items:
