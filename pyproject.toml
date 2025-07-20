@@ -1,7 +1,7 @@
 [project]
 name = "agentic-scraper"
 dynamic = ["version"]
-description = "A modular, async, LLM-powered web scraper with a Streamlit interface."
+description = "LLM-powered web scraper that extracts structured data (title, price, author, etc.) from URLs using OpenAI, async Python, and a Streamlit UI."
 authors = [{ name = "Hamed VAHEB", email = "hamed.vaheb@protonmail.com" }]
 keywords = ["scraping", "llm", "streamlit", "agent", "openai", "web"]
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -45,6 +45,7 @@ dev = [
   "coveralls>=3.3.2 ; python_version < '3.13'",
   "mypy",
   "pytest",
+  "pytest-asyncio",
   "pytest-cov",
   "pytest-watch",
   "ruff",
@@ -100,8 +101,9 @@ per-file-ignores = {"tests/*" = ["S101", "S603"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--maxfail=1 -v"
-norecursedirs = ["tests/cli/old"]
+addopts = ["--maxfail=1", "-v", "--ignore=tests/manual"]
+norecursedirs = ["old"]
+pythonpath = ["src"]
 filterwarnings = [
   "ignore::pytest.PytestUnhandledThreadExceptionWarning"
 ]

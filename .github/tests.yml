@@ -1,0 +1,81 @@
+name: Tests
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: ✅ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧭 Show runner context
+        run: |
+          echo "OS: $(uname -a)"
+          echo "Python: $(python --version)"
+          echo "Shell: $SHELL"
+
+      - name: 🐍 Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 📦 Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: 📥 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: 🎨 Format check (dry run)
+        run: make fmt-check
+
+      - name: 🔍 Ruff lint check
+        run: make lint-ruff
+
+      - name: 🔎 Type checking
+        run: make type-check
+
+      - name: 🧪 Run tests with coverage (XML)
+        run: make test-coverage-xml
+
+      - name: ✅ Assert coverage.xml exists
+        run: test -f coverage.xml
+
+      - name: 📤 Upload coverage report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.python-version }}-${{ github.run_id }}
+          path: coverage.xml
+
+      - name: 📈 Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+  refresh-badge:
+    name: 🔁 Refresh Coverage Badge
+    needs: test
+    if: ${{ success() && github.ref == 'refs/heads/main' }}
+    uses: ./.github/workflows/badge-refresh.yml
