@@ -41,7 +41,6 @@ screenshot_enabled = st.sidebar.checkbox("📸 Enable Screenshot", value=False)
 st.session_state["screenshot_enabled"] = screenshot_enabled
 
 with st.sidebar.expander("⚙️ Performance Settings", expanded=False):
-    
     # ─── Concurrency Section ─────────────────────────────────────────────
     st.markdown("### 🔷 Concurrency")
 
@@ -98,11 +97,6 @@ with st.sidebar.expander("⚙️ Performance Settings", expanded=False):
             "Tracebacks include file names, line numbers, and full error context."
         ),
     )
-
-    # ─── Future: Parallelism Section ─────────────────────────────────────
-    # st.markdown("### 🧵 Parallelism")
-    # (To be added...)
-
 
 
 # --- INPUT METHOD ---
@@ -203,9 +197,8 @@ if st.button("🚀 Run Extraction"):
                     if items:
                         with st.expander("🔍 View individual results"):
                             for item in items:
-                                st.markdown(
-                                    f"- 🔗 [{item.url}]({item.url}) — ✅ **{item.title or 'Untitled'}**"
-                                )
+                                title = item.title or "Untitled"
+                                st.markdown(f"- 🔗 [{item.url}]({item.url}) — ✅ **{title}**")
 
                 except ValueError as e:
                     st.error(f"❌ LLM extraction failed: {e}")
