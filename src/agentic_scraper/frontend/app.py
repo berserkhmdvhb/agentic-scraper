@@ -34,7 +34,7 @@ st.title("🕵️ Agentic Scraper")
 st.markdown("Extract structured data from any list of URLs using LLM-powered parsing.")
 
 # --- SIDEBAR OPTIONS ---
-screenshot_enabled = st.sidebar.checkbox("📸 Enable Screenshot Preview", value=False)
+screenshot_enabled = st.sidebar.checkbox("📸 Enable Screenshot", value=False)
 st.session_state["screenshot_enabled"] = screenshot_enabled
 
 # --- INPUT METHOD ---
@@ -91,27 +91,49 @@ if st.button("🚀 Run Extraction") and raw_input.strip():
         urls = deduplicate_urls(valid_urls)
 
     if invalid_lines:
-        st.info(f"ℹ️ {len(invalid_lines)} line(s) were skipped due to invalid URL formatting.")  # noqa: RUF001
+        st.info(f"⚠️ {len(invalid_lines)} line(s) were skipped due to invalid URL formatting.")
 
     if not urls:
-        st.warning("No valid URLs found.")
+        st.warning("⚠️ No valid URLs found.")
         st.session_state.valid_urls = []
         st.session_state.extracted_items = []
     else:
         st.session_state.valid_urls = urls
         st.success(f"✅ {len(urls)} valid URLs detected.")
         st.markdown("---")
-        with st.spinner("⏳ Processing..."):
+
+        with st.status("🔄 **Running scraping pipeline...**", expanded=True) as status:
+            st.write(f"📥 **Fetching `{len(urls)}` URLs...**")
             try:
                 items = run_pipeline(urls, take_screenshots=screenshot_enabled)
+                skipped = len(urls) - len(items)
+
+                if items:
+                    st.write(f"✅ **Extracted structured data from `{len(items)}` URLs.**")
+                    if skipped > 0:
+                        st.warning(f"⚠️ Skipped `{skipped}` URL(s) due to fetch or parse errors.")
+                else:
+                    st.write("⚠️ No structured data extracted.")
+
+                status.update(label="✅ **Scraping completed!**", state="complete")
+                if items:
+                    with st.expander("🔍 View individual results"):
+                        for item in items:
+                            st.markdown(
+                                f"- 🔗 [{item.url}]({item.url}) — ✅ **{item.title or 'Untitled'}**"
+                            )
+
             except ValueError as e:
                 st.error(f"❌ LLM extraction failed: {e}")
+                st.write("🚫 Aborting due to an error.")
+                status.update(label="❌ **Error during scraping**", state="error")
                 items = []
 
-        st.session_state.extracted_items = items
+            st.session_state.extracted_items = items
 
 # --- RESULTS DISPLAY ---
 if "extracted_items" in st.session_state and st.session_state.extracted_items:
+    st.markdown("### 📊 **Display Results**")
     df_extracted_data = pd.DataFrame(
         [
             {**item.model_dump(exclude={"url"}), "url": str(item.url)}
@@ -130,12 +152,10 @@ if "extracted_items" in st.session_state and st.session_state.extracted_items:
 
     st.session_state.results_df = df_extracted_data
 
-    st.success("✅ Extraction complete.")
-
     if screenshot_enabled:
-        tab1, tab2 = st.tabs(["📊 Table Preview", "🖼️ Screenshot Preview"])
+        tab1, tab2 = st.tabs(["📋 Extracted Table", "🖼️ Screenshot Details"])
     else:
-        (tab1,) = st.tabs(["📊 Table Preview"])
+        (tab1,) = st.tabs(["📋 Table Preview"])
 
     with tab1:
         display_df = df_extracted_data.drop(columns=["screenshot_path"], errors="ignore")
