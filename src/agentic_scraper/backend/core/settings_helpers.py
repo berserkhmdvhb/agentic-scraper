@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from agentic_scraper.backend.config.messages import (
@@ -22,104 +23,85 @@ from agentic_scraper.backend.utils.validators import (
 logger = logging.getLogger(__name__)
 
 
-def _validate_optional_model(values: dict[str, Any]) -> None:
-    key = "openai_model"
-    v = values.get(key, "").strip()
-    if v:
+def _coerce_and_validate(
+    values: dict[str, Any],
+    key: str,
+    coerce_fn: Callable[[str], Any],
+    validator: Callable[[Any], Any],
+) -> None:
+    if key not in values:
+        return
+
+    raw = values[key]
+
+    # Pass through if already correct type
+    if isinstance(raw, (int, float, Path, bool)):
         try:
-            validated = validate_openai_model(v)
+            validated = validator(raw)
             values[key] = validated
             logger.debug(
-                MSG_DEBUG_SETTING_OVERRIDDEN.format(key=key, validated=validated, original=v)
+                MSG_DEBUG_SETTING_OVERRIDDEN.format(key=key, validated=validated, original=raw)
             )
-        except ValueError as e:
-            logger.warning(MSG_WARNING_SETTING_INVALID.format(key=key, original=v, error=e))
+        except Exception as e:
+            logger.warning(MSG_WARNING_SETTING_INVALID.format(key=key, original=raw, error=e))
+            raise
+        return
+
+    # Try to coerce from string
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if not stripped:
+            logger.debug(MSG_DEBUG_SETTING_SKIPPED.format(key=key))
+            values.pop(key, None)
+            return
+        try:
+            coerced = coerce_fn(stripped)
+            validated = validator(coerced)
+            values[key] = validated
+            logger.debug(
+                MSG_DEBUG_SETTING_OVERRIDDEN.format(key=key, validated=validated, original=raw)
+            )
+        except Exception as e:
+            logger.warning(MSG_WARNING_SETTING_INVALID.format(key=key, original=raw, error=e))
             raise
     else:
         logger.debug(MSG_DEBUG_SETTING_SKIPPED.format(key=key))
-        values.pop(key, None)
+        return
+
+
+def _validate_optional_model(values: dict[str, Any]) -> None:
+    _coerce_and_validate(values, "openai_model", str, validate_openai_model)
 
 
 def _validate_optional_float(
-    values: dict[str, Any],
-    key: str,
-    validator: Callable[[float], float],
+    values: dict[str, Any], key: str, validator: Callable[[float], float]
 ) -> None:
-    v = values.get(key, "").strip()
-    if v:
-        try:
-            coerced = float(v)
-            validated = validator(coerced)
-            values[key] = validated
-            logger.debug(
-                MSG_DEBUG_SETTING_OVERRIDDEN.format(key=key, validated=validated, original=v)
-            )
-        except ValueError as e:
-            logger.warning(MSG_WARNING_SETTING_INVALID.format(key=key, original=v, error=e))
-            raise
-    else:
-        logger.debug(MSG_DEBUG_SETTING_SKIPPED.format(key=key))
-        values.pop(key, None)
+    _coerce_and_validate(values, key, float, validator)
 
 
 def _validate_optional_int(
-    values: dict[str, Any],
-    key: str,
-    validator: Callable[[int], int],
+    values: dict[str, Any], key: str, validator: Callable[[int], int]
 ) -> None:
-    v = values.get(key, "").strip()
-    if v:
-        try:
-            coerced = int(v)
-            validated = validator(coerced)
-            values[key] = validated
-            logger.debug(
-                MSG_DEBUG_SETTING_OVERRIDDEN.format(key=key, validated=validated, original=v)
-            )
-        except ValueError as e:
-            logger.warning(MSG_WARNING_SETTING_INVALID.format(key=key, original=v, error=e))
-            raise
-    else:
-        logger.debug(MSG_DEBUG_SETTING_SKIPPED.format(key=key))
-        values.pop(key, None)
+    _coerce_and_validate(values, key, int, validator)
 
 
 def _validate_optional_str(
-    values: dict[str, Any],
-    key: str,
-    validator: Callable[[str], str],
+    values: dict[str, Any], key: str, validator: Callable[[str], str]
 ) -> None:
-    v = values.get(key, "").strip()
-    if v:
-        try:
-            validated = validator(v)
-            values[key] = validated
-            logger.debug(
-                MSG_DEBUG_SETTING_OVERRIDDEN.format(key=key, validated=validated, original=v)
-            )
-        except ValueError as e:
-            logger.warning(MSG_WARNING_SETTING_INVALID.format(key=key, original=v, error=e))
-            raise
-    else:
-        logger.debug(MSG_DEBUG_SETTING_SKIPPED.format(key=key))
-        values.pop(key, None)
+    _coerce_and_validate(values, key, str, validator)
 
 
 def _validate_optional_path(values: dict[str, Any], key: str) -> None:
-    v = values.get(key, "").strip()
-    if v:
-        try:
-            resolved = str(validate_path(v))
-            values[key] = resolved
-            logger.debug(
-                MSG_DEBUG_SETTING_OVERRIDDEN.format(key=key, validated=resolved, original=v)
-            )
-        except Exception as e:
-            logger.warning(MSG_WARNING_SETTING_INVALID.format(key=key, original=v, error=e))
-            raise
-    else:
-        logger.debug(MSG_DEBUG_SETTING_SKIPPED.format(key=key))
-        values.pop(key, None)
+    _coerce_and_validate(values, key, str, lambda v: str(validate_path(v)))
+
+
+def _validate_optional_bool(
+    values: dict[str, Any], key: str, validator: Callable[[bool], bool]
+) -> None:
+    def str_to_bool(s: str) -> bool:
+        return s.lower() in {"1", "true", "yes", "on"}
+
+    _coerce_and_validate(values, key, str_to_bool, validator)
 
 
 def validated_settings(values: dict[str, Any]) -> dict[str, Any]:

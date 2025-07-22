@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from openai import APIError, AsyncOpenAI, OpenAIError, RateLimitError
 from playwright.async_api import Error as PlaywrightError
 from pydantic import HttpUrl
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_API_EXCEPTION,
@@ -24,31 +24,58 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_SCREENSHOT_FAILED_WITH_URL,
     MSG_SYSTEM_PROMPT,
 )
-from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
 
-settings = get_settings()
 logger = logging.getLogger(__name__)
-client = AsyncOpenAI(api_key=settings.openai_api_key, project=settings.openai_project_id)
 
 
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    retry=retry_if_exception_type(OpenAIError),
-    reraise=True,
-)
 async def extract_structured_data(
-    text: str, url: str, *, take_screenshot: bool = False
+    text: str,
+    url: str,
+    *,
+    take_screenshot: bool = False,
+    settings: Settings,
+) -> ScrapedItem | None:
+    """
+    Run OpenAI + optional screenshot capture with retry behavior driven by Settings.
+    """
+    async for attempt in AsyncRetrying(
+        stop=stop_after_attempt(settings.retry_attempts),
+        wait=wait_exponential(
+            multiplier=1, min=settings.retry_backoff_min, max=settings.retry_backoff_max
+        ),
+        retry=retry_if_exception_type(OpenAIError),
+        reraise=True,
+    ):
+        with attempt:
+            return await _extract_impl(
+                text, url, take_screenshot=take_screenshot, settings=settings
+            )
+
+    return None
+
+
+async def _extract_impl(
+    text: str,
+    url: str,
+    *,
+    take_screenshot: bool,
+    settings: Settings,
 ) -> ScrapedItem | None:
     messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": MSG_SYSTEM_PROMPT},
         {"role": "user", "content": text[:4000]},
     ]
+
+    client = AsyncOpenAI(
+        api_key=settings.openai_api_key,
+        project=settings.openai_project_id,
+    )
 
     try:
         response = await client.chat.completions.create(

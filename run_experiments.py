@@ -2,12 +2,19 @@
 """
 run_experiments.py - Run Agentic Scraper batch mode with different concurrency settings.
 """
-
+import os
 import csv
 import itertools
-import subprocess
-import time
 from pathlib import Path
+import asyncio
+import sys
+import json
+
+# Ensure the project root is in the Python path
+sys.path.insert(0, str(Path(__file__).resolve().parent.resolve()))
+
+from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
 # ------------------------
 # CONFIGURATION
@@ -18,85 +25,74 @@ INPUT_FILES = [
     "input/urls2.txt",
 ]
 
-
 FETCH_CONCURRENCY_VALUES = [5, 10, 20]
 LLM_CONCURRENCY_VALUES = [1, 2, 4]
 
-BATCH_SCRIPT = "run_batch.py"
 OUTPUT_DIR = Path("output/experiment")
 CSV_LOG_PATH = OUTPUT_DIR / "summary.csv"
 
+# --- WINDOWS ASYNCIO FIX ---
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    
 # ------------------------
 # RUNNER LOGIC
 # ------------------------
 
-def parse_output(output: str) -> dict:
-    """
-    Parses stdout from run_batch.py and extracts summary metrics.
-    Assumes specific print patterns.
-    """
-    lines = output.strip().splitlines()
-    result = {
-        "duration_sec": None,
-        "success_count": None,
-        "fail_count": None,
-    }
+def load_urls(path: str) -> list[str]:
+    with open(path, encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
-    for line in lines:
-        if "Finished in" in line:
-            try:
-                result["duration_sec"] = float(line.split("in")[-1].split("seconds")[0].strip())
-            except Exception:
-                pass
-        elif "Success:" in line:
-            try:
-                parts = line.split("Success:")[1].strip().split(",")
-                result["success_count"] = int(parts[0].split("/")[0].strip())
-                result["fail_count"] = int(parts[1].split(":")[-1].strip())
-            except Exception:
-                pass
+def format_error(e: Exception) -> str:
+    return f"{type(e).__name__}: {e}"[:200]
 
-    return result
+async def run_experiment(input_file: str, fetch_c: int, llm_c: int) -> dict:
+    urls = load_urls(input_file)
+    settings = Settings(
+        fetch_concurrency=fetch_c,
+        llm_concurrency=llm_c,
+        screenshot_enabled=False,
+        log_tracebacks=False,
+    )
 
-import os  # Add this at the top
-
-def run_experiment(input_file, fetch_c, llm_c) -> dict:
     output_file = OUTPUT_DIR / f"{Path(input_file).stem}_f{fetch_c}_l{llm_c}.json"
 
-    cmd = [
-        "python", BATCH_SCRIPT,
-        "--input", input_file,
-        "--fetch-concurrency", str(fetch_c),
-        "--llm-concurrency", str(llm_c),
-        "--output", str(output_file)
-    ]
+    try:
+        results, stats = await scrape_with_stats(urls, settings)
 
-    env = os.environ.copy()
-    env["PYTHONPATH"] = "."
+        if results:
+            with output_file.open("w", encoding="utf-8") as f:
+                json.dump([item.model_dump(mode="json") for item in results], f, indent=2, ensure_ascii=False)
 
-    start = time.perf_counter()
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
-    elapsed = time.perf_counter() - start
+        return {
+            "input_file": input_file,
+            "fetch_concurrency": fetch_c,
+            "llm_concurrency": llm_c,
+            "output_file": str(output_file),
+            "duration_sec": stats["duration_sec"],
+            "success_count": stats["num_success"],
+            "fail_count": stats["num_failed"],
+            "exit_code": 0,
+            "stderr": "",
+        }
 
-
-    parsed = parse_output(result.stdout)
-
-    return {
-        "input_file": input_file,
-        "fetch_concurrency": fetch_c,
-        "llm_concurrency": llm_c,
-        "output_file": str(output_file),
-        "duration_sec": round(parsed["duration_sec"] or elapsed, 2),
-        "success_count": parsed["success_count"],
-        "fail_count": parsed["fail_count"],
-        "exit_code": result.returncode,
-        "stderr": result.stderr.strip()[:200],  # truncate for readability
-    }
+    except Exception as e:
+        return {
+            "input_file": input_file,
+            "fetch_concurrency": fetch_c,
+            "llm_concurrency": llm_c,
+            "output_file": str(output_file),
+            "duration_sec": None,
+            "success_count": None,
+            "fail_count": None,
+            "exit_code": 1,
+            "stderr": format_error(e),
+        }
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    with CSV_LOG_PATH.open("w", newline="", encoding="utf-8") as csvfile:
+    with CSV_LOG_PATH.open("w", encoding="utf-8", newline="") as csvfile:
         fieldnames = [
             "input_file", "fetch_concurrency", "llm_concurrency",
             "duration_sec", "success_count", "fail_count",
@@ -108,24 +104,14 @@ def main():
         for input_file, fetch_c, llm_c in itertools.product(
             INPUT_FILES, FETCH_CONCURRENCY_VALUES, LLM_CONCURRENCY_VALUES
         ):
-            print(f"\n▶️ Running: {input_file} | fetch={fetch_c} | llm={llm_c}")
-            try:
-                result = run_experiment(input_file, fetch_c, llm_c)
-                writer.writerow(result)
-                print(f"✅ Done: {result['duration_sec']}s | Success: {result['success_count']} | Fail: {result['fail_count']}")
-            except Exception as e:
-                print(f"❌ Error: {e}")
-                writer.writerow({
-                    "input_file": input_file,
-                    "fetch_concurrency": fetch_c,
-                    "llm_concurrency": llm_c,
-                    "duration_sec": None,
-                    "success_count": None,
-                    "fail_count": None,
-                    "output_file": None,
-                    "exit_code": 1,
-                    "stderr": str(e)
-                })
+            print(f"\n▶️ {input_file} | fetch={fetch_c} | llm={llm_c}")
+            result = asyncio.run(run_experiment(input_file, fetch_c, llm_c))
+            writer.writerow(result)
+
+            if result["exit_code"] == 0:
+                print(f"✅ Done: {result['duration_sec']}s | ✅ {result['success_count']} | ❌ {result['fail_count']}")
+            else:
+                print(f"❌ Failed: {result['stderr']}")
 
 if __name__ == "__main__":
     main()

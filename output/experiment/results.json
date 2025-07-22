@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://www.nationalgeographic.com/",
+    "title": null,
+    "description": null,
+    "price": null,
+    "author": null,
+    "date_published": null,
+    "screenshot_path": null
+  },
+  {
+    "url": "https://www.wikipedia.org/",
+    "title": null,
+    "description": null,
+    "price": null,
+    "author": null,
+    "date_published": null,
+    "screenshot_path": null
+  },
+  {
+    "url": "https://www.nytimes.com/",
+    "title": "The New York Times - Breaking News, US News, World News and Videos",
+    "description": null,
+    "price": null,
+    "author": null,
+    "date_published": null,
+    "screenshot_path": null
+  },
+  {
+    "url": "https://www.reuters.com/",
+    "title": "Exclusive: Trump's Golden Dome looks for alternatives to Musk's SpaceX",
+    "description": "The Trump administration is expanding its search for partners to build the Golden Dome missile defense system, courting Amazon.com's Project Kuiper and big defense contractors as tensions with Elon Musk threaten SpaceX's dominance in the program.",
+    "price": null,
+    "author": "Kevin Lamarque",
+    "date_published": "ago",
+    "screenshot_path": null
+  },
+  {
+    "url": "https://www.bbc.com/news",
+    "title": "Coca-Cola will roll out cane sugar Coke in US after Trump push",
+    "description": "The move was previewed by President Donald Trump last week in a social media post - \"It's just better!\".",
+    "price": null,
+    "author": null,
+    "date_published": "2 hrs ago",
+    "screenshot_path": null
+  }
+]

@@ -1,16 +1,18 @@
-import asyncio
 import time
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any
 
+from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
-from agentic_scraper.backend.config.types import ScrapeInput
+
+if TYPE_CHECKING:
+    from agentic_scraper.backend.config.types import ScrapeInput
 
 
-async def scrape_urls(urls: List[str], settings: Settings) -> List[ScrapedItem]:
+async def scrape_urls(urls: list[str], settings: Settings) -> list[ScrapedItem]:
     """
     Fetch HTML, extract clean text, run LLM worker pool, return all results.
 
@@ -22,28 +24,30 @@ async def scrape_urls(urls: List[str], settings: Settings) -> List[ScrapedItem]:
         List[ScrapedItem]: Successful results.
     """
     html_by_url = await fetch_all(
-        urls,
+        urls=urls,
+        settings=settings,
         concurrency=settings.fetch_concurrency,
     )
 
-    scrape_inputs: List[ScrapeInput] = []
+    scrape_inputs: list[ScrapeInput] = []
     for url, html in html_by_url.items():
-        if html.startswith("__FETCH_ERROR__"):
+        if html.startswith(FETCH_ERROR_PREFIX):
             continue
         text = extract_main_text(html)
         scrape_inputs.append((url, text))
 
-    results = await run_worker_pool(
+    return await run_worker_pool(
         inputs=scrape_inputs,
+        settings=settings,
         concurrency=settings.llm_concurrency,
         take_screenshot=settings.screenshot_enabled,
         log_tracebacks=settings.debug_mode,
     )
 
-    return results
 
-
-async def scrape_with_stats(urls: List[str], settings: Settings) -> tuple[List[ScrapedItem], Dict[str, Any]]:
+async def scrape_with_stats(
+    urls: list[str], settings: Settings
+) -> tuple[list[ScrapedItem], dict[str, Any]]:
     """
     Run scrape_urls and return results with basic metrics.
 

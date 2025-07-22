@@ -6,29 +6,30 @@ run_batch.py - Run Agentic Scraper in headless (non-UI) mode with concurrency op
 import argparse
 import json
 import csv
-import time
 from pathlib import Path
 import sys
-
-
-from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.core.logger_setup import setup_logging
-from agentic_scraper.backend.scraper.agent import scrape_urls
-from agentic_scraper.backend.scraper.models import ScrapedItem
-
-
+import asyncio
 
 # Ensure the project root is in the Python path
 sys.path.insert(0, str(Path(__file__).resolve().parent.resolve()))
 
+from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.backend.core.logger_setup import setup_logging
+from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
+
+# --- WINDOWS ASYNCIO FIX ---
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Agentic Scraper - Batch Mode")
     parser.add_argument("--input", required=True, help="Path to input file with URLs (one per line)")
-    parser.add_argument("--output", help="Path to output file (.json or .csv)", default="output/experiment/results.json")
-    parser.add_argument("--fetch-concurrency", type=int, default=10, help="Max concurrent fetch operations")
-    parser.add_argument("--llm-concurrency", type=int, default=2, help="Max concurrent LLM calls")
-    parser.add_argument("--timeout", type=int, default=30, help="Per-request timeout in seconds")
+    parser.add_argument("--output", help="Path to output file (.json or .csv)")
+    parser.add_argument("--fetch-concurrency", type=int, help="Override FETCH_CONCURRENCY")
+    parser.add_argument("--llm-concurrency", type=int, help="Override LLM_CONCURRENCY")
+    parser.add_argument("--timeout", type=int, help="Override MAX_CONCURRENT_REQUESTS")
+    parser.add_argument("--retries", type=int, help="Override RETRY_ATTEMPTS")
     return parser.parse_args()
 
 def load_urls(path: str) -> list[str]:
@@ -39,7 +40,7 @@ def save_results(output_path: str, items: list[ScrapedItem]):
     ext = Path(output_path).suffix.lower()
     if ext == ".json":
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump([item.model_dump() for item in items], f, indent=2, ensure_ascii=False)
+            json.dump([item.model_dump(mode="json") for item in items], f, indent=2, ensure_ascii=False)
     elif ext == ".csv":
         with open(output_path, "w", encoding="utf-8", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=items[0].model_dump().keys())
@@ -56,32 +57,35 @@ def main():
     urls = load_urls(args.input)
     print(f"🔗 Loaded {len(urls)} URLs from {args.input}")
 
-    settings = Settings(
-        fetch_concurrency=args.fetch_concurrency,
-        llm_concurrency=args.llm_concurrency,
-        request_timeout=args.timeout,
-        log_tracebacks=False,  # can make this configurable later
-    )
+    # Selectively override settings from CLI args (only if passed)
+    overrides = {
+        "fetch_concurrency": args.fetch_concurrency,
+        "llm_concurrency": args.llm_concurrency,
+        "request_timeout": args.timeout,
+        "retry_attempts": args.retries,
+        "screenshot_enabled": False,
+        "log_tracebacks": False,
+    }
 
-    print(f"⚙️ Settings: fetch={args.fetch_concurrency}, llm={args.llm_concurrency}, timeout={args.timeout}s")
-    start = time.perf_counter()
+    # Remove unset values to allow fallback to .env
+    settings_kwargs = {k: v for k, v in overrides.items() if v is not None}
+    settings = Settings(**settings_kwargs)
+
+    print(f"⚙️ Settings: fetch={settings.fetch_concurrency}, llm={settings.llm_concurrency}, timeout={settings.request_timeout}s, retries={settings.retry_attempts}")
 
     try:
-        results: list[ScrapedItem] = scrape_urls(urls, settings)
+        results, stats = asyncio.run(scrape_with_stats(urls, settings))
     except Exception as e:
         print(f"❌ Scraping failed: {e}")
         return
 
-    duration = time.perf_counter() - start
-    num_success = sum(1 for r in results if r.success)
-    num_fail = len(results) - num_success
+    print(f"✅ Finished in {stats['duration_sec']} seconds")
+    print(f"📦 Success: {stats['num_success']} / {stats['num_urls']}, Failures: {stats['num_failed']}")
 
-    print(f"✅ Finished in {duration:.2f} seconds")
-    print(f"📦 Success: {num_success} / {len(results)}, Failures: {num_fail}")
-
+    output_path = args.output or "output/experiment/results.json"
     if results:
-        save_results(args.output, results)
-        print(f"💾 Results saved to {args.output}")
+        save_results(output_path, results)
+        print(f"💾 Results saved to {output_path}")
 
 if __name__ == "__main__":
     main()

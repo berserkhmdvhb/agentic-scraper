@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     )
     log_format: LogFormat = Field(default=DEFAULT_LOG_FORMAT, validation_alias="LOG_FORMAT")
 
+    # Execution tuning (CLI/batch mode only)
+    fetch_concurrency: int = Field(default=10, validation_alias="FETCH_CONCURRENCY", exclude=True)
+    llm_concurrency: int = Field(default=2, validation_alias="LLM_CONCURRENCY", exclude=True)
+
     @model_validator(mode="before")
     @classmethod
     def apply_validations(cls, values: dict[str, Any]) -> dict[str, Any]:
@@ -84,7 +88,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
-        logger.debug(MSG_DEBUG_SETTINGS_LOADED, self.model_dump())
+        safe_dump = self.model_dump(exclude={"openai_api_key", "openai_project_id"})
+        message = f"{MSG_DEBUG_SETTINGS_LOADED}: {safe_dump}"
+        logger.debug(message)
 
         if not self.openai_api_key:
             raise ValueError(MSG_ERROR_MISSING_API_KEY)
@@ -95,6 +101,23 @@ class Settings(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
+
+    # Retry behavior (used in agent.py with tenacity)
+    retry_attempts: int = Field(
+        default=2,
+        validation_alias="RETRY_ATTEMPTS",
+        description="Number of times to retry transient LLM errors (OpenAIError)",
+    )
+    retry_backoff_min: float = Field(
+        default=1.0,
+        validation_alias="RETRY_BACKOFF_MIN",
+        description="Minimum backoff time (seconds) for retry delay",
+    )
+    retry_backoff_max: float = Field(
+        default=10.0,
+        validation_alias="RETRY_BACKOFF_MAX",
+        description="Maximum backoff time (seconds) for retry delay",
+    )
 
 
 @cache

@@ -10,6 +10,7 @@ from agentic_scraper.backend.config.types import (
     OnSuccessCallback,
     ScrapeInput,
 )
+from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent import extract_structured_data
 from agentic_scraper.backend.scraper.models import ScrapedItem
 
@@ -21,6 +22,7 @@ async def worker(  # noqa: PLR0913
     *,
     queue: asyncio.Queue[ScrapeInput],
     results: list[ScrapedItem],
+    settings: Settings,
     take_screenshot: bool,
     on_item_processed: OnSuccessCallback | None = None,
     on_error: OnErrorCallback | None = None,
@@ -30,7 +32,9 @@ async def worker(  # noqa: PLR0913
         while True:
             url, text = await queue.get()
             try:
-                item = await extract_structured_data(text, url, take_screenshot=take_screenshot)
+                item = await extract_structured_data(
+                    text, url, take_screenshot=take_screenshot, settings=settings
+                )
                 if item is not None:
                     results.append(item)
 
@@ -55,6 +59,7 @@ async def worker(  # noqa: PLR0913
 async def run_worker_pool(  # noqa: PLR0913
     inputs: list[ScrapeInput],
     *,
+    settings: Settings,
     concurrency: int = 10,
     take_screenshot: bool = False,
     max_queue_size: int | None = None,
@@ -93,6 +98,7 @@ async def run_worker_pool(  # noqa: PLR0913
     queue: asyncio.Queue[ScrapeInput] = asyncio.Queue(maxsize=max_queue_size or 0)
     results: list[ScrapedItem] = []
 
+    logger.info("Running worker pool with screenshots enabled = %s", take_screenshot)
     for input_item in inputs:
         await queue.put(input_item)
 
@@ -101,6 +107,7 @@ async def run_worker_pool(  # noqa: PLR0913
             worker(
                 queue=queue,
                 results=results,
+                settings=settings,
                 take_screenshot=take_screenshot,
                 on_item_processed=on_item_processed,
                 on_error=on_error,

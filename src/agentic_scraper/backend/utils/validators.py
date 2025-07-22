@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from agentic_scraper.backend.config.constants import (
+    FETCH_ERROR_PREFIX,
     LLM_MAX_TOKENS_LIMIT,
     LLM_TEMPERATURE_MAX,
     LLM_TEMPERATURE_MIN,
@@ -108,7 +109,7 @@ def filter_successful(results: dict[str, str]) -> dict[str, str]:
     Returns:
         dict[str, str]: Only successfully fetched URLs.
     """
-    return {url: html for url, html in results.items() if not html.startswith("__FETCH_ERROR__")}
+    return {url: html for url, html in results.items() if not html.startswith(FETCH_ERROR_PREFIX)}
 
 
 ###################
