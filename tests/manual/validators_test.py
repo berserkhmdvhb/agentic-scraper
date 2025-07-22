@@ -22,4 +22,4 @@ try:
     print("✅ Settings loaded and validated successfully!\n")
     pprint(settings.model_dump())
 except Exception as e:
-    print("❌ Validation failed:", e)
+    print("❌ Validation failed: ", e)
