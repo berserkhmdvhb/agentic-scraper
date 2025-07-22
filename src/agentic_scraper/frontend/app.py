@@ -1,6 +1,7 @@
 import asyncio
 import sqlite3
 import sys
+import time
 from io import BytesIO
 
 import pandas as pd
@@ -143,6 +144,7 @@ if st.button("🚀 Run Extraction"):
             st.markdown("---")
 
             with st.status("🔄 **Running scraping pipeline...**", expanded=True) as status:
+                start = time.perf_counter()
                 st.write(f"📥 **Fetching `{len(urls)}` URLs...**")
                 base_settings = get_settings()
                 settings = base_settings.model_copy(
@@ -217,6 +219,13 @@ if st.button("🚀 Run Extraction"):
                     else:
                         st.write("⚠️ No structured data extracted.")
 
+                    end = time.perf_counter()
+                    elapsed = round(end - start, 2)
+                    st.markdown(
+                        f"<div style='font-size: 1.1rem;'>"
+                        f"<b>⏱️ Processing Time:</b> {elapsed:.2f} seconds</div>",
+                        unsafe_allow_html=True,
+                    )
                     status.update(label="✅ **Scraping completed!**", state="complete")
 
                     if items:
