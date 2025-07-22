@@ -43,6 +43,7 @@ dev = [
   "build",
   "coverage==7.5.0",
   "coveralls>=3.3.2 ; python_version < '3.13'",
+  "fastapi[standard]",
   "mypy",
   "pytest",
   "pytest-asyncio",

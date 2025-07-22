@@ -25,7 +25,7 @@ INPUT_FILES = [
     "input/urls2.txt",
 ]
 
-FETCH_CONCURRENCY_VALUES = [5, 10, 20]
+FETCH_CONCURRENCY_VALUES = [1, 5, 10, 20]
 LLM_CONCURRENCY_VALUES = [1, 2, 4]
 
 OUTPUT_DIR = Path("output/experiment")
@@ -34,7 +34,7 @@ CSV_LOG_PATH = OUTPUT_DIR / "summary.csv"
 # --- WINDOWS ASYNCIO FIX ---
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    
+
 # ------------------------
 # RUNNER LOGIC
 # ------------------------
@@ -89,6 +89,19 @@ async def run_experiment(input_file: str, fetch_c: int, llm_c: int) -> dict:
             "stderr": format_error(e),
         }
 
+async def run_all(writer: csv.DictWriter):
+    for input_file, fetch_c, llm_c in itertools.product(
+        INPUT_FILES, FETCH_CONCURRENCY_VALUES, LLM_CONCURRENCY_VALUES
+    ):
+        print(f"\n▶️ {input_file} | fetch={fetch_c} | llm={llm_c}")
+        result = await run_experiment(input_file, fetch_c, llm_c)
+        writer.writerow(result)
+
+        if result["exit_code"] == 0:
+            print(f"✅ Done: {result['duration_sec']}s | ✅ {result['success_count']} | ❌ {result['fail_count']}")
+        else:
+            print(f"❌ Failed: {result['stderr']}")
+
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -101,17 +114,7 @@ def main():
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
-        for input_file, fetch_c, llm_c in itertools.product(
-            INPUT_FILES, FETCH_CONCURRENCY_VALUES, LLM_CONCURRENCY_VALUES
-        ):
-            print(f"\n▶️ {input_file} | fetch={fetch_c} | llm={llm_c}")
-            result = asyncio.run(run_experiment(input_file, fetch_c, llm_c))
-            writer.writerow(result)
-
-            if result["exit_code"] == 0:
-                print(f"✅ Done: {result['duration_sec']}s | ✅ {result['success_count']} | ❌ {result['fail_count']}")
-            else:
-                print(f"❌ Failed: {result['stderr']}")
+        asyncio.run(run_all(writer))
 
 if __name__ == "__main__":
     main()
