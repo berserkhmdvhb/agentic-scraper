@@ -7,7 +7,8 @@
         check-updates check-toml \
         clean clean-logs clean-cache clean-coverage clean-build clean-pyc clean-all \
         build publish publish-test upload-coverage \
-		export-requirements check-requirements-sync
+		export-requirements check-requirements-sync \
+		mock-server
 
 PYTHON := python
 
@@ -55,6 +56,7 @@ help::
 	@echo "  upload-coverage        Upload coverage report to Coveralls"
 	@echo "  export-requirements    Export requirements.txt from pyproject.toml"
 	@echo "  check-requirements-sync  Check if requirements.txt matches pyproject.toml"
+	@echo "  mock-server              Start the mock FastAPI server at http://localhost:8000"
 	
 install:
 	$(PYTHON) -m pip install -e .
@@ -198,3 +200,7 @@ check-requirements-sync:
 		echo "   Run 'make export-requirements' to fix it." && exit 1)
 	@$(PYTHON) -c "import os; os.remove('.requirements.txt.check')"
 	@echo "requirements.txt is in sync."
+
+mock-server:
+	@echo "Starting mock server with FAIL_RATE=$(FAIL_RATE)"
+	python mock_api.py --fail-rate $(FAIL_RATE)

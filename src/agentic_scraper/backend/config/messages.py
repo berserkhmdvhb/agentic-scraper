@@ -66,7 +66,11 @@ MSG_ERROR_LLM_JSON_DECODE_LOG = "Failed to decode JSON from LLM response: %r [UR
 # fetcher.py
 MSG_INFO_FETCH_SUCCESS = "Fetched {} successfully"
 MSG_WARNING_FETCH_FAILED = "Failed to fetch %s: %s"
+MSG_ERROR_UNREACHABLE_FETCH_URL = "Unreachable code reached in fetch_url (unexpected fallback)"
 MSG_FETCH_ERROR_PREFIX = "__FETCH_ERROR__"
+MSG_DEBUG_RETRYING_URL = "Retrying %s (attempt %s): previous failure was %s"
+MSG_ERROR_UNREACHABLE_FETCH_URL = "Reached unexpected code path in fetch_url"
+
 
 # models.py
 MSG_ERROR_EMPTY_STRING = "Field '{field}' must not be empty or whitespace."

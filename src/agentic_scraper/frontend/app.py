@@ -1,6 +1,7 @@
 import asyncio
 import sqlite3
 import sys
+import time
 from io import BytesIO
 
 import pandas as pd
@@ -14,7 +15,7 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.config.types import ScrapeResultWithSkipCount
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
-from agentic_scraper.backend.core.settings import get_environment
+from agentic_scraper.backend.core.settings import get_environment, get_settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
@@ -23,7 +24,7 @@ from agentic_scraper.backend.utils.validators import clean_input_urls, deduplica
 
 # --- WINDOWS ASYNCIO FIX ---
 if sys.platform.startswith("win"):
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # --- LOGGING SETUP ---
 setup_logging(reset=True)
@@ -143,11 +144,23 @@ if st.button("🚀 Run Extraction"):
             st.markdown("---")
 
             with st.status("🔄 **Running scraping pipeline...**", expanded=True) as status:
+                start = time.perf_counter()
                 st.write(f"📥 **Fetching `{len(urls)}` URLs...**")
+                base_settings = get_settings()
+                settings = base_settings.model_copy(
+                    update={
+                        "fetch_concurrency": fetch_concurrency,
+                        "llm_concurrency": llm_concurrency,
+                        "screenshot_enabled": screenshot_enabled,
+                        "debug_mode": log_tracebacks,
+                    }
+                )
 
                 async def run_async_extraction() -> ScrapeResultWithSkipCount:
                     logger.info(MSG_INFO_FETCHING_URLS.format(len(urls)))
-                    fetch_results = await fetch_all(urls, concurrency=fetch_concurrency)
+                    fetch_results = await fetch_all(
+                        urls, concurrency=fetch_concurrency, settings=settings
+                    )
 
                     skipped = 0
                     inputs = []
@@ -172,18 +185,32 @@ if st.button("🚀 Run Extraction"):
 
                     items = await run_worker_pool(
                         inputs=inputs,
+                        settings=settings,
                         concurrency=llm_concurrency,
                         take_screenshot=screenshot_enabled,
                         on_item_processed=on_item_processed,
                         on_error=on_error,
-                        log_tracebacks=log_tracebacks,
                     )
 
                     logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(len(items)))
                     return items, skipped
 
+                # Create a normalized, hashable key for the URL input
+                key = tuple(sorted(urls))
+
                 try:
-                    items, skipped = asyncio.run(run_async_extraction())
+                    # Check if input is identical to the last run
+                    if (
+                        "last_input_key" in st.session_state
+                        and st.session_state.last_input_key == key
+                    ):
+                        st.info("🔁 Using cached results for these URLs.")
+                        items = st.session_state.extracted_items
+                        skipped = 0  # optional: could store skipped count too if needed
+                    else:
+                        items, skipped = asyncio.run(run_async_extraction())
+                        st.session_state.extracted_items = items
+                        st.session_state.last_input_key = key
 
                     if items:
                         st.write(f"✅ **Extracted structured data from `{len(items)}` URLs.**")
@@ -192,6 +219,13 @@ if st.button("🚀 Run Extraction"):
                     else:
                         st.write("⚠️ No structured data extracted.")
 
+                    end = time.perf_counter()
+                    elapsed = round(end - start, 2)
+                    st.markdown(
+                        f"<div style='font-size: 1.1rem;'>"
+                        f"<b>⏱️ Processing Time:</b> {elapsed:.2f} seconds</div>",
+                        unsafe_allow_html=True,
+                    )
                     status.update(label="✅ **Scraping completed!**", state="complete")
 
                     if items:
@@ -204,9 +238,8 @@ if st.button("🚀 Run Extraction"):
                     st.error(f"❌ LLM extraction failed: {e}")
                     st.write("🚫 Aborting due to an error.")
                     status.update(label="❌ **Error during scraping**", state="error")
-                    items = []
-
-                st.session_state.extracted_items = items
+                    st.session_state.extracted_items = []
+                    st.session_state.last_input_key = None
 
 # --- RESULTS DISPLAY ---
 if "extracted_items" in st.session_state and st.session_state.extracted_items:
