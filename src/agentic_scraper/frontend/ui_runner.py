@@ -67,7 +67,7 @@ async def run_scraper_pipeline(
     urls: list[str],
     config: PipelineConfig,
 ) -> ScrapeResultWithSkipCount:
-    logger.info(MSG_INFO_FETCHING_URLS.format(len(urls)))
+    logger.info(MSG_INFO_FETCHING_URLS.format(n=len(urls)))
 
     settings = get_settings().model_copy(
         update={
@@ -143,7 +143,7 @@ async def run_scraper_pipeline(
     with log_box:
         st.info("✅ Extraction pipeline completed")
 
-    logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(len(items)))
+    logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(n=len(items)))
     return items, skipped
 
 
