@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     env: Environment = Field(default=DEFAULT_ENV, validation_alias="ENV")
 
     # OpenAI
-    openai_api_key: str = Field(..., validation_alias="OPENAI_API_KEY")
+    openai_api_key: str | None = Field(default="<<MISSING>>", validation_alias="OPENAI_API_KEY")
     openai_model: OpenAIModel = Field(default=DEFAULT_OPENAI_MODEL, validation_alias="OPENAI_MODEL")
     openai_project_id: str | None = Field(default=None, validation_alias="OPENAI_PROJECT_ID")
 
@@ -127,7 +127,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
-        if not self.openai_api_key:
+        if self.openai_api_key in (None, "", "<<MISSING>>"):
             raise ValueError(MSG_ERROR_MISSING_API_KEY)
         return self
 
@@ -140,7 +140,7 @@ class Settings(BaseSettings):
 
 @cache
 def get_settings() -> Settings:
-    return Settings()  # type: ignore[call-arg]
+    return Settings()
 
 
 def log_settings(settings: Settings) -> None:

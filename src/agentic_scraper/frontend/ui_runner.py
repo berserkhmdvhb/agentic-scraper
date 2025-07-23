@@ -74,7 +74,7 @@ async def run_scraper_pipeline(
             "fetch_concurrency": config.fetch_concurrency,
             "llm_concurrency": config.llm_concurrency,
             "screenshot_enabled": config.screenshot_enabled,
-            "verbose": config.verbose,  # ✅ updated
+            "verbose": config.verbose,
             "openai_model": config.openai_model,
             "agent_mode": config.agent_mode,
         }
