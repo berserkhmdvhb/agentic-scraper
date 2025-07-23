@@ -26,8 +26,13 @@ app.add_middleware(
 
 # Health check
 @app.get("/health")
-def health_check() -> dict[str, str]:
+async def health_check() -> dict[str, str]:
     return {"status": "ok", "version": VERSION}
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> dict[str, str]:
+    return {"message": "Welcome to Agentic Scraper API", "docs": "/docs"}
 
 
 # Include versioned routes
