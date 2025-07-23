@@ -32,27 +32,34 @@ if "is_running" not in st.session_state:
     st.session_state["is_running"] = False
 
 # --- RUN EXTRACTION BUTTON ---
-run_button = st.button("🚀 Run Extraction") if not st.session_state["is_running"] else False
+if not st.session_state["is_running"]:
+    run_button = st.button("🚀 Run Extraction", type="primary")
+    if run_button:
+        if not raw_input.strip():
+            st.warning("⚠️ Please provide at least one URL or upload a .txt file.")
+        else:
+            st.session_state["is_running"] = True
+            st.rerun()
+else:
+    # Show disabled button as placeholder during processing
+    st.button("🚀 Run Extraction", disabled=True)
 
-if run_button:
-    if not raw_input.strip():
-        st.warning("⚠️ Please provide at least one URL or upload a .txt file.")
-    else:
-        st.session_state["is_running"] = True
-        try:
-            items, skipped = maybe_run_pipeline(
-                raw_input=raw_input,
-                controls=controls,
-            )
-            if items:
-                display_results(items, screenshot_enabled=controls["screenshot_enabled"])
-            elif skipped == 0:
-                st.error("No successful extractions.")
-        except Exception as e:
-            logger.exception("Unexpected error during extraction pipeline")
-            st.error(f"❌ An unexpected error occurred: {e}")
-        finally:
-            st.session_state["is_running"] = False
+# --- PROCESSING PIPELINE ---
+if st.session_state["is_running"]:
+    try:
+        items, skipped = maybe_run_pipeline(
+            raw_input=raw_input,
+            controls=controls,
+        )
+        if items:
+            display_results(items, screenshot_enabled=controls["screenshot_enabled"])
+        elif skipped == 0:
+            st.error("No successful extractions.")
+    except Exception as e:
+        logger.exception("Unexpected error during extraction pipeline")
+        st.error(f"❌ An unexpected error occurred: {e}")
+    finally:
+        st.session_state["is_running"] = False
 
 # --- RESET BUTTON ---
 if st.sidebar.button("🔄 Reset"):

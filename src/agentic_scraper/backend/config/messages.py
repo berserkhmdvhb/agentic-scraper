@@ -5,6 +5,14 @@ MSG_INFO_FETCHING_URLS = "Fetching and processing {} URLs"
 MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for {} URLs"
 MSG_INFO_FETCH_SKIPPED = "Skipped %d URLs due to fetch errors"
 MSG_ERROR_PROCESSING_URL_FAILED = "Error processing %s: %s"
+MSG_WARN_PROCESSING_URL_FAILED = "⚠️ Failed to process {url}: {error}"
+
+MSG_INFO_INVALID_URLS_SKIPPED = "⚠️ {n} line(s) were skipped due to invalid URL formatting."
+MSG_INFO_NO_VALID_URLS = "⚠️ No valid URLs found."
+MSG_INFO_USING_CACHE = "🔁 Using cached results for these URLs."
+MSG_INFO_VALID_URLS_FOUND = "✅ {n} valid URLs detected."
+MSG_SUCCESS_EXTRACTION_DONE = "✅ Extraction done!"
+MSG_ERROR_EXTRACTION_FAILED = "❌ LLM extraction failed: {error}"
 
 
 # ─── Backend ─────────────────────────────────────────────────────────────
