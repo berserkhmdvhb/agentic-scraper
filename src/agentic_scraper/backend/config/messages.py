@@ -1,7 +1,20 @@
+# ─── Frontend ─────────────────────────────────────────────────────────────
+
 # frontend/app.py
 MSG_INFO_FETCHING_URLS = "Fetching and processing {} URLs"
 MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for {} URLs"
 MSG_INFO_FETCH_SKIPPED = "Skipped %d URLs due to fetch errors"
+
+
+# ─── Backend ─────────────────────────────────────────────────────────────
+
+# ---------------------------------------------------------------------
+# api/
+# ---------------------------------------------------------------------
+
+# main.py
+MSG_INFO_SCRAPE_REQUEST_RECEIVED = "Received scrape request for %d URL(s)"
+
 
 # ---------------------------------------------------------------------
 # core/
