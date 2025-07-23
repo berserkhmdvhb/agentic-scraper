@@ -155,6 +155,7 @@ def log_settings(settings: Settings) -> None:
     formatted = "\n".join(f"  {k}: {v}" for k, v in safe_dump.items())
     logger.info(MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES.format(values=formatted))
 
+
 def get_environment() -> str:
     return get_settings().env.upper()
 

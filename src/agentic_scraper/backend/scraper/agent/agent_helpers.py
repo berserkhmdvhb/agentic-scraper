@@ -46,7 +46,7 @@ async def capture_optional_screenshot(url: str, settings: Settings) -> str | Non
     """
     try:
         return await capture_screenshot(url, output_dir=Path(settings.screenshot_dir))
-    except (PlaywrightError, OSError, ValueError) as e:
+    except (PlaywrightError, OSError, ValueError):
         logger.warning(MSG_ERROR_SCREENSHOT_FAILED_WITH_URL.format(url=url))
         return None
 

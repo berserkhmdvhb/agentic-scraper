@@ -93,20 +93,20 @@ async def fetch_all(
                     cause = e.last_attempt.exception()
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {cause}"
                     if settings.is_verbose_mode:
-                        logger.exception(MSG_WARNING_FETCH_FAILED.format(url=url, error=cause))
+                        logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION.format(url=url))
                     else:
-                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url, error=cause))
+                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url))
 
                 except (httpx.HTTPError, httpx.RequestError, asyncio.TimeoutError) as e:
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
                     if settings.is_verbose_mode:
-                        logger.exception(MSG_WARNING_FETCH_FAILED.format(url=url, error=e))
+                        logger.exception(MSG_WARNING_FETCH_FAILED.format(url=url))
                     else:
-                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url, error=e))
+                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url))
 
                 except Exception as e:
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
-                    logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION.format(url=url, exc=e))
+                    logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION.format(url=url))
 
         await asyncio.gather(*(bounded_fetch(url) for url in urls))
 

@@ -58,6 +58,6 @@ async def capture_screenshot(url: str, output_dir: Path) -> str | None:
             await browser.close()
             logger.info(MSG_INFO_SCREENSHOT_SAVED.format(path=file_path))
             return file_path.as_posix()
-    except Exception as e:
-        logger.exception(MSG_ERROR_SCREENSHOT_FAILED + f" [URL: {url}]", exc_info=e)
+    except Exception:
+        logger.exception("%s [URL: %s]", MSG_ERROR_SCREENSHOT_FAILED, url)
         return None

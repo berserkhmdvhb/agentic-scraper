@@ -42,7 +42,7 @@ async def worker(  # noqa: PLR0913
 
             except Exception as e:
                 if settings.is_verbose_mode:
-                    logger.exception(MSG_ERROR_WORKER_FAILED.format(url=url, exc=e))
+                    logger.exception(MSG_ERROR_WORKER_FAILED.format(url=url))
                 else:
                     logger.warning(MSG_WARNING_WORKER_FAILED_SHORT.format(url=url, error=e))
                 if on_error:

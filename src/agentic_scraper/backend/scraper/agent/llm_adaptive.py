@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -7,11 +6,9 @@ from pydantic import ValidationError
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from agentic_scraper.backend.config.messages import (
-    MSG_ERROR_JSON_DECODING_FAILED_WITH_URL,
-    MSG_ERROR_LLM_JSON_DECODE_LOG,
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
-    MSG_INFO_EXTRACTION_SUCCESS_WITH_URL,
     MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
+    MSG_INFO_EXTRACTION_SUCCESS_WITH_URL,
 )
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
