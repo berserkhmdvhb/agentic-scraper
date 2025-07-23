@@ -21,9 +21,20 @@ DEFAULT_ENV: Environment = "DEV"
 DEFAULT_SCREENSHOT_ENABLED = True
 
 # === OpenAI Models ===
-VALID_OPENAI_MODELS = {"gpt-3.5-turbo", "gpt-4", "gpt-4o"}
-DEFAULT_OPENAI_MODEL: OpenAIModel = "gpt-3.5-turbo"
+VALID_OPENAI_MODELS = {
+    "gpt-3.5-turbo",
+    "gpt-3.5-turbo-16k",
+    "gpt-4",
+    "gpt-4o",
+}
 
+DEFAULT_OPENAI_MODEL: OpenAIModel = "gpt-3.5-turbo"
+VALID_MODEL_OPTIONS = {
+    "gpt-3.5-turbo": "GPT-3.5 Turbo (Fast + Cheap)",
+    "gpt-3.5-turbo-16k": "GPT-3.5 Turbo 16k (More context)",
+    "gpt-4": "GPT-4 (Slower, costly, very accurate)",
+    "gpt-4o": "GPT-4o (Best overall, multimodal, fast)",
+}
 # === Agent / LLM ===
 DEFAULT_AGENT_MODE = "fixed"
 DEFAULT_LLM_TEMPERATURE = 0.3

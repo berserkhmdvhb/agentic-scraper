@@ -22,7 +22,7 @@ MSG_INFO_SCRAPE_REQUEST_RECEIVED = "Received scrape request for %d URL(s)"
 # ---------------------------------------------------------------------
 
 # settings.py
-MSG_DEBUG_SETTINGS_LOADED = "Loaded settings: %s"
+MSG_DEBUG_SETTINGS_LOADED = "Settings loaded successfully: {safe_dump}"
 MSG_ERROR_MISSING_API_KEY = "OPENAI_API_KEY is required in your .env file."
 MSG_ERROR_INVALID_MODEL_NAME = "Invalid OpenAI model: {model}. Valid options: {valid_options}"
 MSG_ERROR_INVALID_TEMPERATURE = "Temperature must be between 0.0 and 2.0. Got: {value}"
@@ -148,3 +148,6 @@ MSG_WARNING_LOG_FILE_FAIL = "Failed to write log file to: {path}"
 # validators.py
 MSG_DEBUG_SKIPPED_INVALID_URL = "Skipping invalid URL input: {url!r}"
 MSG_ERROR_NOT_A_DIRECTORY = "Path %s exists but is not a directory."
+MSG_ERROR_UNSUPPORTED_OPENAI_MODEL = (
+    "Unsupported OpenAI model: {model!r}. Must be one of: {valid_models}"
+)

@@ -3,7 +3,12 @@ from typing import Any
 
 import streamlit as st
 
-from agentic_scraper.backend.config.constants import DEFAULT_AGENT_MODE, VALID_AGENT_MODES
+from agentic_scraper.backend.config.constants import (
+    DEFAULT_AGENT_MODE,
+    DEFAULT_OPENAI_MODEL,
+    VALID_AGENT_MODES,
+    VALID_MODEL_OPTIONS,
+)
 from agentic_scraper.backend.core.logger_setup import setup_logging
 from agentic_scraper.backend.core.settings import get_environment
 
@@ -25,6 +30,16 @@ def configure_page() -> None:
 
 
 def render_sidebar_controls() -> dict[str, Any]:
+    # --- OpenAI Model ---
+    selected_model = st.sidebar.selectbox(
+        "🤖 OpenAI Model",
+        options=list(VALID_MODEL_OPTIONS.keys()),
+        index=list(VALID_MODEL_OPTIONS.keys()).index(DEFAULT_OPENAI_MODEL),
+        format_func=lambda key: VALID_MODEL_OPTIONS[key],
+        key="openai_model_select",
+        help="Choose which OpenAI model to use for LLM-powered parsing.",
+    )
+
     # --- Agent Mode ---
     selected_agent_mode = st.sidebar.selectbox(
         "🧠 Agent Mode",
@@ -101,6 +116,7 @@ def render_sidebar_controls() -> dict[str, Any]:
     st.session_state["fetch_concurrency"] = fetch_concurrency
     st.session_state["llm_concurrency"] = llm_concurrency
     st.session_state["log_tracebacks"] = log_tracebacks
+    st.session_state["openai_model"] = selected_model
     st.session_state["agent_mode"] = selected_agent_mode
 
     return {
@@ -108,6 +124,7 @@ def render_sidebar_controls() -> dict[str, Any]:
         "fetch_concurrency": fetch_concurrency,
         "llm_concurrency": llm_concurrency,
         "log_tracebacks": log_tracebacks,
+        "openai_model": selected_model,
         "agent_mode": selected_agent_mode,
     }
 

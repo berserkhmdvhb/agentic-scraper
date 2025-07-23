@@ -87,27 +87,6 @@ class Settings(BaseSettings):
     fetch_concurrency: int = Field(default=10, validation_alias="FETCH_CONCURRENCY", exclude=True)
     llm_concurrency: int = Field(default=2, validation_alias="LLM_CONCURRENCY", exclude=True)
 
-    @model_validator(mode="before")
-    @classmethod
-    def apply_validations(cls, values: dict[str, Any]) -> dict[str, Any]:
-        return validated_settings(values)
-
-    @model_validator(mode="after")
-    def validate_config(self) -> "Settings":
-        safe_dump = self.model_dump(exclude={"openai_api_key", "openai_project_id"})
-        message = f"{MSG_DEBUG_SETTINGS_LOADED}: {safe_dump}"
-        logger.debug(message)
-
-        if not self.openai_api_key:
-            raise ValueError(MSG_ERROR_MISSING_API_KEY)
-        return self
-
-    model_config = {
-        "env_file": ".env",
-        "env_file_encoding": "utf-8",
-        "extra": "ignore",
-    }
-
     # Retry behavior (used in agent.py with tenacity)
     retry_attempts: int = Field(
         default=2,
@@ -124,6 +103,26 @@ class Settings(BaseSettings):
         validation_alias="RETRY_BACKOFF_MAX",
         description="Maximum backoff time (seconds) for retry delay",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_validations(cls, values: dict[str, Any]) -> dict[str, Any]:
+        return validated_settings(values)
+
+    @model_validator(mode="after")
+    def validate_config(self) -> "Settings":
+        safe_dump = self.model_dump(exclude={"openai_api_key", "openai_project_id"})
+        logger.debug(MSG_DEBUG_SETTINGS_LOADED.format(safe_dump=safe_dump))
+
+        if not self.openai_api_key:
+            raise ValueError(MSG_ERROR_MISSING_API_KEY)
+        return self
+
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 @cache

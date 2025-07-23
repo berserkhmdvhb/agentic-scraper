@@ -34,7 +34,6 @@ def _coerce_and_validate(
 
     raw = values[key]
 
-    # Pass through if already correct type
     if isinstance(raw, (int, float, Path, bool)):
         try:
             validated = validator(raw)
@@ -47,7 +46,6 @@ def _coerce_and_validate(
             raise
         return
 
-    # Try to coerce from string
     if isinstance(raw, str):
         stripped = raw.strip()
         if not stripped:
@@ -66,10 +64,10 @@ def _coerce_and_validate(
             raise
     else:
         logger.debug(MSG_DEBUG_SETTING_SKIPPED.format(key=key))
-        return
 
 
-def _validate_optional_model(values: dict[str, Any]) -> None:
+def _validate_optional_openai_model(values: dict[str, Any]) -> None:
+    """Validate the OpenAI model string (from env or override)."""
     _coerce_and_validate(values, "openai_model", str, validate_openai_model)
 
 
@@ -105,7 +103,8 @@ def _validate_optional_bool(
 
 
 def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
-    _validate_optional_model(values)
+    """Main entry point to validate incoming Settings values before instantiating."""
+    _validate_optional_openai_model(values)
     _validate_optional_float(values, "llm_temperature", validate_temperature)
     _validate_optional_int(values, "llm_max_tokens", validate_max_tokens)
     _validate_optional_int(values, "max_concurrent_requests", validate_concurrency)

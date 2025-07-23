@@ -1,5 +1,6 @@
 import asyncio
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import streamlit as st
@@ -22,42 +23,47 @@ from agentic_scraper.backend.utils.validators import clean_input_urls, deduplica
 logger = get_logger()
 
 
+@dataclass
+class PipelineConfig:
+    fetch_concurrency: int
+    llm_concurrency: int
+    screenshot_enabled: bool
+    log_tracebacks: bool
+    openai_model: str
+    agent_mode: str
+
+
 def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]:
-    """
-    Validate and clean user input, returning (valid_urls, invalid_lines).
-    """
     all_lines = [line.strip() for line in raw_input.strip().splitlines() if line.strip()]
     valid_urls = clean_input_urls(raw_input)
     invalid_lines = [line for line in all_lines if line not in valid_urls]
     return deduplicate_urls(valid_urls), invalid_lines
 
 
-async def run_scraper_pipeline(  # noqa: PLR0913
+async def run_scraper_pipeline(
     urls: list[str],
-    fetch_concurrency: int,
-    llm_concurrency: int,
-    *,
-    screenshot_enabled: bool,
-    log_tracebacks: bool,
-    agent_mode: str,
+    config: PipelineConfig,
 ) -> ScrapeResultWithSkipCount:
     logger.info(MSG_INFO_FETCHING_URLS.format(len(urls)))
 
     settings = get_settings().model_copy(
         update={
-            "fetch_concurrency": fetch_concurrency,
-            "llm_concurrency": llm_concurrency,
-            "screenshot_enabled": screenshot_enabled,
-            "debug_mode": log_tracebacks,
-            "agent_mode": agent_mode,
+            "fetch_concurrency": config.fetch_concurrency,
+            "llm_concurrency": config.llm_concurrency,
+            "screenshot_enabled": config.screenshot_enabled,
+            "debug_mode": config.log_tracebacks,
+            "openai_model": config.openai_model,
+            "agent_mode": config.agent_mode,
         }
     )
 
-    fetch_results = await fetch_all(
-        urls=urls,
-        concurrency=fetch_concurrency,
-        settings=settings,
-    )
+    with st.status("🌐 **Fetching pages...**", expanded=True) as fetch_status:
+        fetch_results = await fetch_all(
+            urls=urls,
+            concurrency=config.fetch_concurrency,
+            settings=settings,
+        )
+        fetch_status.update(label="✅ **Fetched all pages**", state="complete")
 
     skipped = 0
     inputs = []
@@ -70,38 +76,46 @@ async def run_scraper_pipeline(  # noqa: PLR0913
 
     logger.info(MSG_INFO_FETCH_SKIPPED, skipped)
     processed = 0
-    status_area = st.empty()
+    total = len(inputs)
+    progress = st.progress(0, text="🧠 Starting LLM extraction...")
+    status_line = st.empty()
+    start_time = time.perf_counter()
 
     def on_item_processed(item: ScrapedItem) -> None:
         nonlocal processed
         processed += 1
-        status_area.write(f"✅ {processed}/{len(inputs)}: {item.url}")
+        elapsed = time.perf_counter() - start_time
+        est_total = (elapsed / processed) * total
+        est_remaining = est_total - elapsed
+        progress.progress(
+            processed / total, text=f"🧠 {processed}/{total} — Est: {est_remaining:.1f}s left"
+        )
+        status_line.markdown(f"🔄 Processing: [{item.url}]({item.url})")
 
     def on_error(url: str, e: Exception) -> None:
         st.warning(f"⚠️ Failed to process {url}: {e}")
         logger.error(MSG_ERROR_PROCESSING_URL_FAILED)
 
-    items = await run_worker_pool(
-        inputs=inputs,
-        settings=settings,
-        concurrency=llm_concurrency,
-        take_screenshot=screenshot_enabled,
-        on_item_processed=on_item_processed,
-        on_error=on_error,
-    )
+    # Use auto-collapsing expander instead of persistent status box
+    with st.expander("🧠 LLM Extraction Log", expanded=False):
+        items = await run_worker_pool(
+            inputs=inputs,
+            settings=settings,
+            concurrency=config.llm_concurrency,
+            take_screenshot=config.screenshot_enabled,
+            on_item_processed=on_item_processed,
+            on_error=on_error,
+            log_tracebacks=config.log_tracebacks,
+        )
+        st.success("✅ LLM extraction completed")
 
     logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(len(items)))
     return items, skipped
 
 
-def process_and_run(  # noqa: PLR0913
+def process_and_run(
     raw_input: str,
-    fetch_concurrency: int,
-    llm_concurrency: int,
-    agent_mode: str,
-    *,
-    screenshot_enabled: bool,
-    log_tracebacks: bool,
+    config: PipelineConfig,
 ) -> tuple[list[ScrapedItem], int]:
     urls, invalid_lines = validate_and_deduplicate_urls(raw_input)
 
@@ -118,70 +132,65 @@ def process_and_run(  # noqa: PLR0913
     st.success(f"✅ {len(urls)} valid URLs detected.")
     st.markdown("---")
 
-    with st.status("🔄 **Running scraping pipeline...**", expanded=True) as status:
-        start = time.perf_counter()
-        st.write(f"📥 **Fetching `{len(urls)}` URLs...**")
+    st.session_state["is_running"] = True
+    start = time.perf_counter()
 
+    try:
         key = tuple(sorted(urls))
-        try:
-            if "last_input_key" in st.session_state and st.session_state.last_input_key == key:
-                st.info("🔁 Using cached results for these URLs.")
-                items = st.session_state.extracted_items
-                skipped = 0
-            else:
-                items, skipped = asyncio.run(
-                    run_scraper_pipeline(
-                        urls=urls,
-                        fetch_concurrency=fetch_concurrency,
-                        llm_concurrency=llm_concurrency,
-                        screenshot_enabled=screenshot_enabled,
-                        log_tracebacks=log_tracebacks,
-                        agent_mode=agent_mode,
-                    )
-                )
-                st.session_state.extracted_items = items
-                st.session_state.last_input_key = key
-
-        except ValueError as e:
-            st.error(f"❌ LLM extraction failed: {e}")
-            st.write("🚫 Aborting due to an error.")
-            status.update(label="❌ **Error during scraping**", state="error")
-            st.session_state.extracted_items = []
-            st.session_state.last_input_key = None
-            return [], 0
-
+        if "last_input_key" in st.session_state and st.session_state.last_input_key == key:
+            st.info("🔁 Using cached results for these URLs.")
+            items = st.session_state.extracted_items
+            skipped = 0
         else:
-            if items:
-                st.write(f"✅ **Extracted structured data from `{len(items)}` URLs.**")
-                if skipped > 0:
-                    st.warning(f"⚠️ Skipped {skipped} URL(s) due to fetch or parse errors.")
-            else:
-                st.write("⚠️ No structured data extracted.")
-
-            end = time.perf_counter()
-            elapsed = round(end - start, 2)
-            st.markdown(
-                f"<div style='font-size: 1.1rem;'>"
-                f"<b>⏱️ Processing Time:</b> {elapsed:.2f} seconds</div>",
-                unsafe_allow_html=True,
+            items, skipped = asyncio.run(
+                run_scraper_pipeline(
+                    urls=urls,
+                    config=config,
+                )
             )
-            status.update(label="✅ **Scraping completed!**", state="complete")
+            st.session_state.extracted_items = items
+            st.session_state.last_input_key = key
 
-            if items:
-                with st.expander("🔍 View individual results"):
-                    for item in items:
-                        title = item.title or "Untitled"
-                        st.markdown(f"- 🔗 [{item.url}]({item.url}) — ✅ **{title}**")
+    except ValueError as e:
+        st.error(f"❌ LLM extraction failed: {e}")
+        st.write("🚫 Aborting due to an error.")
+        st.session_state.extracted_items = []
+        st.session_state.last_input_key = None
+        return [], 0
 
-            return items, skipped
+    else:
+        elapsed = round(time.perf_counter() - start, 2)
+
+        # Display summary metrics (above the fold)
+        col1, col2, col3 = st.columns(3)
+        col1.metric("✅ Extracted", f"{len(items)} URLs")
+        col2.metric("⚠️ Skipped", f"{skipped} URLs")
+        col3.metric("⏱️ Time", f"{elapsed:.2f}s")
+
+        if items:
+            st.write(f"✅ **Extracted structured data from `{len(items)}` URLs.**")
+            if skipped > 0:
+                st.warning(f"⚠️ Skipped {skipped} URL(s) due to fetch or parse errors.")
+
+            with st.expander("🔍 View individual results"):
+                for item in items:
+                    title = item.title or "Untitled"
+                    st.markdown(f"- 🔗 [{item.url}]({item.url}) — ✅ **{title}**")
+        else:
+            st.write("⚠️ No structured data extracted.")
+
+        st.toast("✅ Extraction done!", icon="🎉")
+
+        return items, skipped
 
 
 def maybe_run_pipeline(raw_input: str, controls: dict[str, Any]) -> tuple[list[ScrapedItem], int]:
-    return process_and_run(
-        raw_input=raw_input,
+    config = PipelineConfig(
         fetch_concurrency=controls["fetch_concurrency"],
         llm_concurrency=controls["llm_concurrency"],
         screenshot_enabled=controls["screenshot_enabled"],
         log_tracebacks=controls["log_tracebacks"],
+        openai_model=controls["openai_model"],
         agent_mode=controls["agent_mode"],
     )
+    return process_and_run(raw_input=raw_input, config=config)
