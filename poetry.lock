@@ -3791,9 +3791,9 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy"]
 
 [extras]
-dev = ["build", "coverage", "coveralls", "fastapi", "mypy", "pytest", "pytest-asyncio", "pytest-cov", "pytest-watch", "ruff", "twine", "types-beautifulsoup4"]
+dev = ["build", "coverage", "coveralls", "fastapi", "mypy", "pytest", "pytest-asyncio", "pytest-cov", "pytest-watch", "ruff", "twine", "types-beautifulsoup4", "uvicorn"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "21301d2f7205c705e4e659036d5fa8ccd81154c97ed8a8764833e3ced6e16b35"
+content-hash = "93f31953bd5f3b1a32a1c231c008fbf508adcc9d2dfee4c204e4aaf0df3e8190"

@@ -8,7 +8,7 @@
         clean clean-logs clean-cache clean-coverage clean-build clean-pyc clean-all \
         build publish publish-test upload-coverage \
 		export-requirements check-requirements-sync \
-		mock-server
+		mock-server run-api \
 
 PYTHON := python
 
@@ -57,6 +57,7 @@ help::
 	@echo "  export-requirements    Export requirements.txt from pyproject.toml"
 	@echo "  check-requirements-sync  Check if requirements.txt matches pyproject.toml"
 	@echo "  mock-server              Start the mock FastAPI server at http://localhost:8000"
+	@echo "  run-api                  Start the FastAPI backend at http://localhost:8000"
 	
 install:
 	$(PYTHON) -m pip install -e .
@@ -204,3 +205,6 @@ check-requirements-sync:
 mock-server:
 	@echo "Starting mock server with FAIL_RATE=$(FAIL_RATE)"
 	python mock_api.py --fail-rate $(FAIL_RATE)
+	
+run-api:
+	uvicorn agentic_scraper.backend.api.main:app --reload

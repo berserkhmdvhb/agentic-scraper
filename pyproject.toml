@@ -51,7 +51,8 @@ dev = [
   "pytest-watch",
   "ruff",
   "twine",
-  "types-beautifulsoup4"
+  "types-beautifulsoup4",
+  "uvicorn[standard]"
 ]
 
 [project.urls]
