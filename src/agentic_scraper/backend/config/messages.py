@@ -4,6 +4,7 @@
 MSG_INFO_FETCHING_URLS = "Fetching and processing {} URLs"
 MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for {} URLs"
 MSG_INFO_FETCH_SKIPPED = "Skipped %d URLs due to fetch errors"
+MSG_ERROR_PROCESSING_URL_FAILED = "Error processing %s: %s"
 
 
 # ─── Backend ─────────────────────────────────────────────────────────────
@@ -43,7 +44,41 @@ MSG_WARNING_SETTING_INVALID = "Invalid {key}={original!r}: {error}"
 # scraper/
 # ---------------------------------------------------------------------
 
-# agent.py
+# fetcher.py
+MSG_INFO_FETCH_SUCCESS = "Fetched {} successfully"
+MSG_WARNING_FETCH_FAILED = "Failed to fetch %s: %s"
+MSG_ERROR_UNREACHABLE_FETCH_URL = "Unreachable code reached in fetch_url (unexpected fallback)"
+MSG_FETCH_ERROR_PREFIX = "__FETCH_ERROR__"
+MSG_DEBUG_RETRYING_URL = "Retrying %s (attempt %s): previous failure was %s"
+MSG_ERROR_UNREACHABLE_FETCH_URL = "Reached unexpected code path in fetch_url"
+
+# models.py
+MSG_ERROR_EMPTY_STRING = "Field '{field}' must not be empty or whitespace."
+MSG_ERROR_INVALID_PRICE = "Price must be non-negative. Got: {value}"
+
+# parser.py
+MSG_DEBUG_PARSED_TITLE = "Parsed <title>: %s"
+MSG_DEBUG_PARSED_META_DESCRIPTION = "Parsed meta description: %s"
+MSG_DEBUG_PARSED_AUTHOR = "Parsed author from %s: %s"
+MSG_INFO_NO_TITLE = "No <title> tag found."
+MSG_INFO_NO_META_DESCRIPTION = "No meta description found."
+MSG_INFO_NO_AUTHOR = "No author meta tag found."
+
+# screenshotter.py
+MSG_ERROR_SCREENSHOT_FAILED = "Failed to capture screenshot"
+MSG_INFO_SCREENSHOT_SAVED = "Screenshot saved: %s"
+
+# worker_pool.py
+MSG_ERROR_WORKER_FAILED = "Worker failed for URL: %s"
+MSG_WARNING_WORKER_FAILED_SHORT = "Worker failed for URL: %s: %s"
+
+
+# ---------------------------------------------------------------------
+# scraper/agent/
+# ---------------------------------------------------------------------
+
+# llm_fixed.py
+
 MSG_SYSTEM_PROMPT = """You are a web extraction assistant.
 Your job is to extract key data from webpage content.
 Return only a JSON object with the following fields:
@@ -75,36 +110,15 @@ MSG_DEBUG_API_EXCEPTION = "Full exception details:"
 MSG_DEBUG_PARSED_STRUCTURED_DATA = "Parsed structured data: %s"
 MSG_ERROR_LLM_JSON_DECODE_LOG = "Failed to decode JSON from LLM response: %r [URL: %s]"
 
-
-# fetcher.py
-MSG_INFO_FETCH_SUCCESS = "Fetched {} successfully"
-MSG_WARNING_FETCH_FAILED = "Failed to fetch %s: %s"
-MSG_ERROR_UNREACHABLE_FETCH_URL = "Unreachable code reached in fetch_url (unexpected fallback)"
-MSG_FETCH_ERROR_PREFIX = "__FETCH_ERROR__"
-MSG_DEBUG_RETRYING_URL = "Retrying %s (attempt %s): previous failure was %s"
-MSG_ERROR_UNREACHABLE_FETCH_URL = "Reached unexpected code path in fetch_url"
+# __init__.py
+MSG_ERROR_INVALID_AGENT_MODE = "Invalid agent mode: '{value}'. Valid options: {valid_options}"
+MSG_ERROR_UNHANDLED_AGENT_MODE = "Unhandled AGENT_MODE: {value}"
 
 
-# models.py
-MSG_ERROR_EMPTY_STRING = "Field '{field}' must not be empty or whitespace."
-MSG_ERROR_INVALID_PRICE = "Price must be non-negative. Got: {value}"
-
-# parser.py
-MSG_DEBUG_PARSED_TITLE = "Parsed <title>: %s"
-MSG_DEBUG_PARSED_META_DESCRIPTION = "Parsed meta description: %s"
-MSG_DEBUG_PARSED_AUTHOR = "Parsed author from %s: %s"
-MSG_INFO_NO_TITLE = "No <title> tag found."
-MSG_INFO_NO_META_DESCRIPTION = "No meta description found."
-MSG_INFO_NO_AUTHOR = "No author meta tag found."
-
-# screenshotter.py
-MSG_ERROR_SCREENSHOT_FAILED = "Failed to capture screenshot"
-MSG_INFO_SCREENSHOT_SAVED = "Screenshot saved: %s"
-
-# worker_pool.py
-MSG_ERROR_WORKER_FAILED = "Worker failed for URL: %s"
-MSG_WARNING_WORKER_FAILED_SHORT = "Worker failed for URL: %s: %s"
-
+# rule_based.py
+MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED = (
+    "Rule-based extraction failed to construct ScrapedItem for {url}: {error}"
+)
 
 # ---------------------------------------------------------------------
 # common/logging.py

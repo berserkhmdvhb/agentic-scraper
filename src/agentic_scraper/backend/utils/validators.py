@@ -8,6 +8,7 @@ from agentic_scraper.backend.config.constants import (
     LLM_TEMPERATURE_MAX,
     LLM_TEMPERATURE_MIN,
     MAX_CONCURRENCY_HARD_LIMIT,
+    VALID_AGENT_MODES,
     VALID_ENVIRONMENTS,
     VALID_LOG_LEVELS,
     VALID_OPENAI_MODELS,
@@ -15,6 +16,7 @@ from agentic_scraper.backend.config.constants import (
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SKIPPED_INVALID_URL,
     MSG_ERROR_EMPTY_STRING,
+    MSG_ERROR_INVALID_AGENT_MODE,
     MSG_ERROR_INVALID_BACKUP_COUNT,
     MSG_ERROR_INVALID_CONCURRENCY,
     MSG_ERROR_INVALID_ENV,
@@ -222,3 +224,17 @@ def ensure_directory(path: Path) -> Path:
         raise ValueError(MSG_ERROR_NOT_A_DIRECTORY % path)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def validate_agent_mode(mode: str) -> str:
+    mode = mode.strip().lower()
+    if mode not in VALID_AGENT_MODES:
+        raise ValueError(
+            format_with_valid_options(
+                MSG_ERROR_INVALID_AGENT_MODE,
+                "value",
+                mode,
+                VALID_AGENT_MODES,
+            )
+        )
+    return mode

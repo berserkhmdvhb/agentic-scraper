@@ -25,11 +25,13 @@ VALID_OPENAI_MODELS = {"gpt-3.5-turbo", "gpt-4", "gpt-4o"}
 DEFAULT_OPENAI_MODEL: OpenAIModel = "gpt-3.5-turbo"
 
 # === Agent / LLM ===
-DEFAULT_LLM_MAX_TOKENS = 500
-DEFAULT_LLM_TEMPERATURE = 0.0
+DEFAULT_AGENT_MODE = "fixed"
+DEFAULT_LLM_TEMPERATURE = 0.3
+DEFAULT_LLM_MAX_TOKENS = 1000
 LLM_TEMPERATURE_MIN = 0.0
 LLM_TEMPERATURE_MAX = 2.0
 LLM_MAX_TOKENS_LIMIT = 8192  # depends on model but good upper bound
+VALID_AGENT_MODES = {"fixed", "adaptive", "rule"}
 
 # === Concurrency & Network ===
 DEFAULT_REQUEST_TIMEOUT = 10
@@ -74,3 +76,16 @@ DEFAULT_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
+
+# ---------------------------------------------------------------------
+# scraper/agent/
+# ---------------------------------------------------------------------
+
+
+# Regex Patterns
+REGEX_PRICE_PATTERN = r"\$\s?(\d+(?:[\.,]\d{2})?)"
+REGEX_PARAGRAPH_SPLIT_PATTERN = r"\n\s*\n"
+
+# Description length constraints
+DESCRIPTION_MIN_LENGTH = 80
+DESCRIPTION_MAX_LENGTH = 500

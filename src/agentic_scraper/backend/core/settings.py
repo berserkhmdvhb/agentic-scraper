@@ -13,6 +13,7 @@ from agentic_scraper.backend.config.aliases import (
     OpenAIModel,
 )
 from agentic_scraper.backend.config.constants import (
+    DEFAULT_AGENT_MODE,
     DEFAULT_ENV,
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_LLM_TEMPERATURE,
@@ -60,6 +61,11 @@ class Settings(BaseSettings):
     llm_max_tokens: int = Field(default=DEFAULT_LLM_MAX_TOKENS, validation_alias="LLM_MAX_TOKENS")
     llm_temperature: float = Field(
         default=DEFAULT_LLM_TEMPERATURE, validation_alias="LLM_TEMPERATURE"
+    )
+    agent_mode: str = Field(
+        default=DEFAULT_AGENT_MODE,
+        validation_alias="AGENT_MODE",
+        description="Which agent to use: fixed | adaptive | rule",
     )
 
     # Screenshotting
