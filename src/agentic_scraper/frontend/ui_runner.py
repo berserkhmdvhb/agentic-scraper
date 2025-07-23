@@ -15,7 +15,6 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_USING_CACHE,
     MSG_INFO_VALID_URLS_FOUND,
-    MSG_SUCCESS_EXTRACTION_DONE,
     MSG_WARN_PROCESSING_URL_FAILED,
 )
 from agentic_scraper.backend.config.types import ScrapeResultWithSkipCount
@@ -194,7 +193,7 @@ def process_and_run(
     else:
         elapsed = round(time.perf_counter() - start, 2)
 
-        st.markdown("## ✅ Extraction Complete")
+        st.markdown("## 🎉 Extraction Complete")
         col1, col2, col3 = st.columns(3)
         col1.metric("✅ Extracted", f"{len(items)} URLs")
         col2.metric("⚠️ Skipped", f"{skipped} URLs")
@@ -207,7 +206,6 @@ def process_and_run(
                     title = (item.title or str(item.url)).strip()
                     st.markdown(f"- {icon} [{title}]({item.url})")
 
-        st.toast(MSG_SUCCESS_EXTRACTION_DONE, icon="🎉")
         return items, skipped
 
 

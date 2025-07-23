@@ -57,7 +57,7 @@ def render_sidebar_controls() -> dict[str, Any]:
     screenshot_enabled = st.sidebar.checkbox("📸 Enable Screenshot", value=False)
 
     with st.sidebar.expander("⚙️ Performance Settings", expanded=False):
-        st.markdown("### 🔷 Concurrency")
+        st.markdown("### 🔁 Concurrency")
 
         split = st.checkbox(
             "🔧 Separate fetch and LLM controls",
