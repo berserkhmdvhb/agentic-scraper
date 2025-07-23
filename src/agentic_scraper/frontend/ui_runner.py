@@ -99,7 +99,7 @@ async def run_scraper_pipeline(
         text = extract_main_text(html)
         inputs.append((url, text))
 
-    logger.info(MSG_INFO_FETCH_SKIPPED, skipped)
+    logger.info(MSG_INFO_FETCH_SKIPPED.format(n=skipped))
     processed = 0
     total = len(inputs)
     progress = st.progress(0)

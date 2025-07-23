@@ -77,6 +77,8 @@ MSG_INFO_NO_AUTHOR = "No author meta tag found."
 # screenshotter.py
 MSG_ERROR_SCREENSHOT_FAILED = "Failed to capture screenshot"
 MSG_INFO_SCREENSHOT_SAVED = "Screenshot saved: {path}"
+MSG_INFO_WORKER_POOL_START = "Running worker pool with screenshots enabled = {enabled}"
+
 
 # worker_pool.py
 MSG_ERROR_WORKER_FAILED = "Worker failed for URL: {url}"

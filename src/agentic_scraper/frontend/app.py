@@ -15,7 +15,7 @@ from agentic_scraper.frontend.ui_runner import maybe_run_pipeline
 
 # --- WINDOWS ASYNCIO FIX ---
 if sys.platform.startswith("win"):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
 # --- LOGGING SETUP ---

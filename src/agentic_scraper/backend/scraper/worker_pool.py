@@ -3,6 +3,7 @@ import logging
 
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_WORKER_FAILED,
+    MSG_INFO_WORKER_POOL_START,
     MSG_WARNING_WORKER_FAILED_SHORT,
 )
 from agentic_scraper.backend.config.types import (
@@ -83,7 +84,7 @@ async def run_worker_pool(  # noqa: PLR0913
     results: list[ScrapedItem] = []
 
     if settings.is_verbose_mode:
-        logger.info("Running worker pool with screenshots enabled = %s", take_screenshot)
+        logger.info(MSG_INFO_WORKER_POOL_START.format(enabled=take_screenshot))
 
     for input_item in inputs:
         await queue.put(input_item)

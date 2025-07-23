@@ -66,7 +66,7 @@ def display_results(
     st.session_state.results_df = df_extracted_data
 
     if screenshot_enabled:
-        tab1, tab2 = st.tabs(["📋 Extracted Table", "🗼 Screenshot Details"])
+        tab1, tab2 = st.tabs(["📋 Extracted Table", "🖼️ Screenshot Details"])
     else:
         (tab1,) = st.tabs(["📋 Table Preview"])
 
