@@ -16,6 +16,7 @@ from agentic_scraper.backend.config.constants import (
 )
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_RETRYING_URL,
+    MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION,
     MSG_ERROR_UNREACHABLE_FETCH_URL,
     MSG_FETCH_ERROR_PREFIX,
     MSG_INFO_FETCH_SUCCESS,
@@ -105,7 +106,7 @@ async def fetch_all(
 
                 except Exception as e:
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
-                    logger.exception(f"Unexpected error while fetching {url}")
+                    logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION, url)
 
         await asyncio.gather(*(bounded_fetch(url) for url in urls))
 

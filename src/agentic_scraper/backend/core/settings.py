@@ -109,6 +109,12 @@ class Settings(BaseSettings):
         description="Maximum backoff time (seconds) for retry delay",
     )
 
+    dump_llm_json_dir: str | None = Field(
+        default=None,
+        validation_alias="DUMP_LLM_JSON_DIR",
+        description="Optional directory to dump full LLM parsed data for debugging/inspection.",
+    )
+
     # Derived
     @property
     def is_verbose_mode(self) -> bool:

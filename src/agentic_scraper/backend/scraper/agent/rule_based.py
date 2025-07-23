@@ -1,8 +1,6 @@
 import logging
 import re
-from pathlib import Path
 
-from playwright.async_api import Error as PlaywrightError
 from pydantic import HttpUrl, ValidationError
 
 from agentic_scraper.backend.config.constants import (
@@ -12,13 +10,14 @@ from agentic_scraper.backend.config.constants import (
     REGEX_PRICE_PATTERN,
 )
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_PARSED_STRUCTURED_DATA,
     MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED,
-    MSG_ERROR_SCREENSHOT_FAILED_WITH_URL,
 )
 from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.backend.scraper.agent.agent_helpers import (
+    capture_optional_screenshot,
+    log_structured_data,
+)
 from agentic_scraper.backend.scraper.models import ScrapedItem
-from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
 
 logger = logging.getLogger(__name__)
 
@@ -69,25 +68,19 @@ async def extract_structured_data(
     screenshot_path: str | None = None
 
     if take_screenshot:
-        try:
-            screenshot_path = await capture_screenshot(
-                url, output_dir=Path(settings.screenshot_dir)
-            )
-        except (PlaywrightError, OSError, ValueError):
-            logger.warning(MSG_ERROR_SCREENSHOT_FAILED_WITH_URL, url)
+        screenshot_path = await capture_optional_screenshot(url, settings)
 
-    if settings.is_verbose_mode:
-        logger.debug(
-            MSG_DEBUG_PARSED_STRUCTURED_DATA,
-            {
-                "title": title,
-                "description": description,
-                "price": price,
-                "author": None,
-                "date_published": None,
-                "screenshot_path": screenshot_path,
-            },
-        )
+    log_structured_data(
+        {
+            "title": title,
+            "description": description,
+            "price": price,
+            "author": None,
+            "date_published": None,
+            "screenshot_path": screenshot_path,
+        },
+        settings,
+    )
 
     try:
         return ScrapedItem(

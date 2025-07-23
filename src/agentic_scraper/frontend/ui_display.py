@@ -1,8 +1,11 @@
+import json
 import sqlite3
 from io import BytesIO
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from pydantic import HttpUrl
 from st_aggrid import AgGrid, GridOptionsBuilder
 
 from agentic_scraper.backend.scraper.models import ScrapedItem
@@ -11,12 +14,28 @@ from agentic_scraper.backend.scraper.models import ScrapedItem
 def dataframe_to_sqlite_bytes(df: pd.DataFrame, table_name: str = "scraped_data") -> BytesIO:
     """
     Convert a DataFrame to a SQLite dump in memory as BytesIO.
+
+    Safely serializes non-primitive types (e.g. lists, HttpUrl, Path)
+    to avoid SQLite binding errors.
     """
     buffer = BytesIO()
+    df_serialized = df.copy()
+
+    def safe_serialize(x: object) -> str | object:
+        if isinstance(x, (list, dict)):
+            return json.dumps(x)
+        if isinstance(x, (HttpUrl, Path)):
+            return str(x)
+        return x
+
+    for col in df_serialized.columns:
+        df_serialized[col] = df_serialized[col].apply(safe_serialize)
+
     with sqlite3.connect(":memory:") as conn:
-        df.to_sql(table_name, conn, index=False, if_exists="replace")
+        df_serialized.to_sql(table_name, conn, index=False, if_exists="replace")
         for line in conn.iterdump():
             buffer.write(f"{line}\n".encode())
+
     buffer.seek(0)
     return buffer
 
@@ -39,7 +58,6 @@ def display_results(
         df_extracted_data = df_extracted_data.drop(columns=["screenshot_path"])
 
     if "screenshot_path" in df_extracted_data.columns:
-        # Always place screenshot column last
         df_extracted_data = df_extracted_data[
             [col for col in df_extracted_data.columns if col != "screenshot_path"]
             + ["screenshot_path"]
@@ -82,7 +100,11 @@ def display_results(
             mime="text/csv",
         )
 
-        sqlite_bytes = dataframe_to_sqlite_bytes(df_extracted_data)
+        try:
+            sqlite_bytes = dataframe_to_sqlite_bytes(df_extracted_data)
+        except (sqlite3.InterfaceError, ValueError, TypeError) as e:
+            st.error(f"❌ Failed to generate SQLite export: {e}")
+            sqlite_bytes = BytesIO()
         st.download_button(
             "🗃️ Download SQLite",
             data=sqlite_bytes,

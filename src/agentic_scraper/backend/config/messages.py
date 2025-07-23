@@ -59,6 +59,8 @@ MSG_ERROR_UNREACHABLE_FETCH_URL = "Unreachable code reached in fetch_url (unexpe
 MSG_FETCH_ERROR_PREFIX = "__FETCH_ERROR__"
 MSG_DEBUG_RETRYING_URL = "Retrying %s (attempt %s): previous failure was %s"
 MSG_ERROR_UNREACHABLE_FETCH_URL = "Reached unexpected code path in fetch_url"
+MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION = "Unexpected error while fetching %s"
+
 
 # models.py
 MSG_ERROR_EMPTY_STRING = "Field '{field}' must not be empty or whitespace."
@@ -85,8 +87,23 @@ MSG_WARNING_WORKER_FAILED_SHORT = "Worker failed for URL: %s: %s"
 # scraper/agent/
 # ---------------------------------------------------------------------
 
-# llm_fixed.py
+# agent_helpers.py
+MSG_DEBUG_LLM_JSON_DUMP_SAVED = "Full LLM JSON output saved to %s"
+MSG_ERROR_SCREENSHOT_FAILED_WITH_URL = "Failed to capture screenshot. [URL: %s]"
+MSG_ERROR_RATE_LIMIT_LOG_WITH_URL = "OpenAI rate limit exceeded. [URL: %s]"
+MSG_ERROR_RATE_LIMIT_DETAIL = "Rate limit detail: %s"
+MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL = "Unexpected OpenAI error. [URL: %s]"
+MSG_ERROR_OPENAI_UNEXPECTED = "Unexpected OpenAI error: {error}"
+MSG_ERROR_OPENAI_UNEXPECTED_LOG = "Unexpected OpenAI error: {}"
+MSG_ERROR_LLM_JSON_DECODE_LOG = "Failed to decode JSON from LLM response: %r [URL: %s]"
+MSG_ERROR_JSON_DECODING_FAILED_WITH_URL = "Failed to parse LLM output: %s [URL: %s]"
+MSG_ERROR_API_LOG_WITH_URL = "OpenAI API error occurred. [URL: %s]"
+MSG_ERROR_API = "OpenAI API error occurred: {error}"
+MSG_DEBUG_PARSED_STRUCTURED_DATA = "Parsed structured data: %s"
+MSG_DEBUG_API_EXCEPTION = "Full exception details:"
 
+
+# llm_fixed.py
 MSG_SYSTEM_PROMPT = """You are a web extraction assistant.
 Your job is to extract key data from webpage content.
 Return only a JSON object with the following fields:
@@ -99,24 +116,19 @@ Return only a JSON object with the following fields:
 All values must be valid JSON. If a field is not found, return null for it."""
 MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL = "LLM response missing or malformed. [URL: %s]"
 MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL = "LLM response was None. [URL: %s]"
-MSG_ERROR_JSON_DECODING_FAILED_WITH_URL = "Failed to parse LLM output: %s [URL: %s]"
-MSG_ERROR_SCREENSHOT_FAILED_WITH_URL = "Failed to capture screenshot. [URL: %s]"
-MSG_ERROR_RATE_LIMIT_LOG_WITH_URL = "OpenAI rate limit exceeded. [URL: %s]"
-MSG_ERROR_RATE_LIMIT_DETAIL = "Rate limit detail: %s"
-MSG_ERROR_API_LOG_WITH_URL = "OpenAI API error occurred. [URL: %s]"
-MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL = "Unexpected OpenAI error. [URL: %s]"
+
+
 MSG_ERROR_RATE_LIMIT = (
     "OpenAI quota exceeded. Please check your usage and billing at "
     "https://platform.openai.com/account/usage."
 )
 MSG_ERROR_RATE_LIMIT_LOG = "OpenAI quota exceeded."
-MSG_ERROR_API = "OpenAI API error occurred: {error}"
+
 MSG_ERROR_API_LOG = "OpenAI API error occurred: {}"
-MSG_ERROR_OPENAI_UNEXPECTED = "Unexpected OpenAI error: {error}"
-MSG_ERROR_OPENAI_UNEXPECTED_LOG = "Unexpected OpenAI error: {}"
-MSG_DEBUG_API_EXCEPTION = "Full exception details:"
-MSG_DEBUG_PARSED_STRUCTURED_DATA = "Parsed structured data: %s"
-MSG_ERROR_LLM_JSON_DECODE_LOG = "Failed to decode JSON from LLM response: %r [URL: %s]"
+
+
+MSG_INFO_EXTRACTION_SUCCESS_WITH_URL = "Extracted structured data from: %s"
+MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL = "Failed to validate LLM response for %s: %s"
 
 # __init__.py
 MSG_ERROR_INVALID_AGENT_MODE = "Invalid agent mode: '{value}'. Valid options: {valid_options}"
