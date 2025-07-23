@@ -17,7 +17,7 @@ from agentic_scraper.backend.scraper.models import ScrapedItem
 logger = logging.getLogger(__name__)
 
 
-# ─── Worker Task ──────────────────────────────────────────────────────────────
+# ─── Worker Task ───
 async def worker(  # noqa: PLR0913
     *,
     queue: asyncio.Queue[ScrapeInput],
@@ -42,9 +42,9 @@ async def worker(  # noqa: PLR0913
 
             except Exception as e:
                 if settings.is_verbose_mode:
-                    logger.exception(MSG_ERROR_WORKER_FAILED, url)
+                    logger.exception(MSG_ERROR_WORKER_FAILED.format(url=url, exc=e))
                 else:
-                    logger.warning(MSG_WARNING_WORKER_FAILED_SHORT, url, e)
+                    logger.warning(MSG_WARNING_WORKER_FAILED_SHORT.format(url=url, error=e))
                 if on_error:
                     on_error(url, e)
             finally:
@@ -54,7 +54,7 @@ async def worker(  # noqa: PLR0913
         pass
 
 
-# ─── Pool Runner ──────────────────────────────────────────────────────────────
+# ─── Pool Runner ───
 async def run_worker_pool(  # noqa: PLR0913
     inputs: list[ScrapeInput],
     *,
@@ -82,7 +82,9 @@ async def run_worker_pool(  # noqa: PLR0913
     queue: asyncio.Queue[ScrapeInput] = asyncio.Queue(maxsize=max_queue_size or 0)
     results: list[ScrapedItem] = []
 
-    logger.info("Running worker pool with screenshots enabled = %s", take_screenshot)
+    if settings.is_verbose_mode:
+        logger.info("Running worker pool with screenshots enabled = %s", take_screenshot)
+
     for input_item in inputs:
         await queue.put(input_item)
 

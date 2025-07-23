@@ -92,6 +92,6 @@ async def extract_structured_data(
             date_published=None,
             screenshot_path=screenshot_path,
         )
-    except ValidationError as e:
-        logger.warning(MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED.format(url=url, error=e))
+    except ValidationError as exc:
+        logger.warning(MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED.format(url=url, error=exc))
         return None

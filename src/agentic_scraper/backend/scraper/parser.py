@@ -39,7 +39,7 @@ def extract_title_from_soup(soup: BeautifulSoup, settings: Settings) -> str | No
     if isinstance(title_tag, Tag):
         title = title_tag.text.strip()
         if settings.is_verbose_mode:
-            logger.debug(MSG_DEBUG_PARSED_TITLE, title)
+            logger.debug(MSG_DEBUG_PARSED_TITLE.format(title=title))
         return title
     logger.info(MSG_INFO_NO_TITLE)
     return None
@@ -55,7 +55,7 @@ def extract_meta_description_from_soup(soup: BeautifulSoup, settings: Settings) 
         if isinstance(content, str):
             description = content.strip()
             if settings.is_verbose_mode:
-                logger.debug(MSG_DEBUG_PARSED_META_DESCRIPTION, description)
+                logger.debug(MSG_DEBUG_PARSED_META_DESCRIPTION.format(description=description))
             return description
     logger.info(MSG_INFO_NO_META_DESCRIPTION)
     return None
@@ -73,7 +73,7 @@ def extract_author_from_soup(soup: BeautifulSoup, settings: Settings) -> str | N
             if isinstance(content, str):
                 author = content.strip()
                 if settings.is_verbose_mode:
-                    logger.debug(MSG_DEBUG_PARSED_AUTHOR, attr, author)
+                    logger.debug(MSG_DEBUG_PARSED_AUTHOR.format(source=attr, author=author))
                 return author
     logger.info(MSG_INFO_NO_AUTHOR)
     return None

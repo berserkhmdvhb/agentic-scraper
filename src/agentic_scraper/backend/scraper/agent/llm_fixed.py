@@ -81,11 +81,11 @@ async def _extract_impl(
         try:
             content = response.choices[0].message.content
         except (IndexError, AttributeError):
-            logger.warning(MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL, url)
+            logger.warning(MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL.format(url=url))
             return None
 
         if content is None:
-            logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL, url)
+            logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=url))
             return None
 
         raw_data = parse_llm_response(content, url, settings)
@@ -100,14 +100,14 @@ async def _extract_impl(
         try:
             item = ScrapedItem.model_validate({**raw_data, "url": url})
         except ValidationError as ve:
-            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL, url, ve)
+            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
             return None
         else:
             log_structured_data(item.model_dump(mode="json"), settings=settings)
-            logger.info(MSG_INFO_EXTRACTION_SUCCESS_WITH_URL, url)
+            logger.info(MSG_INFO_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
             return item
 
     except (RateLimitError, APIError, OpenAIError) as e:
-        handle_openai_exception(e, url, settings)
+        handle_openai_exception(e, url=url, settings=settings)
 
     return None

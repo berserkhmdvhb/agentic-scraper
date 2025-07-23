@@ -11,12 +11,14 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_LLM_JSON_DECODE_LOG,
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
     MSG_INFO_EXTRACTION_SUCCESS_WITH_URL,
+    MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
 )
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
     capture_optional_screenshot,
     handle_openai_exception,
     log_structured_data,
+    parse_llm_response,
 )
 from agentic_scraper.backend.scraper.models import ScrapedItem
 
@@ -100,15 +102,11 @@ Page Content:
 
         content = response.choices[0].message.content
         if not content:
-            logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL, url)
+            logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=url))
             return None
 
-        try:
-            raw_data = json.loads(content)
-        except json.JSONDecodeError as e:
-            logger.warning(MSG_ERROR_JSON_DECODING_FAILED_WITH_URL, e, url)
-            if settings.is_verbose_mode:
-                logger.debug(MSG_ERROR_LLM_JSON_DECODE_LOG.format(e, url))
+        raw_data = parse_llm_response(content, url, settings)
+        if raw_data is None:
             return None
 
         raw_data["url"] = url
@@ -123,12 +121,11 @@ Page Content:
         try:
             item = ScrapedItem.model_validate(raw_data)
         except ValidationError as ve:
-            message = "Failed to validate LLM response for %s: %s", url, ve
-            logger.warning(message)
+            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
             return None
         else:
             log_structured_data(item.model_dump(mode="json"), settings=settings)
-            logger.info(MSG_INFO_EXTRACTION_SUCCESS_WITH_URL, url)
+            logger.info(MSG_INFO_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
             return item
 
     except (RateLimitError, APIError, OpenAIError) as e:

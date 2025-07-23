@@ -50,9 +50,9 @@ async def fetch_url(client: httpx.AsyncClient, url: str, *, settings: Settings) 
                         exc = outcome.exception()
                         logger.debug(
                             MSG_DEBUG_RETRYING_URL.format(
-                                url,
-                                attempt.retry_state.attempt_number,
-                                repr(exc) if exc else "unknown error",
+                                url=url,
+                                no=attempt.retry_state.attempt_number,
+                                exc=exc if exc else "unknown error",
                             )
                         )
 
@@ -87,26 +87,26 @@ async def fetch_all(
                 try:
                     html = await fetch_url(client, url, settings=settings)
                     results[url] = html
-                    logger.info(MSG_INFO_FETCH_SUCCESS.format(url))
+                    logger.info(MSG_INFO_FETCH_SUCCESS.format(url=url))
 
                 except RetryError as e:
                     cause = e.last_attempt.exception()
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {cause}"
                     if settings.is_verbose_mode:
-                        logger.exception(MSG_WARNING_FETCH_FAILED.format(url))
+                        logger.exception(MSG_WARNING_FETCH_FAILED.format(url=url, error=cause))
                     else:
-                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url, cause))
+                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url, error=cause))
 
                 except (httpx.HTTPError, httpx.RequestError, asyncio.TimeoutError) as e:
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
                     if settings.is_verbose_mode:
-                        logger.exception(MSG_WARNING_FETCH_FAILED.format(url))
+                        logger.exception(MSG_WARNING_FETCH_FAILED.format(url=url, error=e))
                     else:
-                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url, e))
+                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url, error=e))
 
                 except Exception as e:
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
-                    logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION, url)
+                    logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION.format(url=url, exc=e))
 
         await asyncio.gather(*(bounded_fetch(url) for url in urls))
 

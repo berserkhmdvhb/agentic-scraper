@@ -30,7 +30,7 @@ from agentic_scraper.backend.config.constants import (
     PROJECT_NAME,
 )
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_SETTINGS_LOADED,
+    MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES,
     MSG_ERROR_MISSING_API_KEY,
 )
 from agentic_scraper.backend.core.settings_helpers import validated_settings
@@ -127,9 +127,6 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
-        safe_dump = self.model_dump(exclude={"openai_api_key", "openai_project_id"})
-        logger.debug(MSG_DEBUG_SETTINGS_LOADED.format(safe_dump=safe_dump))
-
         if not self.openai_api_key:
             raise ValueError(MSG_ERROR_MISSING_API_KEY)
         return self
@@ -145,6 +142,18 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
 
+
+def log_settings(settings: Settings) -> None:
+    if getattr(log_settings, "already_logged", False):
+        return
+    log_settings.already_logged = True  # type: ignore[attr-defined]
+
+    safe_dump = settings.model_dump(
+        exclude={"openai_api_key", "openai_project_id"},
+        mode="json",
+    )
+    formatted = "\n".join(f"  {k}: {v}" for k, v in safe_dump.items())
+    logger.info(MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES.format(values=formatted))
 
 def get_environment() -> str:
     return get_settings().env.upper()
