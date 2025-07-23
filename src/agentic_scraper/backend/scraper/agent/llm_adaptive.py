@@ -114,10 +114,10 @@ Page Content:
             raw_data = json.loads(content)
         except json.JSONDecodeError as e:
             logger.warning(MSG_ERROR_JSON_DECODING_FAILED_WITH_URL, e, url)
-            logger.debug(MSG_ERROR_LLM_JSON_DECODE_LOG.format(e, url))
+            if settings.is_verbose_mode:
+                logger.debug(MSG_ERROR_LLM_JSON_DECODE_LOG.format(e, url))
             return None
 
-        # Ensure required field
         raw_data["url"] = url
 
         if take_screenshot:
@@ -133,20 +133,24 @@ Page Content:
             logger.warning("Failed to validate LLM response for %s: %s", url, ve)
             return None
         else:
-            logger.debug(MSG_DEBUG_PARSED_STRUCTURED_DATA, item.model_dump())
+            if settings.is_verbose_mode:
+                logger.debug(MSG_DEBUG_PARSED_STRUCTURED_DATA, item.model_dump())
             return item
 
     except RateLimitError as e:
         logger.warning(MSG_ERROR_RATE_LIMIT_LOG_WITH_URL, url)
-        logger.debug(MSG_ERROR_RATE_LIMIT_DETAIL, e)
+        if settings.is_verbose_mode:
+            logger.debug(MSG_ERROR_RATE_LIMIT_DETAIL, e)
 
     except APIError as e:
         logger.warning(MSG_ERROR_API_LOG_WITH_URL, url)
-        logger.debug(MSG_DEBUG_API_EXCEPTION, exc_info=True)
-        logger.debug(MSG_ERROR_API.format(error=e))
+        if settings.is_verbose_mode:
+            logger.debug(MSG_DEBUG_API_EXCEPTION, exc_info=True)
+            logger.debug(MSG_ERROR_API.format(error=e))
 
     except OpenAIError as e:
         logger.warning(MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL, url)
-        logger.debug(MSG_ERROR_OPENAI_UNEXPECTED.format(error=e))
+        if settings.is_verbose_mode:
+            logger.debug(MSG_ERROR_OPENAI_UNEXPECTED.format(error=e))
 
     return None

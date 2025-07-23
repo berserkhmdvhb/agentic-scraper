@@ -64,7 +64,7 @@ def main():
         "request_timeout": args.timeout,
         "retry_attempts": args.retries,
         "screenshot_enabled": False,
-        "log_tracebacks": False,
+        "verbose": False,
     }
 
     # Remove unset values to allow fallback to .env

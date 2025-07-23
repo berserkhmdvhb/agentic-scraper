@@ -4,6 +4,7 @@ import sys
 import streamlit as st
 
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
+from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.ui_core import (
     configure_page,
     render_input_section,
@@ -19,6 +20,11 @@ if sys.platform.startswith("win"):
 # --- LOGGING SETUP ---
 setup_logging(reset=True)
 logger = get_logger()
+
+# --- CONFIG SETUP ---
+
+_ = get_settings()
+
 
 # --- PAGE CONFIGURATION ---
 configure_page()

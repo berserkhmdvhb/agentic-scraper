@@ -41,7 +41,6 @@ async def scrape_urls(urls: list[str], settings: Settings) -> list[ScrapedItem]:
         settings=settings,
         concurrency=settings.llm_concurrency,
         take_screenshot=settings.screenshot_enabled,
-        log_tracebacks=settings.debug_mode,
     )
 
 

@@ -43,7 +43,7 @@ class PipelineConfig:
     fetch_concurrency: int
     llm_concurrency: int
     screenshot_enabled: bool
-    log_tracebacks: bool
+    verbose: bool
     openai_model: str
     agent_mode: str
 
@@ -74,7 +74,7 @@ async def run_scraper_pipeline(
             "fetch_concurrency": config.fetch_concurrency,
             "llm_concurrency": config.llm_concurrency,
             "screenshot_enabled": config.screenshot_enabled,
-            "debug_mode": config.log_tracebacks,
+            "verbose": config.verbose,  # ✅ updated
             "openai_model": config.openai_model,
             "agent_mode": config.agent_mode,
         }
@@ -122,7 +122,10 @@ async def run_scraper_pipeline(
 
     def on_error(url: str, e: Exception) -> None:
         log_box.info(MSG_WARN_PROCESSING_URL_FAILED.format(url=url, error=e))
-        logger.error(MSG_ERROR_PROCESSING_URL_FAILED)
+        if settings.is_verbose_mode:
+            logger.exception(MSG_ERROR_PROCESSING_URL_FAILED)
+        else:
+            logger.error(MSG_ERROR_PROCESSING_URL_FAILED)
 
     items = await run_worker_pool(
         inputs=inputs,
@@ -131,7 +134,6 @@ async def run_scraper_pipeline(
         take_screenshot=config.screenshot_enabled,
         on_item_processed=on_item_processed,
         on_error=on_error,
-        log_tracebacks=config.log_tracebacks,
     )
 
     progress.empty()
@@ -214,7 +216,7 @@ def maybe_run_pipeline(raw_input: str, controls: dict[str, Any]) -> tuple[list[S
         fetch_concurrency=controls["fetch_concurrency"],
         llm_concurrency=controls["llm_concurrency"],
         screenshot_enabled=controls["screenshot_enabled"],
-        log_tracebacks=controls["log_tracebacks"],
+        verbose=controls["verbose"],
         openai_model=controls["openai_model"],
         agent_mode=controls["agent_mode"],
     )

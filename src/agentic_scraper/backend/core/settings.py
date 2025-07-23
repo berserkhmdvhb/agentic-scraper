@@ -82,6 +82,11 @@ class Settings(BaseSettings):
         default=DEFAULT_LOG_BACKUP_COUNT, validation_alias="LOG_BACKUP_COUNT"
     )
     log_format: LogFormat = Field(default=DEFAULT_LOG_FORMAT, validation_alias="LOG_FORMAT")
+    verbose: bool = Field(
+        default=False,
+        validation_alias="VERBOSE",
+        description="If true, enables detailed debug logs and full tracebacks.",
+    )
 
     # Execution tuning (CLI/batch mode only)
     fetch_concurrency: int = Field(default=10, validation_alias="FETCH_CONCURRENCY", exclude=True)
@@ -103,6 +108,11 @@ class Settings(BaseSettings):
         validation_alias="RETRY_BACKOFF_MAX",
         description="Maximum backoff time (seconds) for retry delay",
     )
+
+    # Derived
+    @property
+    def is_verbose_mode(self) -> bool:
+        return self.env.upper() == "DEV" or self.verbose
 
     @model_validator(mode="before")
     @classmethod
@@ -139,7 +149,10 @@ def get_log_dir() -> Path:
 
 
 def get_log_level() -> int:
-    level_str = get_settings().log_level.upper()
+    settings = get_settings()
+    if settings.is_verbose_mode:
+        return logging.DEBUG
+    level_str = settings.log_level.upper()
     return getattr(logging, level_str, logging.INFO)
 
 

@@ -1,9 +1,7 @@
 import json
-from io import TextIOWrapper
+import time
 from logging import Filter, Formatter, LogRecord
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 from agentic_scraper.backend.core.settings import get_environment
 
@@ -33,7 +31,7 @@ class SafeFormatter(Formatter):
 
 
 class JSONFormatter(Formatter):
-    """Formatter for structured JSON logs."""
+    """Formatter for structured JSON logs with optional traceback and extra fields."""
 
     def format(self, record: LogRecord) -> str:
         log_record = {
@@ -43,20 +41,21 @@ class JSONFormatter(Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
+
+        # Include traceback if available
+        if record.exc_info:
+            log_record["traceback"] = self.formatException(record.exc_info)
+
+        # Include additional user-defined fields if present
+        extra_fields = getattr(record, "extra", None)
+        if isinstance(extra_fields, dict):
+            log_record.update(extra_fields)
+
         return json.dumps(log_record, ensure_ascii=False)
 
-
-class CustomRotatingFileHandler(RotatingFileHandler):
-    """
-    Rotating file handler with safe UTF-8 encoding and optional future hooks
-    for structured or DB-based logging.
-    """
-
-    def _open(self) -> TextIOWrapper:
-        return cast(
-            "TextIOWrapper", Path(self.baseFilename).open(self.mode, encoding=self.encoding)
-        )
-
-    def rotation_filename(self, default_name: str) -> str:
-        """Return default filename; override later if custom naming is needed."""
-        return default_name
+    def formatTime(  # noqa: N802
+        self, record: LogRecord, _datefmt: str | None = None
+    ) -> str:
+        """Format time as ISO 8601 timestamp."""
+        ct = self.converter(record.created)
+        return time.strftime("%Y-%m-%dT%H:%M:%S", ct)

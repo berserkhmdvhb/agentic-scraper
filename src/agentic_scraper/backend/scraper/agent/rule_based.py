@@ -63,7 +63,6 @@ async def extract_structured_data(
     """
     Rule-based fallback extraction from plain text input.
     """
-
     title = guess_title(text)
     description = guess_description(text)
     price = guess_price(text)
@@ -77,17 +76,18 @@ async def extract_structured_data(
         except (PlaywrightError, OSError, ValueError):
             logger.warning(MSG_ERROR_SCREENSHOT_FAILED_WITH_URL, url)
 
-    logger.debug(
-        MSG_DEBUG_PARSED_STRUCTURED_DATA,
-        {
-            "title": title,
-            "description": description,
-            "price": price,
-            "author": None,
-            "date_published": None,
-            "screenshot_path": screenshot_path,
-        },
-    )
+    if settings.is_verbose_mode:
+        logger.debug(
+            MSG_DEBUG_PARSED_STRUCTURED_DATA,
+            {
+                "title": title,
+                "description": description,
+                "price": price,
+                "author": None,
+                "date_published": None,
+                "screenshot_path": screenshot_path,
+            },
+        )
 
     try:
         return ScrapedItem(

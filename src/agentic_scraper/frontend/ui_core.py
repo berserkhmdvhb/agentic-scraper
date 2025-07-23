@@ -101,9 +101,10 @@ def render_sidebar_controls() -> dict[str, Any]:
             fetch_concurrency = llm_concurrency = concurrency
 
         st.markdown("### 📣 Verbosity")
-        log_tracebacks = st.checkbox(
+        verbose_default = get_environment() == "DEV"
+        verbose = st.checkbox(
             "🐞 Verbose error tracebacks",
-            value=False,
+            value=verbose_default,
             help=(
                 "When enabled, logs the full Python traceback if a scraping task fails.\n\n"
                 "✅ Use during development to debug issues.\n"
@@ -115,7 +116,7 @@ def render_sidebar_controls() -> dict[str, Any]:
     st.session_state["screenshot_enabled"] = screenshot_enabled
     st.session_state["fetch_concurrency"] = fetch_concurrency
     st.session_state["llm_concurrency"] = llm_concurrency
-    st.session_state["log_tracebacks"] = log_tracebacks
+    st.session_state["verbose"] = verbose
     st.session_state["openai_model"] = selected_model
     st.session_state["agent_mode"] = selected_agent_mode
 
@@ -123,7 +124,7 @@ def render_sidebar_controls() -> dict[str, Any]:
         "screenshot_enabled": screenshot_enabled,
         "fetch_concurrency": fetch_concurrency,
         "llm_concurrency": llm_concurrency,
-        "log_tracebacks": log_tracebacks,
+        "verbose": verbose,
         "openai_model": selected_model,
         "agent_mode": selected_agent_mode,
     }
