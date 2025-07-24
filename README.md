@@ -1,7 +1,7 @@
 [![License](https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper)](LICENSE)
 [![Tests](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
-[![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white)
+![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white)
 
 # 🕵️ Agentic Scraper
 
