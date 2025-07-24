@@ -1,4 +1,5 @@
 import logging
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -27,6 +28,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_LOG_LEVEL,
     MSG_ERROR_INVALID_MODEL_NAME,
     MSG_ERROR_INVALID_PRICE,
+    MSG_ERROR_INVALID_PRICE_FORMAT,
     MSG_ERROR_INVALID_TEMPERATURE,
     MSG_ERROR_INVALID_TIMEOUT,
     MSG_ERROR_INVALID_TOKENS,
@@ -290,3 +292,15 @@ def validate_backoff_range(min_backoff: float, max_backoff: float) -> None:
         raise ValueError(
             MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX.format(min=min_backoff, max=max_backoff)
         )
+
+
+def clean_price(v: str | float | None) -> float | str | None:
+    """Sanitize and convert a price string like '$1,299.99' or '€1.299,99' to float."""
+    if isinstance(v, str):
+        cleaned = re.sub(r"[^\d.,-]", "", v)
+        cleaned = cleaned.replace(",", "")
+        try:
+            return float(cleaned)
+        except ValueError:
+            raise ValueError(MSG_ERROR_INVALID_PRICE_FORMAT.format(value=v)) from None
+    return v

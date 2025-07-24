@@ -163,6 +163,9 @@ MSG_DEBUG_CONTEXTUAL_HINTS_USED = (
 MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES = (
     "Failed to extract sufficient fields after {attempts} adaptive attempts for {url}"
 )
+MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS = "Using best candidate with fields: {fields}"
+MSG_DEBUG_LLM_RETRY_ATTEMPT = "LLM retry attempt {attempt}/{total} for {url}"
+MSG_WARN_LLM_RATE_LIMIT_SLEEP = "Rate limit hit for {url}, sleeping {delay:.1f}s as advised..."
 
 
 # ---------------------------------------------------------------------
@@ -199,3 +202,4 @@ MSG_ERROR_BACKOFF_MIN_NEGATIVE = "Retry backoff min must be non-negative."
 MSG_ERROR_BACKOFF_MAX_NEGATIVE = "Retry backoff max must be non-negative."
 MSG_ERROR_BACKOFF_MIN_GT_MAX = "Retry backoff min must be less than or equal to max."
 MSG_ERROR_RETRY_NEGATIVE = "Retry attempts must be non-negative"
+MSG_ERROR_INVALID_PRICE_FORMAT = "Invalid price format: {value}"

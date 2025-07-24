@@ -2,7 +2,10 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
-from agentic_scraper.backend.utils.validators import validate_optional_str, validate_price
+from agentic_scraper.backend.utils.validators import (
+    clean_price,
+    validate_optional_str,
+)
 
 
 class ScrapedItem(BaseModel):
@@ -28,15 +31,13 @@ class ScrapedItem(BaseModel):
     _clean_date = field_validator("date_published", mode="before")(
         lambda v: validate_optional_str(v, "date_published")
     )
-    _check_price = field_validator("price")(validate_price)
-
+    _clean_price = field_validator("price", mode="before")(clean_price)
     _clean_screenshot = field_validator("screenshot_path", mode="before")(
         lambda v: validate_optional_str(v, "screenshot_path")
     )
 
     class Config:
-        # Allow LLM to return more fields than expected
-        extra = "allow"
+        extra = "allow"  # Allow LLM to return more fields than expected
 
 
 @dataclass

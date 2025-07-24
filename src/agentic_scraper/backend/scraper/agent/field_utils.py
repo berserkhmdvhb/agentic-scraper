@@ -38,9 +38,13 @@ def score_fields(fields: set[str]) -> int:
     return sum(FIELD_WEIGHTS.get(f, 0) for f in fields)
 
 
-def get_required_fields(page_type: str) -> set[str]:
+def get_required_fields(page_type: str | list[str] | None) -> set[str]:
     """
     Return the set of required fields expected for the given page_type.
-    Falls back to an empty set if unknown.
+    Accepts string, list, or None. Falls back to empty set if unrecognized.
     """
+    if isinstance(page_type, list):
+        page_type = page_type[0] if page_type else ""
+    elif not isinstance(page_type, str):
+        page_type = ""
     return PAGE_TYPE_TO_FIELDS.get(page_type.lower().strip(), set())

@@ -1,17 +1,28 @@
+import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+import re
+from typing import Any
 
 from openai import AsyncOpenAI, OpenAIError
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import ValidationError
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 
 from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS
 from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_LLM_RETRY_ATTEMPT,
     MSG_DEBUG_MISSING_IMPORTANT_FIELDS,
+    MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS,
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
     MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
     MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL,
     MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES,
+    MSG_WARN_LLM_RATE_LIMIT_SLEEP,
 )
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
@@ -28,38 +39,51 @@ from agentic_scraper.backend.scraper.agent.field_utils import (
 from agentic_scraper.backend.scraper.agent.prompt_helpers import build_enhanced_prompt
 from agentic_scraper.backend.scraper.models import ScrapedItem
 
-if TYPE_CHECKING:
-    from openai.types.chat import ChatCompletionMessageParam
-
 logger = logging.getLogger(__name__)
+
+
+RATE_LIMIT_RETRY_REGEX = re.compile(r"try again in ([\d.]+)s", re.IGNORECASE)
 
 
 async def run_llm_with_retries(
     client: AsyncOpenAI,
-    messages: list["ChatCompletionMessageParam"],
+    messages: list[ChatCompletionMessageParam],
     settings: Settings,
     url: str,
 ) -> str | None:
     async for attempt in AsyncRetrying(
         stop=stop_after_attempt(settings.retry_attempts),
-        wait=wait_exponential(
+        wait=wait_random_exponential(
             multiplier=1, min=settings.retry_backoff_min, max=settings.retry_backoff_max
         ),
         retry=retry_if_exception_type(OpenAIError),
         reraise=True,
     ):
         with attempt:
-            response = await client.chat.completions.create(
-                model=settings.openai_model,
-                messages=messages,
-                temperature=settings.llm_temperature,
-                max_tokens=settings.llm_max_tokens,
-            )
-            content = response.choices[0].message.content
-            if not content:
-                logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=url))
-                return None
-            return content
+            try:
+                response = await client.chat.completions.create(
+                    model=settings.openai_model,
+                    messages=messages,
+                    temperature=settings.llm_temperature,
+                    max_tokens=settings.llm_max_tokens,
+                )
+                if not response.choices or not response.choices[0].message.content:
+                    logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=url))
+                    return None
+                return response.choices[0].message.content.strip()
+
+            except OpenAIError as e:
+                # Smart rate-limit handler
+                message = getattr(e, "message", "") or str(e)
+                if "rate_limit_exceeded" in message:
+                    match = RATE_LIMIT_RETRY_REGEX.search(message)
+                    if match:
+                        delay = float(match.group(1))
+                        logger.warning(MSG_WARN_LLM_RATE_LIMIT_SLEEP.format(url=url, delay=delay))
+                        await asyncio.sleep(delay)
+                # Let tenacity handle retries
+                raise
+
     return None
 
 
@@ -121,7 +145,14 @@ async def extract_adaptive_data(
     best_score = 0
     best_fields: dict[str, Any] | None = None
 
-    for _ in range(settings.retry_attempts):
+    for attempt_num in range(1, settings.retry_attempts + 1):
+        logger.debug(
+            MSG_DEBUG_LLM_RETRY_ATTEMPT.format(
+                attempt=attempt_num,
+                total=settings.retry_attempts,
+                url=url,
+            )
+        )
         content = await run_llm_with_retries(client, messages, settings, url)
         if content is None:
             return None
@@ -144,6 +175,7 @@ async def extract_adaptive_data(
             logger.debug(
                 MSG_DEBUG_MISSING_IMPORTANT_FIELDS.format(fields=", ".join(sorted(missing)))
             )
+            # Keep only the original prompt, discard previous retry instructions
             messages[:] = messages[:1]
             messages.append(
                 {
@@ -156,19 +188,20 @@ async def extract_adaptive_data(
                 }
             )
 
-        # Score based on fields extracted in this attempt
+        # Score based on this round's observed fields (not cumulative)
         score = score_fields(observed_fields)
         if score > best_score:
             best_score = score
             best_fields = dict(cumulative_fields)
 
     if best_fields:
+        logger.debug(MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS.format(fields=list(best_fields.keys())))
         try:
             item = ScrapedItem.model_validate(best_fields)
         except ValidationError:
             pass
         else:
-            logger.info(...)
+            logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
             return item
 
     logger.warning(

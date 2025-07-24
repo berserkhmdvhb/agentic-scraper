@@ -11,7 +11,6 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_EXTRACTION_COMPLETE,
     MSG_INFO_FETCH_SKIPPED,
     MSG_INFO_FETCHING_URLS,
-    MSG_INFO_INVALID_URLS_SKIPPED,
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_USING_CACHE,
     MSG_INFO_VALID_URLS_FOUND,
@@ -19,7 +18,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_EXTRACTION_NONE,
 )
 from agentic_scraper.backend.core.logger_setup import get_logger
-from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.backend.core.settings import Settings, get_settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import PipelineConfig, ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
@@ -29,9 +28,9 @@ from agentic_scraper.backend.utils.validators import clean_input_urls, deduplica
 logger = get_logger()
 
 DOMAIN_EMOJIS = {
-    "youtube.com": "📺",
+    "youtube.com": "🎮",
     "github.com": "💻",
-    "amazon.com": "🛍️",
+    "amazon.com": "🍭",
     "medium.com": "✍️",
     "wikipedia.org": "📚",
     "google.com": "🔎",
@@ -53,12 +52,102 @@ def extract_domain_icon(url: str) -> str:
     return "🔗"
 
 
-async def run_scraper_pipeline(
-    urls: list[str],
-    config: PipelineConfig,
-) -> ScrapeResultWithSkipCount:
+def display_error_summaries(fetch_errors: list[str], extraction_errors: list[str]) -> None:
+    if fetch_errors:
+        with st.expander("🌐 Fetch Errors (could not load page)"):
+            for msg in fetch_errors:
+                st.markdown(f"- ❌ `{msg}`")
+    if extraction_errors:
+        with st.expander("🧠 Extraction Errors (LLM or validation failed)"):
+            for msg in extraction_errors:
+                st.markdown(f"- ❌ `{msg}`")
+
+
+async def fetch_and_prepare_inputs(
+    urls: list[str], config: PipelineConfig, settings: Settings
+) -> tuple[list[tuple[str, str]], list[str], int]:
     logger.info(MSG_INFO_FETCHING_URLS.format(n=len(urls)))
 
+    with st.spinner("🌐 Fetching pages..."):
+        fetch_results = await fetch_all(
+            urls=urls,
+            concurrency=config.fetch_concurrency,
+            settings=settings,
+        )
+
+    skipped = 0
+    inputs = []
+    fetch_errors: list[str] = []
+
+    for url, html in fetch_results.items():
+        if html.startswith("__FETCH_ERROR__"):
+            skipped += 1
+            fetch_errors.append(f"{url} — {html.replace('__FETCH_ERROR__:', '').strip()}")
+            continue
+        text = extract_main_text(html)
+        inputs.append((url, text))
+
+    logger.info(MSG_INFO_FETCH_SKIPPED.format(n=skipped))
+    return inputs, fetch_errors, skipped
+
+
+async def display_progress(
+    inputs: list[tuple[str, str]], config: PipelineConfig, settings: Settings
+) -> tuple[list[ScrapedItem], list[str]]:
+    processed = 0
+    total = len(inputs)
+    progress = st.progress(0)
+    status_line = st.empty()
+    start_time = time.perf_counter()
+
+    log_box = st.expander("🧠 LLM Extraction Log", expanded=False)
+    with log_box:
+        st.caption("Processing progress will appear here.")
+
+    extraction_errors: list[str] = []
+
+    def on_item_processed(item: ScrapedItem) -> None:
+        nonlocal processed
+        processed += 1
+        elapsed = time.perf_counter() - start_time
+        est_total = (elapsed / processed) * total
+        est_remaining = est_total - elapsed
+        label = f"🧠 {processed}/{total} — Est: {est_remaining:.1f}s left"
+        progress.progress(processed / total, text=label)
+        status_line.markdown(f"🔄 Processing: [{item.url}]({item.url})")
+
+    def on_error(url: str, e: Exception) -> None:
+        extraction_errors.append(f"{url} — {e!s}")
+        log_box.info(MSG_WARN_PROCESSING_URL_FAILED.format(url=url, error=e))
+        if settings.is_verbose_mode:
+            logger.exception(MSG_ERROR_PROCESSING_URL_FAILED)
+        else:
+            logger.error(MSG_ERROR_PROCESSING_URL_FAILED)
+
+    items = await run_worker_pool(
+        inputs=inputs,
+        settings=settings,
+        concurrency=config.llm_concurrency,
+        take_screenshot=config.screenshot_enabled,
+        on_item_processed=on_item_processed,
+        on_error=on_error,
+    )
+
+    progress.empty()
+    status_line.empty()
+
+    with log_box:
+        if items:
+            st.info("✅ Extraction pipeline completed")
+        else:
+            st.warning("⚠️ No items processed. Pipeline ended with zero results.")
+
+    return items, extraction_errors
+
+
+async def run_scraper_pipeline(
+    urls: list[str], config: PipelineConfig
+) -> ScrapeResultWithSkipCount:
     settings = get_settings().model_copy(
         update={
             "fetch_concurrency": config.fetch_concurrency,
@@ -74,69 +163,10 @@ async def run_scraper_pipeline(
     sticky = st.empty()
     sticky.info("⏳ Currently processing...", icon="🔄")
 
-    with st.spinner("🌐 Fetching pages..."):
-        fetch_results = await fetch_all(
-            urls=urls,
-            concurrency=config.fetch_concurrency,
-            settings=settings,
-        )
-
-    skipped = 0
-    inputs = []
-    for url, html in fetch_results.items():
-        if html.startswith("__FETCH_ERROR__"):
-            skipped += 1
-            continue
-        text = extract_main_text(html)
-        inputs.append((url, text))
-
-    logger.info(MSG_INFO_FETCH_SKIPPED.format(n=skipped))
-    processed = 0
-    total = len(inputs)
-    progress = st.progress(0)
-    status_line = st.empty()
-    start_time = time.perf_counter()
-
-    log_box = st.expander("🧠 LLM Extraction Log", expanded=False)
-    with log_box:
-        st.caption("Processing progress will appear here.")
-
-    def on_item_processed(item: ScrapedItem) -> None:
-        nonlocal processed
-        processed += 1
-        elapsed = time.perf_counter() - start_time
-        est_total = (elapsed / processed) * total
-        est_remaining = est_total - elapsed
-        label = f"🧠 {processed}/{total} — Est: {est_remaining:.1f}s left"
-        progress.progress(processed / total, text=label)
-        status_line.markdown(f"🔄 Processing: [{item.url}]({item.url})")
-
-    def on_error(url: str, e: Exception) -> None:
-        log_box.info(MSG_WARN_PROCESSING_URL_FAILED.format(url=url, error=e))
-        if settings.is_verbose_mode:
-            logger.exception(MSG_ERROR_PROCESSING_URL_FAILED)
-        else:
-            logger.error(MSG_ERROR_PROCESSING_URL_FAILED)
-
-    # the main processing part
-    items = await run_worker_pool(
-        inputs=inputs,
-        settings=settings,
-        concurrency=config.llm_concurrency,
-        take_screenshot=config.screenshot_enabled,
-        on_item_processed=on_item_processed,
-        on_error=on_error,
-    )
-
-    progress.empty()
-    status_line.empty()
+    inputs, fetch_errors, skipped = await fetch_and_prepare_inputs(urls, config, settings)
+    items, extraction_errors = await display_progress(inputs, config, settings)
     sticky.empty()
-
-    with log_box:
-        if items:
-            st.info("✅ Extraction pipeline completed")
-        else:
-            st.warning("⚠️ No items processed. Pipeline ended with zero results.")
+    display_error_summaries(fetch_errors, extraction_errors)
 
     if items:
         logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(n=len(items)))
@@ -146,14 +176,13 @@ async def run_scraper_pipeline(
     return items, skipped
 
 
-def process_and_run(
-    raw_input: str,
-    config: PipelineConfig,
-) -> tuple[list[ScrapedItem], int]:
+def process_and_run(raw_input: str, config: PipelineConfig) -> tuple[list[ScrapedItem], int]:
     urls, invalid_lines = validate_and_deduplicate_urls(raw_input)
 
     if invalid_lines:
-        st.warning(MSG_INFO_INVALID_URLS_SKIPPED.format(n=len(invalid_lines)))
+        with st.expander("⚠️ Skipped Invalid URLs"):
+            for url in invalid_lines:
+                st.markdown(f"- ❌ `{url}` — *invalid URL format*")
 
     if not urls:
         st.warning(MSG_INFO_NO_VALID_URLS)
