@@ -68,8 +68,6 @@ In `llm-dynamic-adaptive` mode:
 * Scores output by **field coverage**
 * Returns the best result among attempts
 
-→ Implemented in [`field_utils.py`](src/agentic_scraper/backend/scraper/agent/field_utils.py)
-
 ---
 
 ## 📁 Project Structure
