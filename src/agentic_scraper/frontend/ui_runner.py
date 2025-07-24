@@ -157,6 +157,7 @@ async def run_scraper_pipeline(
             "openai_model": config.openai_model,
             "agent_mode": config.agent_mode,
             "retry_attempts": config.retry_attempts,
+            "llm_schema_retries": config.llm_schema_retries,
         }
     )
 
@@ -250,5 +251,6 @@ def maybe_run_pipeline(raw_input: str, controls: dict[str, Any]) -> tuple[list[S
         openai_model=controls["openai_model"],
         agent_mode=controls["agent_mode"],
         retry_attempts=controls["retry_attempts"],
+        llm_schema_retries=controls["llm_schema_retries"],
     )
     return process_and_run(raw_input=raw_input, config=config)

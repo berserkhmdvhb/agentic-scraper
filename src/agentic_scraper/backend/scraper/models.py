@@ -49,3 +49,4 @@ class PipelineConfig:
     openai_model: str
     agent_mode: str
     retry_attempts: int
+    llm_schema_retries: int

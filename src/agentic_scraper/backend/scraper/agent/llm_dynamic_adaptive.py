@@ -145,11 +145,11 @@ async def extract_adaptive_data(
     best_score = 0
     best_fields: dict[str, Any] | None = None
 
-    for attempt_num in range(1, settings.retry_attempts + 1):
+    for attempt_num in range(1, settings.llm_schema_retries + 1):
         logger.debug(
             MSG_DEBUG_LLM_RETRY_ATTEMPT.format(
                 attempt=attempt_num,
-                total=settings.retry_attempts,
+                total=settings.llm_schema_retries,
                 url=url,
             )
         )
@@ -206,7 +206,7 @@ async def extract_adaptive_data(
 
     logger.warning(
         MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES.format(
-            attempts=settings.retry_attempts,
+            attempts=settings.llm_schema_retries,
             url=url,
         )
     )

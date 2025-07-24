@@ -10,6 +10,7 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_DEBUG_MODE,
     DEFAULT_DUMP_LLM_JSON_DIR,
     DEFAULT_LLM_MAX_TOKENS,
+    DEFAULT_LLM_SCHEMA_RETRIES,
     DEFAULT_LLM_TEMPERATURE,
     DEFAULT_LOG_BACKUP_COUNT,
     DEFAULT_LOG_DIR,
@@ -22,7 +23,18 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_SCREENSHOT_DIR,
     DEFAULT_SCREENSHOT_ENABLED,
     DEFAULT_VERBOSE,
+    MAX_LLM_MAX_TOKENS,
+    MAX_LLM_SCHEMA_RETRIES,
+    MAX_LLM_TEMPERATURE,
+    MAX_RETRY_ATTEMPTS,
+    MIN_BACKOFF_SECONDS,
+    MIN_LLM_MAX_TOKENS,
+    MIN_LLM_SCHEMA_RETRIES,
+    MIN_LLM_TEMPERATURE,
+    MIN_MAX_CONCURRENT_REQUESTS,
+    MIN_RETRY_ATTEMPTS,
     PROJECT_NAME,
+    VALID_AGENT_MODES,
 )
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES,
@@ -60,19 +72,28 @@ class Settings(BaseSettings):
     max_concurrent_requests: int = Field(
         default=DEFAULT_MAX_CONCURRENT_REQUESTS,
         validation_alias="MAX_CONCURRENT_REQUESTS",
+        ge=MIN_MAX_CONCURRENT_REQUESTS,
         description="Max simultaneous fetches",
     )
 
     # Agent behavior
-    llm_max_tokens: int = Field(default=DEFAULT_LLM_MAX_TOKENS, validation_alias="LLM_MAX_TOKENS")
-    llm_temperature: float = Field(
-        default=DEFAULT_LLM_TEMPERATURE, validation_alias="LLM_TEMPERATURE"
-    )
 
     agent_mode: AgentMode = Field(
         default=AgentMode.LLM_FIXED,
         validation_alias="AGENT_MODE",
-        description="Which agent to use: llm-fixed, llm-dynamic, llm-dynamic-adaptive, rule-based",
+        description=f"Which agent to use: {', '.join(sorted(VALID_AGENT_MODES))}",
+    )
+    llm_max_tokens: int = Field(
+        default=DEFAULT_LLM_MAX_TOKENS,
+        validation_alias="LLM_MAX_TOKENS",
+        ge=MIN_LLM_MAX_TOKENS,
+        le=MAX_LLM_MAX_TOKENS,
+    )
+    llm_temperature: float = Field(
+        default=DEFAULT_LLM_TEMPERATURE,
+        validation_alias="LLM_TEMPERATURE",
+        ge=MIN_LLM_TEMPERATURE,
+        le=MAX_LLM_TEMPERATURE,
     )
 
     # Screenshotting
@@ -100,26 +121,37 @@ class Settings(BaseSettings):
     llm_concurrency: int = Field(default=2, validation_alias="LLM_CONCURRENCY", exclude=True)
 
     # Retry behavior (used in agent.py with tenacity)
+    dump_llm_json_dir: str | None = Field(
+        default=DEFAULT_DUMP_LLM_JSON_DIR,
+        validation_alias="DUMP_LLM_JSON_DIR",
+        description="Optional directory to dump full LLM parsed data for debugging/inspection.",
+    )
     retry_attempts: int = Field(
         default=DEFAULT_RETRY_ATTEMPTS,
         validation_alias="RETRY_ATTEMPTS",
+        ge=MIN_RETRY_ATTEMPTS,
+        le=MAX_RETRY_ATTEMPTS,
         description="Number of times to retry transient LLM errors (OpenAIError)",
     )
     retry_backoff_min: float = Field(
         default=DEFAULT_RETRY_BACKOFF_MIN,
         validation_alias="RETRY_BACKOFF_MIN",
+        ge=MIN_BACKOFF_SECONDS,
         description="Minimum backoff time (seconds) for retry delay",
     )
     retry_backoff_max: float = Field(
         default=DEFAULT_RETRY_BACKOFF_MAX,
         validation_alias="RETRY_BACKOFF_MAX",
+        ge=MIN_BACKOFF_SECONDS,
         description="Maximum backoff time (seconds) for retry delay",
     )
 
-    dump_llm_json_dir: str | None = Field(
-        default=DEFAULT_DUMP_LLM_JSON_DIR,
-        validation_alias="DUMP_LLM_JSON_DIR",
-        description="Optional directory to dump full LLM parsed data for debugging/inspection.",
+    llm_schema_retries: int = Field(
+        default=DEFAULT_LLM_SCHEMA_RETRIES,
+        validation_alias="LLM_SCHEMA_RETRIES",
+        ge=MIN_LLM_SCHEMA_RETRIES,
+        le=MAX_LLM_SCHEMA_RETRIES,
+        description="How many times to retry adaptive LLM prompts if required fields are missing.",
     )
 
     # Derived

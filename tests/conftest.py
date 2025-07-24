@@ -56,13 +56,11 @@ __all__ = [
 # Environment Cleanup and Settings Reset
 # ---------------------------------------------------------------------
 
-import pytest
-from _pytest.monkeypatch import MonkeyPatch
-
 from agentic_scraper.backend.config.constants import (
     DEFAULT_AGENT_MODE,
     DEFAULT_DEBUG_MODE,
     DEFAULT_DUMP_LLM_JSON_DIR,
+    DEFAULT_LLM_SCHEMA_RETRIES,
     DEFAULT_ENV,
     DEFAULT_LOG_BACKUP_COUNT,
     DEFAULT_LOG_DIR,
@@ -103,6 +101,7 @@ AGENTIC_ENV_VARS = [
     "RETRY_BACKOFF_MAX",
     "AGENT_MODE",
     "DUMP_LLM_JSON_DIR",
+    "LLM_SCHEMA_RETRIES",
     "DEBUG",
     "VERBOSE",
 ]
@@ -132,7 +131,7 @@ def mock_env(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("RETRY_BACKOFF_MAX", str(DEFAULT_RETRY_BACKOFF_MAX))
     monkeypatch.setenv("DUMP_LLM_JSON_DIR", DEFAULT_DUMP_LLM_JSON_DIR)
     monkeypatch.setenv("DEBUG", str(DEFAULT_DEBUG_MODE))
-
+    monkeypatch.setenv("LLM_SCHEMA_RETRIES", str(DEFAULT_LLM_SCHEMA_RETRIES))
 
 @pytest.fixture(autouse=True)
 def clear_agentic_env(monkeypatch: MonkeyPatch) -> None:

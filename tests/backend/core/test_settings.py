@@ -32,6 +32,7 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_MAX_CONCURRENT_REQUESTS,
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_LLM_TEMPERATURE,
+    DEFAULT_LLM_SCHEMA_RETRIES,
     DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_AGENT_MODE,
     DEFAULT_DUMP_LLM_JSON_DIR,
@@ -67,7 +68,7 @@ def test_settings_loads_correctly_from_env(
     assert s.retry_backoff_min == DEFAULT_RETRY_BACKOFF_MIN
     assert s.retry_backoff_max == DEFAULT_RETRY_BACKOFF_MAX
     assert s.dump_llm_json_dir == DEFAULT_DUMP_LLM_JSON_DIR
-
+    assert s.llm_schema_retries == DEFAULT_LLM_SCHEMA_RETRIES
 
 def test_settings_raises_on_missing_api_key(
     monkeypatch: MonkeyPatch, reset_settings_cache: Any
@@ -181,3 +182,15 @@ def test_excluded_fields_do_not_appear_in_model_dump(
     dumped = s.model_dump()
     assert "fetch_concurrency" not in dumped
     assert "llm_concurrency" not in dumped
+
+def test_llm_schema_retries_bounds(monkeypatch: MonkeyPatch, reset_settings_cache: Any) -> None:
+    monkeypatch.setenv("LLM_SCHEMA_RETRIES", "-1")
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    with pytest.raises(ValueError):
+        Settings()
+
+def test_llm_temperature_out_of_bounds(monkeypatch: MonkeyPatch, reset_settings_cache: Any) -> None:
+    monkeypatch.setenv("LLM_TEMPERATURE", "999")
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    with pytest.raises(ValueError):
+        Settings()
