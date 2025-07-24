@@ -58,15 +58,113 @@
 > The UI dynamically adapts to the selected mode — retry sliders and model selectors appear only for LLM-based modes.
 
 ---
+## 🔬 Scraping Pipeline Overview
 
-## 🧠 Adaptive Retry Logic
+The scraping pipeline consists of two major components:
 
-In `llm-dynamic-adaptive` mode:
+* **🔗 URL Fetching** – Responsible for retrieving raw HTML and metadata.
+* **🧠 Agent Extraction** – Parses and extracts structured data using either rules or LLMs.
 
-* Detects missing high-importance fields (e.g. title, price)
-* Re-prompts the LLM using a **self-healing loop**
-* Scores output by **field coverage**
-* Returns the best result among attempts
+These stages are modular and can be extended independently.
+
+---
+
+### 🔗 URL Fetching (in `fetcher.py`)
+
+The fetching stage is implemented using `httpx.AsyncClient` for concurrent HTTP requests and `tenacity` for smart retries. Each URL is fetched asynchronously and returned as a `FetchedDocument` object containing:
+
+* Original and final (redirected) URLs
+* HTTP status code and headers
+* Raw HTML content
+* Metadata such as domain and fetch timestamp
+
+**Features:**
+
+* Concurrent execution with `asyncio.gather`
+* Exponential backoff retry on failure
+* Bot-mimicking headers and timeouts
+* Optional screenshot triggering via middleware
+
+This stage feeds clean, validated inputs into the next step: agent-based extraction.
+
+---
+
+### 🧠 Agent Extraction (in `agent/`)
+
+The Agent layer transforms raw HTML into structured output by selecting relevant fields and filling a JSON schema. The agent used is determined by the `AGENT_MODE` setting.
+
+Each strategy is implemented as a self-contained module and shares a common interface.
+
+#### `rule_based` (baseline benchmark)
+
+* Implements classic parsing with BeautifulSoup4.
+* Uses heuristics (e.g., heading tags, price regex) to extract fields.
+* No LLMs involved.
+* **Fastest and most deterministic.**
+* Good for simple product/job/blog pages.
+
+#### `llm_fixed`
+
+* Prompts OpenAI to extract a **predefined schema**: title, price, description, etc.
+* Always expects these fields, even if they're not present in the page.
+* Simple, schema-first design.
+* Does not retry or adapt.
+
+#### `llm_dynamic`
+
+* Gives the LLM freedom to **choose relevant fields** based on the page content.
+* Useful for heterogeneous or unknown page types.
+* Adds minor prompt conditioning to bias field detection.
+
+#### `llm_dynamic_adaptive`
+
+* Builds on `llm_dynamic` by adding:
+
+  * **Field coverage scoring** using `field_utils.py`
+  * **Retry loop** up to `LLM_SCHEMA_RETRIES`
+  * **Context hints**: page meta tags, URL segments, and expected field importance
+* Selects the best result across multiple attempts.
+* Enables **robust, schema-aware, self-healing extraction**.
+
+Each agent returns a `ScrapedItem` that conforms to the schema and may include fallback values or nulls.
+
+---
+
+The core fetching logic is implemented in [`fetcher.py`](src/agentic_scraper/backend/scraper/fetcher.py), using an async pipeline built on `httpx.AsyncClient` and `tenacity`.
+
+### Features:
+
+* **Concurrent requests** using `asyncio.gather`
+* **Retry with backoff** (e.g., on timeouts or 5xx errors)
+* **Bot-bypass headers** to simulate real browsers
+* **Context-aware fetch timeout** based on URL/domain
+* **Pluggable middleware** for logging and screenshot triggering
+
+Each fetch task returns an enriched `FetchedDocument` object with:
+
+* original URL
+* resolved final URL (after redirects)
+* HTTP status, headers, and HTML body
+* contextual metadata (e.g., domain, fetch timestamp)
+
+This document is then passed to the selected agent for parsing and structured extraction.
+
+---
+
+## 🧠 Adaptive Retry Logic (for LLM Agents)
+
+Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when critical fields (e.g. `title`, `price`, `job_title`) are missing.
+
+### How It Works:
+
+1. Performs an initial LLM extraction attempt.
+2. Evaluates field coverage using `field_utils.score_fields()`.
+3. If important fields are missing, it re-prompts with hints and context.
+4. Repeats up to `LLM_SCHEMA_RETRIES` times.
+5. Returns the best-scoring result among attempts.
+
+→ Enables **self-healing extraction** and **schema robustness** on diverse webpages.
+
 
 ---
 
