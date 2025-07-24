@@ -1,30 +1,27 @@
 [![License](https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper)](LICENSE)
-[![Tests](https://github.com/berserkhmdvhb/charfinder/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/charfinder/actions/workflows/tests.yml)
+[![Tests](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
 [![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python\&logoColor=white)](https://docs.astral.sh/ruff)
 
 # 🕵️ Agentic Scraper
 
-**Agentic Scraper** is an intelligent, LLM-powered web scraping platform with a Streamlit interface. It supports parallel URL processing, adaptive data extraction via OpenAI, and structured output presentation — all in one streamlined tool.
-
-Built with modern Python and a modular architecture, it combines async scraping, schema validation, automated screenshots, and user-friendly visualization.
+**Agentic Scraper** is an intelligent, LLM-powered web scraping platform with a modular backend and a Streamlit interface. It supports adaptive agents, schema-aware retries, multilingual readiness, and fast parallel scraping for structured data extraction at scale.
 
 ---
 
 ## 🚀 Features
 
-* 🔗 Accepts URL lists (text input or file upload)
-* ⚡ Fast async scraping with `httpx` + `asyncio`
-* 🔀 Smart retries using `tenacity`
-* 🧠 OpenAI-powered agentic extraction
-* 🔧 HTML parsing via `BeautifulSoup4`
-* 📸 Full-page screenshots using Playwright
-* ✅ Schema validation with `pydantic v2`
-* 📊 Interactive UI with Streamlit + Ag-Grid + progress bars
-* 🧲 Centralized logging, configurable via `.env`
-* 📄 Export results to CSV / JSON / SQLite
-* 🌍 Multilingual-ready and deduplication-aware
-* 🧹 Modular, extensible design
+* 🔗 Accepts URLs via paste or `.txt` file upload
+* 🌐 Multiple agent modes (`rule-based`, `llm-fixed`, `llm-dynamic`, `llm-dynamic-adaptive`)
+* 🧠 Adaptive self-healing LLM retries for missing fields
+* ⚡ Async scraping with `httpx`, `asyncio`, and retry via `tenacity`
+* ✔️ Schema validation using `pydantic v2`
+* 📸 Full-page screenshots via Playwright
+* 🔧 Advanced UI controls for concurrency, retries, and agent config
+* 📚 Export scraped data to CSV / JSON / SQLite
+* 🧰 Configurable logging, progress bars, and Ag-Grid display
+* 🌍 Multilingual detection + deduplication (in progress)
+* 🧱 Modular architecture with FastAPI backend
 
 ---
 
@@ -36,18 +33,122 @@ Built with modern Python and a modular architecture, it combines async scraping,
 
 ## ⚙️ Tech Stack
 
-| Layer            | Tools                                         |
-| ---------------- | --------------------------------------------- |
-| Async HTTP       | `httpx.AsyncClient`, `tenacity`               |
-| HTML Parsing     | `BeautifulSoup4`                              |
-| Screenshotting   | `playwright.async_api`                        |
-| Agent Logic      | `openai.ChatCompletion` API                   |
-| Data Modeling    | `pydantic v2`                                 |
-| Validation       | Centralized helpers (`utils/validators.py`)   |
-| Logging & Output | `.env` + centralized message constants        |
-| UI               | `Streamlit`, `streamlit-aggrid`               |
-| Dev Tools        | `black`, `ruff`, `mypy`, `pytest`, `Makefile` |
+| Layer             | Tools                                         |
+| ----------------- | --------------------------------------------- |
+| Async Fetching    | `httpx`, `asyncio`, `tenacity`                |
+| HTML Parsing      | `BeautifulSoup4`                              |
+| Screenshots       | `playwright.async_api`                        |
+| Agent Logic       | `openai.ChatCompletion`, retry loop           |
+| Schema Validation | `pydantic v2`                                 |
+| UI Layer          | `Streamlit`, `streamlit-aggrid`               |
+| Settings/Logging  | `.env`, `loguru`, centralized messages        |
+| Backend API       | `FastAPI` (`backend/api/`)                    |
+| Dev Tools         | `black`, `ruff`, `pytest`, `Makefile`, `mypy` |
 
+---
+
+## 🧠 Agent Modes
+
+| Mode                   | Description                                              |
+| ---------------------- | -------------------------------------------------------- |
+| `rule-based`           | Heuristic parser using BeautifulSoup (no LLM)            |
+| `llm-fixed`            | LLM extracts fixed schema fields (e.g. title, price)     |
+| `llm-dynamic`          | LLM chooses relevant fields based on page content        |
+| `llm-dynamic-adaptive` | Adds retries, field importance, and contextual reasoning |
+
+> The UI dynamically adapts to the selected mode — retry sliders and model selectors appear only for LLM-based modes.
+
+---
+
+## 🧠 Adaptive Retry Logic
+
+In `llm-dynamic-adaptive` mode:
+
+* Detects missing high-importance fields (e.g. title, price)
+* Re-prompts the LLM using a **self-healing loop**
+* Scores output by **field coverage**
+* Returns the best result among attempts
+
+→ Implemented in [`field_utils.py`](src/agentic_scraper/backend/scraper/agent/field_utils.py)
+
+---
+
+## 📁 Project Structure
+
+```
+agentic_scraper/
+├── .env                         # Local config
+├── Makefile                     # Dev commands
+├── pyproject.toml               # Project dependencies and tool config
+├── run.py                       # CLI launcher for Streamlit
+├── README.md                    # Project documentation
+├── sample.env                   # Example environment file
+├── docs/                        # Additional documentation
+│   └── development/, testing/   # Dev/test-specific notes
+├── logs/                        # Log output grouped by environment
+│   ├── DEV/
+│   ├── UAT/
+│   └── PROD/
+├── screenshots/                 # Captured screenshots per scrape
+├── tests/                       # Unit and integration tests
+│   └── (mirrors src/ structure)
+├── src/                         # Source code (main application)
+│   └── agentic_scraper/
+│       ├── __init__.py
+│       │
+│       ├── backend/
+│       │   ├── api/
+│       │   │   ├── main.py                  # FastAPI app entrypoint
+│       │   │   ├── models.py                # API models/schemas
+│       │   │   ├── __init__.py
+│       │   │   └── routes/
+│       │   │       ├── scrape.py            # Scrape endpoint logic
+│       │   │       └── __init__.py
+│       │   │
+│       │   ├── config/
+│       │   │   ├── aliases.py               # Input aliases, enums
+│       │   │   ├── constants.py             # Default values
+│       │   │   ├── messages.py              # All log/UI messages
+│       │   │   ├── types.py                 # Strongly-typed enums
+│       │   │   └── __init__.py
+│       │   │
+│       │   ├── core/
+│       │   │   ├── logger_helpers.py        # Logging formatter utilities
+│       │   │   ├── logger_setup.py          # Loguru setup
+│       │   │   ├── settings.py              # Global settings model
+│       │   │   ├── settings_helpers.py      # Validation, resolution helpers
+│       │   │   └── __init__.py
+│       │   │
+│       │   ├── scraper/
+│       │   │   ├── fetcher.py               # HTML fetching with retries
+│       │   │   ├── models.py                # Scraped item schema
+│       │   │   ├── parser.py                # HTML parsing logic
+│       │   │   ├── pipeline.py              # Orchestration pipeline
+│       │   │   ├── screenshotter.py         # Playwright screenshot logic
+│       │   │   ├── worker_pool.py           # Async task concurrency manager
+│       │   │   ├── __init__.py
+│       │   │   └── agent/
+│       │   │       ├── agent_helpers.py             # Agent utils
+│       │   │       ├── field_utils.py               # Field scoring, synonyms
+│       │   │       ├── llm_dynamic.py               # LLM agent: dynamic fields
+│       │   │       ├── llm_dynamic_adaptive.py      # LLM agent: retries, context
+│       │   │       ├── llm_fixed.py                 # LLM agent: fixed schema
+│       │   │       ├── prompt_helpers.py            # Prompt generation
+│       │   │       ├── rule_based.py                # Rule-based parser
+│       │   │       └── __init__.py
+│       │   │
+│       │   └── utils/
+│       │       ├── validators.py            # Input validators
+│       │       └── __init__.py
+│       │
+│       └── frontend/
+│           ├── app.py                      # Streamlit UI entrypoint
+│           ├── ui_core.py                  # Sidebar + config widgets
+│           ├── ui_display.py               # Table, chart, image display
+│           ├── ui_runner.py                # Async scrape runner + hooks
+│           └── __init__.py
+
+```
 ---
 
 ## 🧰 Installation
@@ -118,34 +219,34 @@ You'll be prompted to enter your OpenAI API key and a list of URLs to scrape. Re
 
 ---
 
-## 🔧 Environment Configuration
-
-Create a `.env` file in the project root:
+## 🔧 .env Configuration
 
 ```ini
-OPENAI_API_KEY=your-key-here
+OPENAI_API_KEY=sk-...
 LOG_LEVEL=INFO
+AGENT_MODE=llm-dynamic-adaptive
+LLM_MODEL=gpt-4
+LLM_SCHEMA_RETRIES=2
+MAX_CONCURRENCY=10
+LOG_MAX_BYTES=500000
+LOG_BACKUP_COUNT=2
 ```
 
-**Optional keys:**
-
-* `MAX_CONCURRENCY`
-* `LLM_MODEL`
-* `LOG_MAX_BYTES`
-* `LOG_BACKUP_COUNT`
+The UI overrides `.env` if sidebar values are selected.
 
 ---
 
 ## 🧪 How It Works
 
-1. **Input** URLs via text or file
-2. **Validate** using `validators.py`
-3. **Fetch** HTML with `httpx`, with retries
-4. **Parse** relevant content with `BeautifulSoup`
-5. **Extract** structured data using OpenAI LLM
-6. **Validate** output via `pydantic`
-7. **Capture** screenshots with Playwright
-8. **Display** results in Streamlit UI with Ag-Grid
+1. **Input**: URLs from user (via paste or file)
+2. **Fetch**: HTML pages with retries
+3. **Parse**: HTML content with `BeautifulSoup`
+4. **Extract**: Structured info via LLM or rule-based parser
+5. **Validate**: Output with `pydantic` schema
+6. **Retry** (LLM only): Re-prompt if fields are missing
+7. **Screenshot**: Page saved via Playwright
+8. **Display**: Results shown in Streamlit with Ag-Grid
+9. **Export**: JSON, CSV, or SQLite output
 
 ---
 
@@ -164,55 +265,17 @@ LOG_LEVEL=INFO
 
 ---
 
-## 🧠 Agent Prompt Strategy
-
-> “Given the following HTML/text content, extract the most relevant fields like title, price, description, author, etc. Return a JSON object. If fields are missing, set them to null.”
-
-See implementation in [`agent.py`](src/agentic_scraper/backend/scraper/agent.py)
-
----
-
-## 📁 Project Structure
-
-<details>
-<summary>Click to expand</summary>
-
-```
-agentic_scraper/
-├── .env                         # Local config
-├── Makefile                     # Dev commands
-├── pyproject.toml               # Dependencies & tools
-├── run.py                       # CLI launcher
-├── README.md                    # Project docs
-├── sample.env                   # Example .env
-├── docs/                        # Additional docs
-│   └── development/, testing/
-├── logs/                        # Per-env logs
-│   ├── DEV/, UAT/, PROD/
-├── screenshots/                 # Screenshot output
-├── src/agentic_scraper/         # Main codebase
-│   ├── backend/
-│   │   ├── config/              # Constants, types, messages
-│   │   ├── core/                # Logging, settings
-│   │   ├── scraper/             # Agents, parser, fetcher
-│   │   └── utils/               # Validators, helpers
-│   └── frontend/                # Streamlit UI
-│       └── app.py
-├── tests/                       # Unit + integration tests
-```
-
-</details>
-
----
-
 ## 🗺 Roadmap
 
-* [ ] 🌍 Multilingual support via language detection
-* [ ] 🧠 Embedding-based deduplication
-* [ ] 📂 SQLite export + scrape history
-* [ ] 🧰 Domain-specific prompt customization
-* [ ] 🚧 Docker container
-* [ ] 🔐 Optional auth for multi-user access
+* [x] Self-healing retry loop for LLM
+* [x] Field scoring to prioritize important fields
+* [x] Conditional UI for agent settings
+* [x] FastAPI backend (in progress)
+* [ ] SQLite export + scrape history view
+* [ ] Multilingual support + auto-translation
+* [ ] User authentication with Auth0
+* [ ] Authentication protocol with OAuth2 + OIDC
+* [ ] Docker container deployment
 
 ---
 
