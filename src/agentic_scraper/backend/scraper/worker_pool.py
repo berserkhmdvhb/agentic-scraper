@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_WORKER_PROGRESS,
     MSG_ERROR_WORKER_FAILED,
     MSG_INFO_WORKER_POOL_START,
     MSG_WARNING_WORKER_FAILED_SHORT,
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 # ─── Worker Task ───
 async def worker(  # noqa: PLR0913
     *,
+    worker_id: int,
     queue: asyncio.Queue[ScrapeInput],
     results: list[ScrapedItem],
     settings: Settings,
@@ -49,10 +51,15 @@ async def worker(  # noqa: PLR0913
                 if on_error:
                     on_error(url, e)
             finally:
+                if settings.is_verbose_mode:
+                    logger.debug(
+                        MSG_DEBUG_WORKER_PROGRESS.format(
+                            worker_id=worker_id, url=url, remaining=queue.qsize() - 1
+                        )
+                    )
                 queue.task_done()
     except asyncio.CancelledError:
-        # Graceful shutdown
-        pass
+        pass  # graceful shutdown
 
 
 # ─── Pool Runner ───
@@ -92,6 +99,7 @@ async def run_worker_pool(  # noqa: PLR0913
     workers = [
         asyncio.create_task(
             worker(
+                worker_id=i,
                 queue=queue,
                 results=results,
                 settings=settings,
@@ -100,12 +108,13 @@ async def run_worker_pool(  # noqa: PLR0913
                 on_error=on_error,
             )
         )
-        for _ in range(concurrency)
+        for i in range(concurrency)
     ]
 
     await queue.join()
 
     for w in workers:
         w.cancel()
+    await asyncio.gather(*workers, return_exceptions=True)
 
     return results

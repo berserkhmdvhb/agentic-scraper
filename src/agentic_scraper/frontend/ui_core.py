@@ -115,6 +115,15 @@ def render_sidebar_controls() -> dict[str, Any]:
             ),
         )
 
+        retry_attempts = st.slider(
+            "♻️ Retry Attempts",
+            min_value=0,
+            max_value=5,
+            value=1,
+            help="How many times to retry failed fetches or LLM calls. "
+            "Useful for unstable connections or rate-limited sites.",
+        )
+
     # Save values explicitly in session state for consistent access
     st.session_state["screenshot_enabled"] = screenshot_enabled
     st.session_state["fetch_concurrency"] = fetch_concurrency
@@ -122,6 +131,7 @@ def render_sidebar_controls() -> dict[str, Any]:
     st.session_state["verbose"] = verbose
     st.session_state["openai_model"] = selected_model
     st.session_state["agent_mode"] = selected_agent_mode
+    st.session_state["retry_attempts"] = retry_attempts
 
     return {
         "screenshot_enabled": screenshot_enabled,
@@ -130,6 +140,7 @@ def render_sidebar_controls() -> dict[str, Any]:
         "verbose": verbose,
         "openai_model": selected_model,
         "agent_mode": selected_agent_mode,
+        "retry_attempts": retry_attempts,
     }
 
 

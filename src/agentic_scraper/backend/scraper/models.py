@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 from agentic_scraper.backend.utils.validators import validate_optional_str, validate_price
@@ -35,3 +37,14 @@ class ScrapedItem(BaseModel):
     class Config:
         # Allow LLM to return more fields than expected
         extra = "allow"
+
+
+@dataclass
+class PipelineConfig:
+    fetch_concurrency: int
+    llm_concurrency: int
+    screenshot_enabled: bool
+    verbose: bool
+    openai_model: str
+    agent_mode: str
+    retry_attempts: int
