@@ -48,7 +48,7 @@ def test_settings_loads_correctly_from_env(
     s = Settings()
     assert s.project_name == PROJECT_NAME
     assert s.env == DEFAULT_ENV
-    assert s.debug_mode is DEFAULT_DEBUG_MODE
+    assert s.debug_mode == DEFAULT_DEBUG_MODE
     assert s.openai_model == DEFAULT_OPENAI_MODEL
     assert s.log_level == DEFAULT_LOG_LEVEL
     assert s.log_format == DEFAULT_LOG_FORMAT
@@ -62,11 +62,11 @@ def test_settings_loads_correctly_from_env(
     assert s.llm_temperature == DEFAULT_LLM_TEMPERATURE
     assert s.request_timeout == DEFAULT_REQUEST_TIMEOUT
     assert s.agent_mode == DEFAULT_AGENT_MODE
-    assert s.verbose is DEFAULT_VERBOSE
+    assert s.verbose == DEFAULT_VERBOSE
     assert s.retry_attempts == DEFAULT_RETRY_ATTEMPTS
     assert s.retry_backoff_min == DEFAULT_RETRY_BACKOFF_MIN
     assert s.retry_backoff_max == DEFAULT_RETRY_BACKOFF_MAX
-    assert s.dump_llm_json_dir is DEFAULT_DUMP_LLM_JSON_DIR
+    assert s.dump_llm_json_dir == DEFAULT_DUMP_LLM_JSON_DIR
 
 
 def test_settings_raises_on_missing_api_key(
