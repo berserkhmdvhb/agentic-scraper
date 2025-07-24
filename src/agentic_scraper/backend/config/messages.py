@@ -146,6 +146,25 @@ MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED = (
     "Rule-based extraction failed to construct ScrapedItem for {url}: {error}"
 )
 
+# llm_dynamic_adaptive.py
+
+MSG_DEBUG_MISSING_IMPORTANT_FIELDS = (
+    "Missing critical fields {fields} in first pass, retrying with recovery prompt..."
+)
+
+MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL = (
+    "Adaptive LLM extraction succeeded for {url} with field recovery if needed."
+)
+
+MSG_DEBUG_CONTEXTUAL_HINTS_USED = (
+    "Using context hints for {url}: meta={meta},"
+    " breadcrumbs={breadcrumbs}, url_segments={url_segments}"
+)
+MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES = (
+    "Failed to extract sufficient fields after {attempts} adaptive attempts for {url}"
+)
+
+
 # ---------------------------------------------------------------------
 # common/logging.py
 # ---------------------------------------------------------------------
