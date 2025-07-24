@@ -51,9 +51,15 @@ def render_sidebar_controls() -> dict[str, Any]:
         key="agent_mode_select",
         help=(
             "Choose how the agent extracts structured data:\n\n"
-            "- `fixed`: Extracts predefined fields (title, description, price, etc.)\n"
-            "- `adaptive`: LLM dynamically decides which fields are relevant\n"
-            "- `rule`: Heuristic rule-based parser (no LLM)"
+            "- `llm-fixed`: Extracts a fixed set of fields (title, description, price, etc.) "
+            "using an LLM.\n"
+            "- `llm-dynamic`: LLM analyzes the page and decides which fields are relevant "
+            "based on context.\n"
+            "- `llm-dynamic-adaptive`: Builds on dynamic mode with smarter behavior:\n"
+            "    ↳ Self-healing prompt loop if key fields are missing\n"
+            "    ↳ Uses meta tags, URL paths, or breadcrumbs for better inference\n"
+            "    ↳ Prioritizes important fields like title, price, and summary\n"
+            "- `rule-based`: Uses lightweight regex and text heuristics (no LLM)."
         ),
     )
 

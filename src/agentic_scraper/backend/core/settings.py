@@ -6,26 +6,15 @@ from typing import Any
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
-from agentic_scraper.backend.config.aliases import (
-    Environment,
-    LogFormat,
-    LogLevel,
-    OpenAIModel,
-)
 from agentic_scraper.backend.config.constants import (
-    DEFAULT_AGENT_MODE,
     DEFAULT_DEBUG_MODE,
     DEFAULT_DUMP_LLM_JSON_DIR,
-    DEFAULT_ENV,
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_LLM_TEMPERATURE,
     DEFAULT_LOG_BACKUP_COUNT,
     DEFAULT_LOG_DIR,
-    DEFAULT_LOG_FORMAT,
-    DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_MAX_BYTES,
     DEFAULT_MAX_CONCURRENT_REQUESTS,
-    DEFAULT_OPENAI_MODEL,
     DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_RETRY_ATTEMPTS,
     DEFAULT_RETRY_BACKOFF_MAX,
@@ -37,6 +26,13 @@ from agentic_scraper.backend.config.constants import (
 )
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES,
+)
+from agentic_scraper.backend.config.types import (
+    AgentMode,
+    Environment,
+    LogFormat,
+    LogLevel,
+    OpenAIModel,
 )
 from agentic_scraper.backend.core.settings_helpers import validated_settings
 from agentic_scraper.backend.utils.validators import (
@@ -52,11 +48,11 @@ class Settings(BaseSettings):
     # General
     project_name: str = PROJECT_NAME
     debug_mode: bool = Field(default=DEFAULT_DEBUG_MODE, validation_alias="DEBUG")
-    env: Environment = Field(default=DEFAULT_ENV, validation_alias="ENV")
+    env: Environment = Field(default=Environment.DEV, validation_alias="ENV")
 
     # OpenAI
     openai_api_key: str | None = Field(default="<<MISSING>>", validation_alias="OPENAI_API_KEY")
-    openai_model: OpenAIModel = Field(default=DEFAULT_OPENAI_MODEL, validation_alias="OPENAI_MODEL")
+    openai_model: OpenAIModel = Field(default=OpenAIModel.GPT_3_5, validation_alias="OPENAI_MODEL")
     openai_project_id: str | None = Field(default=None, validation_alias="OPENAI_PROJECT_ID")
 
     # Network
@@ -72,10 +68,11 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(
         default=DEFAULT_LLM_TEMPERATURE, validation_alias="LLM_TEMPERATURE"
     )
-    agent_mode: str = Field(
-        default=DEFAULT_AGENT_MODE,
+
+    agent_mode: AgentMode = Field(
+        default=AgentMode.LLM_FIXED,
         validation_alias="AGENT_MODE",
-        description="Which agent to use: fixed | adaptive | rule",
+        description="Which agent to use: llm-fixed, llm-dynamic, llm-dynamic-adaptive, rule-based",
     )
 
     # Screenshotting
@@ -86,12 +83,12 @@ class Settings(BaseSettings):
 
     # Logging
     log_dir: str = Field(default=DEFAULT_LOG_DIR, validation_alias="LOG_DIR")
-    log_level: LogLevel = Field(default=DEFAULT_LOG_LEVEL, validation_alias="LOG_LEVEL")
+    log_level: LogLevel = Field(default=LogLevel.INFO, validation_alias="LOG_LEVEL")
     log_max_bytes: int = Field(default=DEFAULT_LOG_MAX_BYTES, validation_alias="LOG_MAX_BYTES")
     log_backup_count: int = Field(
         default=DEFAULT_LOG_BACKUP_COUNT, validation_alias="LOG_BACKUP_COUNT"
     )
-    log_format: LogFormat = Field(default=DEFAULT_LOG_FORMAT, validation_alias="LOG_FORMAT")
+    log_format: LogFormat = Field(default=LogFormat.PLAIN, validation_alias="LOG_FORMAT")
     verbose: bool = Field(
         default=DEFAULT_VERBOSE,
         validation_alias="VERBOSE",
