@@ -154,7 +154,7 @@ clean-logs:
 
 clean-cache:
 	@echo "Removing cache files..."
-	$(PYTHON) -c "import pathlib, shutil; [shutil.rmtree(p, ignore_errors=True) for p in map(pathlib.Path, ['.pytest_cache', '.mypy_cache', '.ruff_cache', 'htmlcov']) if p.exists()]"
+	$(PYTHON) -c "import pathlib, shutil; [shutil.rmtree(p, ignore_errors=True) for p in map(pathlib.Path, ['.pytest_cache', '.mypy_cache', '.ruff_cache', 'htmlcov']) if p.exists()]; cache = pathlib.Path('.cache'); [shutil.rmtree(p, ignore_errors=True) for p in cache.iterdir() if p.is_dir()] if cache.exists() else None"
 
 clean-coverage:
 	@echo "Removing coverage data..."

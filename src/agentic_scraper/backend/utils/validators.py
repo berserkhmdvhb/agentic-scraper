@@ -8,13 +8,18 @@ from agentic_scraper.backend.config.constants import (
     LLM_TEMPERATURE_MAX,
     LLM_TEMPERATURE_MIN,
     MAX_CONCURRENCY_HARD_LIMIT,
+    VALID_AGENT_MODES,
     VALID_ENVIRONMENTS,
     VALID_LOG_LEVELS,
     VALID_OPENAI_MODELS,
 )
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SKIPPED_INVALID_URL,
+    MSG_ERROR_BACKOFF_MAX_NEGATIVE,
+    MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX,
+    MSG_ERROR_BACKOFF_MIN_NEGATIVE,
     MSG_ERROR_EMPTY_STRING,
+    MSG_ERROR_INVALID_AGENT_MODE,
     MSG_ERROR_INVALID_BACKUP_COUNT,
     MSG_ERROR_INVALID_CONCURRENCY,
     MSG_ERROR_INVALID_ENV,
@@ -25,7 +30,10 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_TEMPERATURE,
     MSG_ERROR_INVALID_TIMEOUT,
     MSG_ERROR_INVALID_TOKENS,
+    MSG_ERROR_LOG_BACKUP_COUNT_INVALID,
+    MSG_ERROR_MISSING_API_KEY,
     MSG_ERROR_NOT_A_DIRECTORY,
+    MSG_ERROR_RETRY_NEGATIVE,
 )
 
 logger = logging.getLogger(__name__)
@@ -222,3 +230,63 @@ def ensure_directory(path: Path) -> Path:
         raise ValueError(MSG_ERROR_NOT_A_DIRECTORY % path)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def validate_agent_mode(mode: str) -> str:
+    mode = mode.strip().lower()
+    if mode not in VALID_AGENT_MODES:
+        raise ValueError(
+            format_with_valid_options(
+                MSG_ERROR_INVALID_AGENT_MODE,
+                "value",
+                mode,
+                VALID_AGENT_MODES,
+            )
+        )
+    return mode
+
+
+def validate_openai_api_key(api_key: str | None) -> str:
+    if api_key in (None, "", "<<MISSING>>"):
+        raise ValueError(MSG_ERROR_MISSING_API_KEY)
+    return str(api_key)
+
+
+def validate_or_create_dir(path_str: str) -> str:
+    """Ensure the given path is a valid directory; create it if missing."""
+    path = Path(path_str)
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=True)
+    elif not path.is_dir():
+        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY.format(path_str))
+    return str(path.resolve())
+
+
+def validate_retry_attempts(n: int) -> int:
+    if n < 0:
+        raise ValueError(MSG_ERROR_RETRY_NEGATIVE)
+    return n
+
+
+def validate_backoff_min(value: float) -> float:
+    if value < 0:
+        raise ValueError(MSG_ERROR_BACKOFF_MIN_NEGATIVE)
+    return value
+
+
+def validate_backoff_max(value: float) -> float:
+    if value < 0:
+        raise ValueError(MSG_ERROR_BACKOFF_MAX_NEGATIVE)
+    return value
+
+
+def validate_log_rotation_config(max_bytes: int, backup_count: int) -> None:
+    if max_bytes > 0 and backup_count <= 0:
+        raise ValueError(MSG_ERROR_LOG_BACKUP_COUNT_INVALID)
+
+
+def validate_backoff_range(min_backoff: float, max_backoff: float) -> None:
+    if min_backoff > max_backoff:
+        raise ValueError(
+            MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX.format(min=min_backoff, max=max_backoff)
+        )

@@ -13,6 +13,9 @@ from agentic_scraper.backend.config.aliases import (
     OpenAIModel,
 )
 from agentic_scraper.backend.config.constants import (
+    DEFAULT_AGENT_MODE,
+    DEFAULT_DEBUG_MODE,
+    DEFAULT_DUMP_LLM_JSON_DIR,
     DEFAULT_ENV,
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_LLM_TEMPERATURE,
@@ -24,15 +27,23 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_MAX_CONCURRENT_REQUESTS,
     DEFAULT_OPENAI_MODEL,
     DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_RETRY_ATTEMPTS,
+    DEFAULT_RETRY_BACKOFF_MAX,
+    DEFAULT_RETRY_BACKOFF_MIN,
     DEFAULT_SCREENSHOT_DIR,
     DEFAULT_SCREENSHOT_ENABLED,
+    DEFAULT_VERBOSE,
     PROJECT_NAME,
 )
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_SETTINGS_LOADED,
-    MSG_ERROR_MISSING_API_KEY,
+    MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES,
 )
 from agentic_scraper.backend.core.settings_helpers import validated_settings
+from agentic_scraper.backend.utils.validators import (
+    validate_backoff_range,
+    validate_log_rotation_config,
+    validate_openai_api_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +51,11 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     # General
     project_name: str = PROJECT_NAME
-    debug_mode: bool = Field(default=False, validation_alias="DEBUG")
+    debug_mode: bool = Field(default=DEFAULT_DEBUG_MODE, validation_alias="DEBUG")
     env: Environment = Field(default=DEFAULT_ENV, validation_alias="ENV")
 
     # OpenAI
-    openai_api_key: str = Field(..., validation_alias="OPENAI_API_KEY")
+    openai_api_key: str | None = Field(default="<<MISSING>>", validation_alias="OPENAI_API_KEY")
     openai_model: OpenAIModel = Field(default=DEFAULT_OPENAI_MODEL, validation_alias="OPENAI_MODEL")
     openai_project_id: str | None = Field(default=None, validation_alias="OPENAI_PROJECT_ID")
 
@@ -61,6 +72,11 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(
         default=DEFAULT_LLM_TEMPERATURE, validation_alias="LLM_TEMPERATURE"
     )
+    agent_mode: str = Field(
+        default=DEFAULT_AGENT_MODE,
+        validation_alias="AGENT_MODE",
+        description="Which agent to use: fixed | adaptive | rule",
+    )
 
     # Screenshotting
     screenshot_enabled: bool = Field(
@@ -76,10 +92,43 @@ class Settings(BaseSettings):
         default=DEFAULT_LOG_BACKUP_COUNT, validation_alias="LOG_BACKUP_COUNT"
     )
     log_format: LogFormat = Field(default=DEFAULT_LOG_FORMAT, validation_alias="LOG_FORMAT")
+    verbose: bool = Field(
+        default=DEFAULT_VERBOSE,
+        validation_alias="VERBOSE",
+        description="If true, enables detailed debug logs and full tracebacks.",
+    )
 
     # Execution tuning (CLI/batch mode only)
     fetch_concurrency: int = Field(default=10, validation_alias="FETCH_CONCURRENCY", exclude=True)
     llm_concurrency: int = Field(default=2, validation_alias="LLM_CONCURRENCY", exclude=True)
+
+    # Retry behavior (used in agent.py with tenacity)
+    retry_attempts: int = Field(
+        default=DEFAULT_RETRY_ATTEMPTS,
+        validation_alias="RETRY_ATTEMPTS",
+        description="Number of times to retry transient LLM errors (OpenAIError)",
+    )
+    retry_backoff_min: float = Field(
+        default=DEFAULT_RETRY_BACKOFF_MIN,
+        validation_alias="RETRY_BACKOFF_MIN",
+        description="Minimum backoff time (seconds) for retry delay",
+    )
+    retry_backoff_max: float = Field(
+        default=DEFAULT_RETRY_BACKOFF_MAX,
+        validation_alias="RETRY_BACKOFF_MAX",
+        description="Maximum backoff time (seconds) for retry delay",
+    )
+
+    dump_llm_json_dir: str | None = Field(
+        default=DEFAULT_DUMP_LLM_JSON_DIR,
+        validation_alias="DUMP_LLM_JSON_DIR",
+        description="Optional directory to dump full LLM parsed data for debugging/inspection.",
+    )
+
+    # Derived
+    @property
+    def is_verbose_mode(self) -> bool:
+        return self.env.upper() == "DEV" or self.verbose
 
     @model_validator(mode="before")
     @classmethod
@@ -88,12 +137,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
-        safe_dump = self.model_dump(exclude={"openai_api_key", "openai_project_id"})
-        message = f"{MSG_DEBUG_SETTINGS_LOADED}: {safe_dump}"
-        logger.debug(message)
+        self.openai_api_key = validate_openai_api_key(self.openai_api_key)
 
-        if not self.openai_api_key:
-            raise ValueError(MSG_ERROR_MISSING_API_KEY)
+        validate_backoff_range(self.retry_backoff_min, self.retry_backoff_max)
+        validate_log_rotation_config(self.log_max_bytes, self.log_backup_count)
+
         return self
 
     model_config = {
@@ -102,27 +150,23 @@ class Settings(BaseSettings):
         "extra": "ignore",
     }
 
-    # Retry behavior (used in agent.py with tenacity)
-    retry_attempts: int = Field(
-        default=2,
-        validation_alias="RETRY_ATTEMPTS",
-        description="Number of times to retry transient LLM errors (OpenAIError)",
-    )
-    retry_backoff_min: float = Field(
-        default=1.0,
-        validation_alias="RETRY_BACKOFF_MIN",
-        description="Minimum backoff time (seconds) for retry delay",
-    )
-    retry_backoff_max: float = Field(
-        default=10.0,
-        validation_alias="RETRY_BACKOFF_MAX",
-        description="Maximum backoff time (seconds) for retry delay",
-    )
-
 
 @cache
 def get_settings() -> Settings:
-    return Settings()  # type: ignore[call-arg]
+    return Settings()
+
+
+def log_settings(settings: Settings) -> None:
+    if getattr(log_settings, "already_logged", False):
+        return
+    log_settings.already_logged = True  # type: ignore[attr-defined]
+
+    safe_dump = settings.model_dump(
+        exclude={"openai_api_key", "openai_project_id"},
+        mode="json",
+    )
+    formatted = "\n".join(f"  {k}: {v}" for k, v in safe_dump.items())
+    logger.info(MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES.format(values=formatted))
 
 
 def get_environment() -> str:
@@ -134,7 +178,10 @@ def get_log_dir() -> Path:
 
 
 def get_log_level() -> int:
-    level_str = get_settings().log_level.upper()
+    settings = get_settings()
+    if settings.is_verbose_mode:
+        return logging.DEBUG
+    level_str = settings.log_level.upper()
     return getattr(logging, level_str, logging.INFO)
 
 

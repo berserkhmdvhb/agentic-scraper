@@ -9,6 +9,9 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_SETTING_INVALID,
 )
 from agentic_scraper.backend.utils.validators import (
+    validate_agent_mode,
+    validate_backoff_max,
+    validate_backoff_min,
     validate_concurrency,
     validate_log_backup_count,
     validate_log_level,
@@ -16,6 +19,7 @@ from agentic_scraper.backend.utils.validators import (
     validate_max_tokens,
     validate_openai_model,
     validate_path,
+    validate_retry_attempts,
     validate_temperature,
     validate_timeout,
 )
@@ -34,7 +38,6 @@ def _coerce_and_validate(
 
     raw = values[key]
 
-    # Pass through if already correct type
     if isinstance(raw, (int, float, Path, bool)):
         try:
             validated = validator(raw)
@@ -47,7 +50,6 @@ def _coerce_and_validate(
             raise
         return
 
-    # Try to coerce from string
     if isinstance(raw, str):
         stripped = raw.strip()
         if not stripped:
@@ -66,10 +68,10 @@ def _coerce_and_validate(
             raise
     else:
         logger.debug(MSG_DEBUG_SETTING_SKIPPED.format(key=key))
-        return
 
 
-def _validate_optional_model(values: dict[str, Any]) -> None:
+def _validate_optional_openai_model(values: dict[str, Any]) -> None:
+    """Validate the OpenAI model string (from env or override)."""
     _coerce_and_validate(values, "openai_model", str, validate_openai_model)
 
 
@@ -105,7 +107,8 @@ def _validate_optional_bool(
 
 
 def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
-    _validate_optional_model(values)
+    """Main entry point to validate incoming Settings values before instantiating."""
+    _validate_optional_openai_model(values)
     _validate_optional_float(values, "llm_temperature", validate_temperature)
     _validate_optional_int(values, "llm_max_tokens", validate_max_tokens)
     _validate_optional_int(values, "max_concurrent_requests", validate_concurrency)
@@ -115,4 +118,10 @@ def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     _validate_optional_int(values, "log_backup_count", validate_log_backup_count)
     _validate_optional_path(values, "log_dir")
     _validate_optional_path(values, "screenshot_dir")
+    _validate_optional_path(values, "dump_llm_json_dir")
+    _validate_optional_str(values, "agent_mode", validate_agent_mode)
+    _validate_optional_bool(values, "verbose", lambda v: v)  # no-op validator
+    _validate_optional_int(values, "retry_attempts", validate_retry_attempts)
+    _validate_optional_float(values, "retry_backoff_min", validate_backoff_min)
+    _validate_optional_float(values, "retry_backoff_max", validate_backoff_max)
     return values

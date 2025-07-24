@@ -56,8 +56,8 @@ async def capture_screenshot(url: str, output_dir: Path) -> str | None:
             await page.goto(url, wait_until="networkidle", timeout=15000)
             await page.screenshot(path=file_path, full_page=True)
             await browser.close()
-            logger.info(MSG_INFO_SCREENSHOT_SAVED, file_path)
+            logger.info(MSG_INFO_SCREENSHOT_SAVED.format(path=file_path))
             return file_path.as_posix()
     except Exception:
-        logger.exception("%s: %s", MSG_ERROR_SCREENSHOT_FAILED, url)
+        logger.exception("%s [URL: %s]", MSG_ERROR_SCREENSHOT_FAILED, url)
         return None

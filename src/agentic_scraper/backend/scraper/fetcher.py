@@ -16,6 +16,7 @@ from agentic_scraper.backend.config.constants import (
 )
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_RETRYING_URL,
+    MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION,
     MSG_ERROR_UNREACHABLE_FETCH_URL,
     MSG_FETCH_ERROR_PREFIX,
     MSG_INFO_FETCH_SUCCESS,
@@ -45,13 +46,15 @@ async def fetch_url(client: httpx.AsyncClient, url: str, *, settings: Settings) 
 
                 if attempt.retry_state.attempt_number > 1:
                     outcome = attempt.retry_state.outcome
-                    exc = outcome.exception() if outcome and outcome.exception() else None
-                    logger.debug(
-                        MSG_DEBUG_RETRYING_URL,
-                        url,
-                        attempt.retry_state.attempt_number,
-                        repr(exc) if exc else "unknown error",
-                    )
+                    if outcome and outcome.failed:
+                        exc = outcome.exception()
+                        logger.debug(
+                            MSG_DEBUG_RETRYING_URL.format(
+                                url=url,
+                                no=attempt.retry_state.attempt_number,
+                                exc=exc if exc else "unknown error",
+                            )
+                        )
 
                 return response.text
     else:
@@ -79,18 +82,31 @@ async def fetch_all(
     async with httpx.AsyncClient(headers=DEFAULT_HEADERS, follow_redirects=True) as client:
 
         async def bounded_fetch(url: str) -> None:
+            """Fetch a single URL under concurrency control and handle errors."""
             async with semaphore:
                 try:
                     html = await fetch_url(client, url, settings=settings)
                     results[url] = html
-                    logger.info(MSG_INFO_FETCH_SUCCESS.format(url))
+                    logger.info(MSG_INFO_FETCH_SUCCESS.format(url=url))
+
                 except RetryError as e:
                     cause = e.last_attempt.exception()
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {cause}"
-                    logger.warning(MSG_WARNING_FETCH_FAILED, url, cause)
+                    if settings.is_verbose_mode:
+                        logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION.format(url=url))
+                    else:
+                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url))
+
                 except (httpx.HTTPError, httpx.RequestError, asyncio.TimeoutError) as e:
                     results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
-                    logger.warning(MSG_WARNING_FETCH_FAILED, url, e)
+                    if settings.is_verbose_mode:
+                        logger.exception(MSG_WARNING_FETCH_FAILED.format(url=url))
+                    else:
+                        logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url))
+
+                except Exception as e:
+                    results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
+                    logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION.format(url=url))
 
         await asyncio.gather(*(bounded_fetch(url) for url in urls))
 

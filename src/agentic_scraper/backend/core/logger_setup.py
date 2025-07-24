@@ -1,8 +1,8 @@
 import logging
+from logging.handlers import RotatingFileHandler
 
 from agentic_scraper.backend.config.constants import LOGGER_NAME
 from agentic_scraper.backend.core.logger_helpers import (
-    CustomRotatingFileHandler,
     EnvironmentFilter,
     JSONFormatter,
     SafeFormatter,
@@ -13,6 +13,7 @@ from agentic_scraper.backend.core.settings import (
     get_log_format,
     get_log_level,
     get_log_max_bytes,
+    get_settings,
 )
 
 
@@ -37,11 +38,13 @@ def setup_logging(
         teardown_logger(logger)
 
     if not reset and any(
-        isinstance(h, (logging.StreamHandler, CustomRotatingFileHandler)) for h in logger.handlers
+        isinstance(h, (logging.StreamHandler, RotatingFileHandler)) for h in logger.handlers
     ):
-        return None  # Already configured
+        return None
 
-    logger.setLevel(logging.DEBUG)
+    settings = get_settings()
+    log_level = logging.DEBUG if settings.is_verbose_mode else get_log_level()
+    logger.setLevel(log_level)
     logger.propagate = False
 
     env_filter = EnvironmentFilter()
@@ -54,18 +57,18 @@ def setup_logging(
     else:
         formatter = SafeFormatter(fmt=fmt, datefmt=datefmt)
 
-    # Console handler
+    # Console handler (uses same level as logger)
     stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(get_log_level())
+    stream_handler.setLevel(log_level)
     stream_handler.setFormatter(formatter)
     stream_handler.addFilter(env_filter)
     logger.addHandler(stream_handler)
 
-    # File handler
+    # File handler (always debug for detailed logs)
     log_dir = get_log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "agentic_scraper.log"
-    file_handler = CustomRotatingFileHandler(
+    file_handler = RotatingFileHandler(
         filename=log_path,
         mode="a",
         maxBytes=get_log_max_bytes(),

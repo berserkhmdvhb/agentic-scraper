@@ -13,6 +13,6 @@ logger = get_logger()
 
 @router.post("/scrape")
 async def scrape(request: ScrapeRequest) -> ScrapeResponse:
-    logger.info(MSG_INFO_SCRAPE_REQUEST_RECEIVED, len(request.urls))
+    logger.info(MSG_INFO_SCRAPE_REQUEST_RECEIVED.format(n=len(request.urls)))
     results, stats = await scrape_with_stats([str(url) for url in request.urls], settings)
     return ScrapeResponse(results=results, stats=stats)

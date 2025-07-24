@@ -21,7 +21,9 @@ from unittest.mock import patch
 
 from agentic_scraper.backend.core import settings as settings_module
 from agentic_scraper.backend.config.constants import (
+    DEFAULT_AGENT_MODE,
     DEFAULT_ENV,
+    DEFAULT_DUMP_LLM_JSON_DIR,
     DEFAULT_OPENAI_MODEL,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_FORMAT,
@@ -34,6 +36,11 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_LLM_TEMPERATURE,
     DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_RETRY_ATTEMPTS,
+    DEFAULT_RETRY_BACKOFF_MIN,
+    DEFAULT_RETRY_BACKOFF_MAX,
+    DEFAULT_VERBOSE,
+    DEFAULT_DEBUG_MODE,
 )
 
 __all__ = [
@@ -55,7 +62,6 @@ def mock_env(monkeypatch: MonkeyPatch) -> Generator[None, None, None]:
     """Set up environment variables with valid defaults for Settings."""
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("ENV", DEFAULT_ENV)
-    monkeypatch.setenv("DEBUG", "true")
     monkeypatch.setenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
     monkeypatch.setenv("LOG_LEVEL", DEFAULT_LOG_LEVEL)
     monkeypatch.setenv("LOG_FORMAT", DEFAULT_LOG_FORMAT)
@@ -68,6 +74,13 @@ def mock_env(monkeypatch: MonkeyPatch) -> Generator[None, None, None]:
     monkeypatch.setenv("LLM_MAX_TOKENS", str(DEFAULT_LLM_MAX_TOKENS))
     monkeypatch.setenv("LLM_TEMPERATURE", str(DEFAULT_LLM_TEMPERATURE))
     monkeypatch.setenv("REQUEST_TIMEOUT", str(DEFAULT_REQUEST_TIMEOUT))
+    monkeypatch.setenv("AGENT_MODE", str(DEFAULT_AGENT_MODE))
+    monkeypatch.setenv("VERBOSE", str(DEFAULT_VERBOSE))
+    monkeypatch.setenv("RETRY_ATTEMPTS", str(DEFAULT_RETRY_ATTEMPTS))
+    monkeypatch.setenv("RETRY_BACKOFF_MIN", str(DEFAULT_RETRY_BACKOFF_MIN))
+    monkeypatch.setenv("RETRY_BACKOFF_MAX", str(DEFAULT_RETRY_BACKOFF_MAX))
+    monkeypatch.setenv("DUMP_LLM_JSON_DIR", DEFAULT_DUMP_LLM_JSON_DIR)
+    monkeypatch.setenv("DEBUG", str(DEFAULT_DEBUG_MODE))
     yield
 
 @pytest.fixture(autouse=True)
@@ -76,7 +89,6 @@ def clear_agentic_env(monkeypatch: MonkeyPatch) -> None:
     for var in [
         "OPENAI_API_KEY",
         "ENV",
-        "DEBUG",
         "OPENAI_MODEL",
         "LOG_LEVEL",
         "LOG_FORMAT",
@@ -89,6 +101,13 @@ def clear_agentic_env(monkeypatch: MonkeyPatch) -> None:
         "LLM_MAX_TOKENS",
         "LLM_TEMPERATURE",
         "REQUEST_TIMEOUT",
+        "RETRY_ATTEMPTS",
+        "RETRY_BACKOFF_MIN",
+        "RETRY_BACKOFF_MAX",
+        "AGENT_MODE",
+        "DUMP_LLM_JSON_DIR",
+        "DEBUG",
+        "VERBOSE",
     ]:
         monkeypatch.delenv(var, raising=False)
 
