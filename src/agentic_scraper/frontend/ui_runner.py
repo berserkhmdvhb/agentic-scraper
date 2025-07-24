@@ -1,6 +1,5 @@
 import asyncio
 import time
-from dataclasses import dataclass
 from typing import Any
 
 import streamlit as st
@@ -16,12 +15,13 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_USING_CACHE,
     MSG_INFO_VALID_URLS_FOUND,
     MSG_WARN_PROCESSING_URL_FAILED,
+    MSG_WARNING_EXTRACTION_NONE,
 )
 from agentic_scraper.backend.config.types import ScrapeResultWithSkipCount
 from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.models import PipelineConfig, ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
@@ -36,16 +36,6 @@ DOMAIN_EMOJIS = {
     "wikipedia.org": "📚",
     "google.com": "🔎",
 }
-
-
-@dataclass
-class PipelineConfig:
-    fetch_concurrency: int
-    llm_concurrency: int
-    screenshot_enabled: bool
-    verbose: bool
-    openai_model: str
-    agent_mode: str
 
 
 def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]:
@@ -77,6 +67,7 @@ async def run_scraper_pipeline(
             "verbose": config.verbose,
             "openai_model": config.openai_model,
             "agent_mode": config.agent_mode,
+            "retry_attempts": config.retry_attempts,
         }
     )
 
@@ -127,6 +118,7 @@ async def run_scraper_pipeline(
         else:
             logger.error(MSG_ERROR_PROCESSING_URL_FAILED)
 
+    # the main processing part
     items = await run_worker_pool(
         inputs=inputs,
         settings=settings,
@@ -141,9 +133,16 @@ async def run_scraper_pipeline(
     sticky.empty()
 
     with log_box:
-        st.info("✅ Extraction pipeline completed")
+        if items:
+            st.info("✅ Extraction pipeline completed")
+        else:
+            st.warning("⚠️ No items processed. Pipeline ended with zero results.")
 
-    logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(n=len(items)))
+    if items:
+        logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(n=len(items)))
+    else:
+        logger.warning(MSG_WARNING_EXTRACTION_NONE)
+
     return items, skipped
 
 
@@ -195,13 +194,15 @@ def process_and_run(
     else:
         elapsed = round(time.perf_counter() - start, 2)
 
-        st.markdown("## 🎉 Extraction Complete")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("✅ Extracted", f"{len(items)} URLs")
-        col2.metric("⚠️ Skipped", f"{skipped} URLs")
-        col3.metric("⏱️ Time", f"{elapsed:.2f}s")
+        if not items:
+            st.warning("⚠️ No data could be extracted. All URLs failed or were skipped.")
+        else:
+            st.markdown("## 🎉 Extraction Complete")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("✅ Extracted", f"{len(items)} URLs")
+            col2.metric("⚠️ Skipped", f"{skipped} URLs")
+            col3.metric("⏱️ Time", f"{elapsed:.2f}s")
 
-        if items:
             with st.expander("🔍 Extracted URLs (Quick View)"):
                 for item in items:
                     icon = extract_domain_icon(str(item.url))
@@ -219,5 +220,6 @@ def maybe_run_pipeline(raw_input: str, controls: dict[str, Any]) -> tuple[list[S
         verbose=controls["verbose"],
         openai_model=controls["openai_model"],
         agent_mode=controls["agent_mode"],
+        retry_attempts=controls["retry_attempts"],
     )
     return process_and_run(raw_input=raw_input, config=config)

@@ -3,6 +3,7 @@
 # frontend/app.py
 MSG_INFO_FETCHING_URLS = "Fetching and processing {n} URLs"
 MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for {n} URLs"
+MSG_WARNING_EXTRACTION_NONE = "Pipeline ended without extracting any items"
 MSG_INFO_FETCH_SKIPPED = "Skipped {n} URLs due to fetch errors"
 MSG_ERROR_PROCESSING_URL_FAILED = "Error processing {url}: {exc}"
 MSG_WARN_PROCESSING_URL_FAILED = "⚠️ Failed to process {url}: {error}"
@@ -13,7 +14,7 @@ MSG_INFO_USING_CACHE = "🔁 Using cached results for these URLs."
 MSG_INFO_VALID_URLS_FOUND = "✅ {n} valid URLs detected."
 MSG_SUCCESS_EXTRACTION_DONE = "✅ Extraction done!"
 MSG_ERROR_EXTRACTION_FAILED = "❌ LLM extraction failed: {error}"
-
+MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR = "Unexpected error during extraction pipeline"
 
 # ─── Backend ───
 
@@ -86,6 +87,9 @@ MSG_INFO_WORKER_POOL_START = "Running worker pool with screenshots enabled = {en
 # worker_pool.py
 MSG_ERROR_WORKER_FAILED = "Worker failed for URL: {url}"
 MSG_WARNING_WORKER_FAILED_SHORT = "Worker failed for URL: {url}: {error}"
+MSG_DEBUG_WORKER_PROGRESS = (
+    "[Worker-{worker_id}] Processed: {url} | Remaining in queue: {remaining}"
+)
 
 
 # ---------------------------------------------------------------------
