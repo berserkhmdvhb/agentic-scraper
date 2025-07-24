@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from typing import Any
 
@@ -10,23 +11,25 @@ from agentic_scraper.backend.config.constants import (
     VALID_MODEL_OPTIONS,
 )
 from agentic_scraper.backend.core.logger_setup import setup_logging
-from agentic_scraper.backend.core.settings import get_environment
+from agentic_scraper.backend.core.settings import get_environment, get_log_dir
 
 # Windows asyncio compatibility
 if sys.platform.startswith("win"):
-    import asyncio
-
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # Setup logging once on app start
 setup_logging(reset=True)
 
 
 def configure_page() -> None:
+    from agentic_scraper.backend.core.logger_setup import setup_logging  # noqa: PLC0415
+
+    setup_logging(reset=True)
     st.set_page_config(page_title="Agentic Scraper", layout="wide")
     st.title("🕵️ Agentic Scraper")
     st.markdown("Extract structured data from any list of URLs using LLM-powered parsing.")
     st.sidebar.markdown(f"**Environment:** `{get_environment()}`")
+    st.sidebar.markdown(f"**Log Path:** `{get_log_dir() / 'agentic_scraper.log'}`")
 
 
 def render_sidebar_controls() -> dict[str, Any]:

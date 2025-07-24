@@ -15,6 +15,7 @@ if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
+
 def main():
     # Check if Streamlit is installed
     if shutil.which("streamlit") is None:

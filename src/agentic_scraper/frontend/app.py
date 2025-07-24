@@ -18,12 +18,13 @@ if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
-# --- LOGGING SETUP ---
-setup_logging(reset=True)
-logger = get_logger()
 
 
 def main() -> None:
+    # --- LOGGING SETUP ---
+    setup_logging(reset=True)
+    logger = get_logger()
+        
     # --- CONFIG SETUP ---
     settings = get_settings()
     log_settings(settings)
