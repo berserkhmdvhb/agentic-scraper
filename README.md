@@ -1,7 +1,7 @@
 [![License](https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper)](LICENSE)
 [![Tests](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
-[![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python\&logoColor=white)](https://docs.astral.sh/ruff)
+[![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white)]
 
 # 🕵️ Agentic Scraper
 
@@ -20,7 +20,6 @@
 * 🔧 Advanced UI controls for concurrency, retries, and agent config
 * 📚 Export scraped data to CSV / JSON / SQLite
 * 🧰 Configurable logging, progress bars, and Ag-Grid display
-* 🌍 Multilingual detection + deduplication (in progress)
 * 🧱 Modular architecture with FastAPI backend
 
 ---
@@ -94,31 +93,22 @@ agentic_scraper/
 │   └── (mirrors src/ structure)
 ├── src/                         # Source code (main application)
 │   └── agentic_scraper/
-│       ├── __init__.py
-│       │
 │       ├── backend/
 │       │   ├── api/
 │       │   │   ├── main.py                  # FastAPI app entrypoint
 │       │   │   ├── models.py                # API models/schemas
-│       │   │   ├── __init__.py
 │       │   │   └── routes/
 │       │   │       ├── scrape.py            # Scrape endpoint logic
-│       │   │       └── __init__.py
-│       │   │
 │       │   ├── config/
 │       │   │   ├── aliases.py               # Input aliases, enums
 │       │   │   ├── constants.py             # Default values
 │       │   │   ├── messages.py              # All log/UI messages
 │       │   │   ├── types.py                 # Strongly-typed enums
-│       │   │   └── __init__.py
-│       │   │
 │       │   ├── core/
 │       │   │   ├── logger_helpers.py        # Logging formatter utilities
 │       │   │   ├── logger_setup.py          # Loguru setup
 │       │   │   ├── settings.py              # Global settings model
 │       │   │   ├── settings_helpers.py      # Validation, resolution helpers
-│       │   │   └── __init__.py
-│       │   │
 │       │   ├── scraper/
 │       │   │   ├── fetcher.py               # HTML fetching with retries
 │       │   │   ├── models.py                # Scraped item schema
@@ -126,7 +116,6 @@ agentic_scraper/
 │       │   │   ├── pipeline.py              # Orchestration pipeline
 │       │   │   ├── screenshotter.py         # Playwright screenshot logic
 │       │   │   ├── worker_pool.py           # Async task concurrency manager
-│       │   │   ├── __init__.py
 │       │   │   └── agent/
 │       │   │       ├── agent_helpers.py             # Agent utils
 │       │   │       ├── field_utils.py               # Field scoring, synonyms
@@ -135,19 +124,13 @@ agentic_scraper/
 │       │   │       ├── llm_fixed.py                 # LLM agent: fixed schema
 │       │   │       ├── prompt_helpers.py            # Prompt generation
 │       │   │       ├── rule_based.py                # Rule-based parser
-│       │   │       └── __init__.py
-│       │   │
 │       │   └── utils/
 │       │       ├── validators.py            # Input validators
-│       │       └── __init__.py
-│       │
 │       └── frontend/
 │           ├── app.py                      # Streamlit UI entrypoint
 │           ├── ui_core.py                  # Sidebar + config widgets
 │           ├── ui_display.py               # Table, chart, image display
 │           ├── ui_runner.py                # Async scrape runner + hooks
-│           └── __init__.py
-
 ```
 ---
 
