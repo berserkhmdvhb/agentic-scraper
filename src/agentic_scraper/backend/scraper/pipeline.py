@@ -9,7 +9,7 @@ from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
 
 if TYPE_CHECKING:
-    from agentic_scraper.backend.config.types import ScrapeInput
+    from agentic_scraper.backend.config.aliases import ScrapeInput
 
 
 async def scrape_urls(urls: list[str], settings: Settings) -> list[ScrapedItem]:

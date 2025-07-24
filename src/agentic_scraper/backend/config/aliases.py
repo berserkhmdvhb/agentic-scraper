@@ -1,11 +1,10 @@
-from typing import Literal
+from collections.abc import Callable
+from typing import TypeAlias
 
-# ---------------------------------------------------------------------
-# core/
-# ---------------------------------------------------------------------
+from agentic_scraper.backend.scraper.models import ScrapedItem
 
-# settings.py
-Environment = Literal["DEV", "UAT", "PROD"]
-LogFormat = Literal["plain", "json"]
-LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-OpenAIModel = Literal["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
+ScrapeInput: TypeAlias = tuple[str, str]
+OnSuccessCallback: TypeAlias = Callable[[ScrapedItem], None]
+OnErrorCallback: TypeAlias = Callable[[str, Exception], None]
+
+ScrapeResultWithSkipCount: TypeAlias = tuple[list[ScrapedItem], int]

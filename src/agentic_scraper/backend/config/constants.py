@@ -77,9 +77,7 @@ DEFAULT_DUMP_LLM_JSON_DIR = "./.cache/llm_dumps"
 # fetcher.py
 FETCH_RETRY_ATTEMPTS = 3
 FETCH_RETRY_DELAY_SECONDS = 1
-
 FETCH_ERROR_PREFIX = "__FETCH_ERROR__"
-
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

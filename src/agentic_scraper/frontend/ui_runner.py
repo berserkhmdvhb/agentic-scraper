@@ -4,6 +4,7 @@ from typing import Any
 
 import streamlit as st
 
+from agentic_scraper.backend.config.aliases import ScrapeResultWithSkipCount
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_EXTRACTION_FAILED,
     MSG_ERROR_PROCESSING_URL_FAILED,
@@ -17,7 +18,6 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARN_PROCESSING_URL_FAILED,
     MSG_WARNING_EXTRACTION_NONE,
 )
-from agentic_scraper.backend.config.types import ScrapeResultWithSkipCount
 from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all

@@ -61,7 +61,6 @@ MSG_WARNING_SETTING_INVALID = "Invalid {key}={original!r}: {error}"
 MSG_INFO_FETCH_SUCCESS = "Fetched {url} successfully"
 MSG_WARNING_FETCH_FAILED = "Failed to fetch {url}"
 MSG_ERROR_UNREACHABLE_FETCH_URL = "Unreachable code reached in fetch_url (unexpected fallback)"
-MSG_FETCH_ERROR_PREFIX = "__FETCH_ERROR__"
 MSG_DEBUG_RETRYING_URL = "Retrying {url} (attempt {no}): previous failure was {exc!r}"
 MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION = "Unexpected exception while fetching {url}"
 

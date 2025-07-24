@@ -1,16 +1,16 @@
 import asyncio
 import logging
 
+from agentic_scraper.backend.config.aliases import (
+    OnErrorCallback,
+    OnSuccessCallback,
+    ScrapeInput,
+)
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_WORKER_PROGRESS,
     MSG_ERROR_WORKER_FAILED,
     MSG_INFO_WORKER_POOL_START,
     MSG_WARNING_WORKER_FAILED_SHORT,
-)
-from agentic_scraper.backend.config.types import (
-    OnErrorCallback,
-    OnSuccessCallback,
-    ScrapeInput,
 )
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent import extract_structured_data

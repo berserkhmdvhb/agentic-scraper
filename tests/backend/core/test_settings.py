@@ -47,11 +47,12 @@ def test_settings_loads_correctly_from_env(
 ) -> None:
     s = Settings()
     assert s.project_name == PROJECT_NAME
-    assert s.env == DEFAULT_ENV
+    assert s.env.value == DEFAULT_ENV
+    assert s.openai_model.value == DEFAULT_OPENAI_MODEL
+    assert s.log_level.value == DEFAULT_LOG_LEVEL
+    assert s.log_format.value == DEFAULT_LOG_FORMAT
+    assert s.agent_mode.value == DEFAULT_AGENT_MODE
     assert s.debug_mode == DEFAULT_DEBUG_MODE
-    assert s.openai_model == DEFAULT_OPENAI_MODEL
-    assert s.log_level == DEFAULT_LOG_LEVEL
-    assert s.log_format == DEFAULT_LOG_FORMAT
     assert s.log_max_bytes == DEFAULT_LOG_MAX_BYTES
     assert s.log_backup_count == DEFAULT_LOG_BACKUP_COUNT
     assert s.log_dir == DEFAULT_LOG_DIR
@@ -61,7 +62,6 @@ def test_settings_loads_correctly_from_env(
     assert s.llm_max_tokens == DEFAULT_LLM_MAX_TOKENS
     assert s.llm_temperature == DEFAULT_LLM_TEMPERATURE
     assert s.request_timeout == DEFAULT_REQUEST_TIMEOUT
-    assert s.agent_mode == DEFAULT_AGENT_MODE
     assert s.verbose == DEFAULT_VERBOSE
     assert s.retry_attempts == DEFAULT_RETRY_ATTEMPTS
     assert s.retry_backoff_min == DEFAULT_RETRY_BACKOFF_MIN

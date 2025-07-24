@@ -56,9 +56,60 @@ __all__ = [
 # Environment Cleanup and Settings Reset
 # ---------------------------------------------------------------------
 
+import pytest
+from _pytest.monkeypatch import MonkeyPatch
+
+from agentic_scraper.backend.config.constants import (
+    DEFAULT_AGENT_MODE,
+    DEFAULT_DEBUG_MODE,
+    DEFAULT_DUMP_LLM_JSON_DIR,
+    DEFAULT_ENV,
+    DEFAULT_LOG_BACKUP_COUNT,
+    DEFAULT_LOG_DIR,
+    DEFAULT_LOG_FORMAT,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_LLM_MAX_TOKENS,
+    DEFAULT_LLM_TEMPERATURE,
+    DEFAULT_MAX_CONCURRENT_REQUESTS,
+    DEFAULT_OPENAI_MODEL,
+    DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_RETRY_ATTEMPTS,
+    DEFAULT_RETRY_BACKOFF_MIN,
+    DEFAULT_RETRY_BACKOFF_MAX,
+    DEFAULT_SCREENSHOT_DIR,
+    DEFAULT_SCREENSHOT_ENABLED,
+    DEFAULT_VERBOSE,
+)
+
+# Shared list of env vars for clearing and setting
+
+AGENTIC_ENV_VARS = [
+    "OPENAI_API_KEY",
+    "ENV",
+    "OPENAI_MODEL",
+    "LOG_LEVEL",
+    "LOG_FORMAT",
+    "LOG_MAX_BYTES",
+    "LOG_BACKUP_COUNT",
+    "LOG_DIR",
+    "SCREENSHOT_ENABLED",
+    "SCREENSHOT_DIR",
+    "MAX_CONCURRENT_REQUESTS",
+    "LLM_MAX_TOKENS",
+    "LLM_TEMPERATURE",
+    "REQUEST_TIMEOUT",
+    "RETRY_ATTEMPTS",
+    "RETRY_BACKOFF_MIN",
+    "RETRY_BACKOFF_MAX",
+    "AGENT_MODE",
+    "DUMP_LLM_JSON_DIR",
+    "DEBUG",
+    "VERBOSE",
+]
+
 
 @pytest.fixture
-def mock_env(monkeypatch: MonkeyPatch) -> Generator[None, None, None]:
+def mock_env(monkeypatch: MonkeyPatch) -> None:
     """Set up environment variables with valid defaults for Settings."""
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("ENV", DEFAULT_ENV)
@@ -74,41 +125,19 @@ def mock_env(monkeypatch: MonkeyPatch) -> Generator[None, None, None]:
     monkeypatch.setenv("LLM_MAX_TOKENS", str(DEFAULT_LLM_MAX_TOKENS))
     monkeypatch.setenv("LLM_TEMPERATURE", str(DEFAULT_LLM_TEMPERATURE))
     monkeypatch.setenv("REQUEST_TIMEOUT", str(DEFAULT_REQUEST_TIMEOUT))
-    monkeypatch.setenv("AGENT_MODE", str(DEFAULT_AGENT_MODE))
+    monkeypatch.setenv("AGENT_MODE", DEFAULT_AGENT_MODE)
     monkeypatch.setenv("VERBOSE", str(DEFAULT_VERBOSE))
     monkeypatch.setenv("RETRY_ATTEMPTS", str(DEFAULT_RETRY_ATTEMPTS))
     monkeypatch.setenv("RETRY_BACKOFF_MIN", str(DEFAULT_RETRY_BACKOFF_MIN))
     monkeypatch.setenv("RETRY_BACKOFF_MAX", str(DEFAULT_RETRY_BACKOFF_MAX))
     monkeypatch.setenv("DUMP_LLM_JSON_DIR", DEFAULT_DUMP_LLM_JSON_DIR)
     monkeypatch.setenv("DEBUG", str(DEFAULT_DEBUG_MODE))
-    yield
+
 
 @pytest.fixture(autouse=True)
 def clear_agentic_env(monkeypatch: MonkeyPatch) -> None:
     """Unset all environment variables related to agentic_scraper."""
-    for var in [
-        "OPENAI_API_KEY",
-        "ENV",
-        "OPENAI_MODEL",
-        "LOG_LEVEL",
-        "LOG_FORMAT",
-        "LOG_MAX_BYTES",
-        "LOG_BACKUP_COUNT",
-        "LOG_DIR",
-        "SCREENSHOT_ENABLED",
-        "SCREENSHOT_DIR",
-        "MAX_CONCURRENT_REQUESTS",
-        "LLM_MAX_TOKENS",
-        "LLM_TEMPERATURE",
-        "REQUEST_TIMEOUT",
-        "RETRY_ATTEMPTS",
-        "RETRY_BACKOFF_MIN",
-        "RETRY_BACKOFF_MAX",
-        "AGENT_MODE",
-        "DUMP_LLM_JSON_DIR",
-        "DEBUG",
-        "VERBOSE",
-    ]:
+    for var in AGENTIC_ENV_VARS:
         monkeypatch.delenv(var, raising=False)
 
 
