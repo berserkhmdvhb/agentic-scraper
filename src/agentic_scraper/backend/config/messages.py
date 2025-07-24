@@ -15,6 +15,7 @@ MSG_INFO_VALID_URLS_FOUND = "✅ {n} valid URLs detected."
 MSG_SUCCESS_EXTRACTION_DONE = "✅ Extraction done!"
 MSG_ERROR_EXTRACTION_FAILED = "❌ LLM extraction failed: {error}"
 MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR = "Unexpected error during extraction pipeline"
+MSG_INFO_APP_RESET_TRIGGERED = "User triggered app reset via sidebar."
 
 # ─── Backend ───
 

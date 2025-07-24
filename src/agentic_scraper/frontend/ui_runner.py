@@ -20,10 +20,11 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.core.settings import Settings, get_settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
-from agentic_scraper.backend.scraper.models import PipelineConfig, ScrapedItem
+from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
+from agentic_scraper.frontend.models import PipelineConfig
 
 logger = get_logger()
 

@@ -3,7 +3,10 @@ import sys
 
 import streamlit as st
 
-from agentic_scraper.backend.config.messages import MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR
+from agentic_scraper.backend.config.messages import (
+    MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR,
+    MSG_INFO_APP_RESET_TRIGGERED,
+)
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import get_settings, log_settings
 from agentic_scraper.frontend.ui_core import (
@@ -24,22 +27,24 @@ def main() -> None:
     setup_logging(reset=True)
     logger = get_logger()
 
-    # --- PAGE CONFIGURATION ---
+    # --- SETTINGS AND PAGE CONFIG ---
+    settings = get_settings()
     configure_page()
 
     # --- RENDER SIDEBAR AND INPUTS ---
-    controls = render_sidebar_controls()
+    controls = render_sidebar_controls(settings)
     raw_input = render_input_section()
 
     # --- SESSION STATE INIT ---
     if "is_running" not in st.session_state:
         st.session_state["is_running"] = False
+    input_ready = (raw_input or "").strip()
 
     # --- RUN EXTRACTION BUTTON ---
     if not st.session_state["is_running"]:
         run_button = st.button("🚀 Run Extraction", type="primary")
         if run_button:
-            if not raw_input.strip():
+            if not input_ready:
                 st.warning("⚠️ Please provide at least one URL or upload a .txt file.")
             else:
                 st.session_state["is_running"] = True
@@ -51,7 +56,7 @@ def main() -> None:
     if st.session_state["is_running"]:
         try:
             # Log effective settings based on user overrides
-            effective_settings = get_settings().model_copy(
+            effective_settings = settings.model_copy(
                 update={
                     "openai_model": controls["openai_model"],
                     "agent_mode": controls["agent_mode"],
@@ -64,7 +69,7 @@ def main() -> None:
 
             # Run the extraction pipeline
             items, skipped = maybe_run_pipeline(
-                raw_input=raw_input,
+                raw_input=raw_input or "",
                 controls=controls,
             )
 
@@ -80,6 +85,7 @@ def main() -> None:
 
     # --- RESET BUTTON ---
     if st.sidebar.button("🔄 Reset"):
+        logger.info(MSG_INFO_APP_RESET_TRIGGERED)
         st.session_state.clear()
         st.rerun()
 

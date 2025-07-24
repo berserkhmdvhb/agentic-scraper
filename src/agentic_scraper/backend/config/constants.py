@@ -7,6 +7,23 @@ from agentic_scraper.backend.config.types import (
 )
 
 # ---------------------------------------------------------------------
+# frontend/
+# ---------------------------------------------------------------------
+
+
+# === Streamlit Session Keys ===
+SESSION_KEYS = {
+    "agent_mode": "agent_mode",
+    "openai_model": "openai_model",
+    "fetch_concurrency": "fetch_concurrency",
+    "llm_concurrency": "llm_concurrency",
+    "screenshot_enabled": "screenshot_enabled",
+    "verbose": "verbose",
+    "retry_attempts": "retry_attempts",
+    "llm_schema_retries": "llm_schema_retries",
+}
+
+# ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------
 
