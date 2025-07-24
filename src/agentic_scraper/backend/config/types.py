@@ -1,19 +1,36 @@
-from collections.abc import Callable
-from typing import TypeAlias
+from enum import Enum
 
-from agentic_scraper.backend.scraper.models import ScrapedItem
+# Enum Classes
 
-# ---------------------------------------------------------------------
-# scraper/
-# ---------------------------------------------------------------------
 
-# worker_pool.py
-ScrapeInput: TypeAlias = tuple[str, str]
-OnSuccessCallback: TypeAlias = Callable[[ScrapedItem], None]
-OnErrorCallback: TypeAlias = Callable[[str, Exception], None]
+class Environment(str, Enum):
+    DEV = "DEV"
+    UAT = "UAT"
+    PROD = "PROD"
 
-# ---------------------------------------------------------------------
-# frontend/app.py
-# ---------------------------------------------------------------------
 
-ScrapeResultWithSkipCount: TypeAlias = tuple[list[ScrapedItem], int]
+class OpenAIModel(str, Enum):
+    GPT_3_5 = "gpt-3.5-turbo"
+    GPT_3_5_16K = "gpt-3.5-turbo-16k"
+    GPT_4 = "gpt-4"
+    GPT_4O = "gpt-4o"
+
+
+class AgentMode(str, Enum):
+    LLM_FIXED = "llm-fixed"
+    LLM_DYNAMIC = "llm-dynamic"
+    LLM_DYNAMIC_ADAPTIVE = "llm-dynamic-adaptive"
+    RULE_BASED = "rule-based"
+
+
+class LogLevel(str, Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
+class LogFormat(str, Enum):
+    PLAIN = "plain"
+    JSON = "json"

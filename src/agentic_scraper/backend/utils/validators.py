@@ -1,12 +1,10 @@
 import logging
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
 from agentic_scraper.backend.config.constants import (
     FETCH_ERROR_PREFIX,
-    LLM_MAX_TOKENS_LIMIT,
-    LLM_TEMPERATURE_MAX,
-    LLM_TEMPERATURE_MIN,
     MAX_CONCURRENCY_HARD_LIMIT,
     VALID_AGENT_MODES,
     VALID_ENVIRONMENTS,
@@ -15,9 +13,7 @@ from agentic_scraper.backend.config.constants import (
 )
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SKIPPED_INVALID_URL,
-    MSG_ERROR_BACKOFF_MAX_NEGATIVE,
     MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX,
-    MSG_ERROR_BACKOFF_MIN_NEGATIVE,
     MSG_ERROR_EMPTY_STRING,
     MSG_ERROR_INVALID_AGENT_MODE,
     MSG_ERROR_INVALID_BACKUP_COUNT,
@@ -27,13 +23,11 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_LOG_LEVEL,
     MSG_ERROR_INVALID_MODEL_NAME,
     MSG_ERROR_INVALID_PRICE,
-    MSG_ERROR_INVALID_TEMPERATURE,
+    MSG_ERROR_INVALID_PRICE_FORMAT,
     MSG_ERROR_INVALID_TIMEOUT,
-    MSG_ERROR_INVALID_TOKENS,
     MSG_ERROR_LOG_BACKUP_COUNT_INVALID,
     MSG_ERROR_MISSING_API_KEY,
     MSG_ERROR_NOT_A_DIRECTORY,
-    MSG_ERROR_RETRY_NEGATIVE,
 )
 
 logger = logging.getLogger(__name__)
@@ -140,18 +134,6 @@ def validate_openai_model(model: str) -> str:
             )
         )
     return model
-
-
-def validate_temperature(temp: float) -> float:
-    if not (LLM_TEMPERATURE_MIN <= temp <= LLM_TEMPERATURE_MAX):
-        raise ValueError(MSG_ERROR_INVALID_TEMPERATURE.format(value=temp))
-    return temp
-
-
-def validate_max_tokens(tokens: int) -> int:
-    if not (0 < tokens <= LLM_MAX_TOKENS_LIMIT):
-        raise ValueError(MSG_ERROR_INVALID_TOKENS.format(value=tokens))
-    return tokens
 
 
 def validate_concurrency(concurrency: int) -> int:
@@ -262,24 +244,6 @@ def validate_or_create_dir(path_str: str) -> str:
     return str(path.resolve())
 
 
-def validate_retry_attempts(n: int) -> int:
-    if n < 0:
-        raise ValueError(MSG_ERROR_RETRY_NEGATIVE)
-    return n
-
-
-def validate_backoff_min(value: float) -> float:
-    if value < 0:
-        raise ValueError(MSG_ERROR_BACKOFF_MIN_NEGATIVE)
-    return value
-
-
-def validate_backoff_max(value: float) -> float:
-    if value < 0:
-        raise ValueError(MSG_ERROR_BACKOFF_MAX_NEGATIVE)
-    return value
-
-
 def validate_log_rotation_config(max_bytes: int, backup_count: int) -> None:
     if max_bytes > 0 and backup_count <= 0:
         raise ValueError(MSG_ERROR_LOG_BACKUP_COUNT_INVALID)
@@ -290,3 +254,15 @@ def validate_backoff_range(min_backoff: float, max_backoff: float) -> None:
         raise ValueError(
             MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX.format(min=min_backoff, max=max_backoff)
         )
+
+
+def clean_price(v: str | float | None) -> float | str | None:
+    """Sanitize and convert a price string like '$1,299.99' or '€1.299,99' to float."""
+    if isinstance(v, str):
+        cleaned = re.sub(r"[^\d.,-]", "", v)
+        cleaned = cleaned.replace(",", "")
+        try:
+            return float(cleaned)
+        except ValueError:
+            raise ValueError(MSG_ERROR_INVALID_PRICE_FORMAT.format(value=v)) from None
+    return v

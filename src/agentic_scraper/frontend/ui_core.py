@@ -11,7 +11,7 @@ from agentic_scraper.backend.config.constants import (
     VALID_MODEL_OPTIONS,
 )
 from agentic_scraper.backend.core.logger_setup import setup_logging
-from agentic_scraper.backend.core.settings import get_environment, get_log_dir
+from agentic_scraper.backend.core.settings import Settings, get_environment, get_log_dir
 
 # Windows asyncio compatibility
 if sys.platform.startswith("win"):
@@ -33,16 +33,6 @@ def configure_page() -> None:
 
 
 def render_sidebar_controls() -> dict[str, Any]:
-    # --- OpenAI Model ---
-    selected_model = st.sidebar.selectbox(
-        "🤖 OpenAI Model",
-        options=list(VALID_MODEL_OPTIONS.keys()),
-        index=list(VALID_MODEL_OPTIONS.keys()).index(DEFAULT_OPENAI_MODEL),
-        format_func=lambda key: VALID_MODEL_OPTIONS[key],
-        key="openai_model_select",
-        help="Choose which OpenAI model to use for LLM-powered parsing.",
-    )
-
     # --- Agent Mode ---
     selected_agent_mode = st.sidebar.selectbox(
         "🧠 Agent Mode",
@@ -51,26 +41,51 @@ def render_sidebar_controls() -> dict[str, Any]:
         key="agent_mode_select",
         help=(
             "Choose how the agent extracts structured data:\n\n"
-            "- `fixed`: Extracts predefined fields (title, description, price, etc.)\n"
-            "- `adaptive`: LLM dynamically decides which fields are relevant\n"
-            "- `rule`: Heuristic rule-based parser (no LLM)"
+            "- `llm-fixed`: Extracts a fixed set of fields (title, description,\n"
+            "  price, etc.) using an LLM.\n"
+            "- `llm-dynamic`: LLM analyzes the page and decides which fields are\n"
+            "  relevant based on context.\n"
+            "- `llm-dynamic-adaptive`: Builds on dynamic mode with smarter behavior:\n"
+            "    ↳ Self-healing prompt loop if key fields are missing\n"
+            "    ↳ Uses meta tags, URL paths, or breadcrumbs for better inference\n"
+            "    ↳ Prioritizes important fields like title, price, and summary\n"
+            "- `rule-based`: Uses lightweight regex and text heuristics (no LLM)."
         ),
     )
+
+    # --- OpenAI Model ---
+    if selected_agent_mode != "rule-based":
+        selected_model = st.sidebar.selectbox(
+            "🤖 OpenAI Model",
+            options=list(VALID_MODEL_OPTIONS.keys()),
+            index=list(VALID_MODEL_OPTIONS.keys()).index(DEFAULT_OPENAI_MODEL),
+            format_func=lambda key: VALID_MODEL_OPTIONS[key],
+            key="openai_model_select",
+            help="Choose which OpenAI model to use for LLM-powered parsing.",
+        )
+    else:
+        selected_model = None
 
     screenshot_enabled = st.sidebar.checkbox("📸 Enable Screenshot", value=False)
 
     with st.sidebar.expander("⚙️ Performance Settings", expanded=False):
         st.markdown("### 🔁 Concurrency")
 
-        split = st.checkbox(
-            "🔧 Separate fetch and LLM controls",
-            help=(
-                "Enable this to control fetch and LLM concurrency separately.\n\n"
-                "Useful if:\n"
-                "• You want to fetch many pages but limit OpenAI load.\n"
-                "• You're tuning for different I/O vs compute bottlenecks."
-            ),
-        )
+        # Rule-based skips LLM concurrency split
+        is_llm_agent = selected_agent_mode != "rule-based"
+
+        if is_llm_agent:
+            split = st.checkbox(
+                "🔧 Separate fetch and LLM controls",
+                help=(
+                    "Enable this to control fetch and LLM concurrency separately.\n\n"
+                    "Useful if:\n"
+                    "• You want to fetch many pages but limit OpenAI load.\n"
+                    "• You're tuning for different I/O vs compute bottlenecks."
+                ),
+            )
+        else:
+            split = False  # Disable for rule-based
 
         if split:
             fetch_concurrency = st.slider(
@@ -88,21 +103,36 @@ def render_sidebar_controls() -> dict[str, Any]:
                 help="Max number of pages sent to the AI model concurrently.",
             )
         else:
-            concurrency = st.slider(
-                "🔁 Max concurrency (fetch + LLM)",
-                min_value=1,
-                max_value=20,
-                value=10,
-                help=(
+            # Combined concurrency label + help depends on agent type
+            concurrency_label = (
+                "🔁 Max concurrency (fetch + LLM)" if is_llm_agent else "🔁 Fetch Concurrency"
+            )
+            concurrency_help = (
+                (
                     "Controls how many tasks run in parallel.\n\n"
                     "1. 🌐 Fetching: Limits how many web pages are fetched at the same time.\n"
                     "2. 🤖 LLM: Limits how many pages are processed by the AI model at once.\n\n"
-                    "⚠️ High values may improve speed, but could hit rate limits "
-                    "or cause instability."
-                ),
+                    "⚠️ High values may improve speed,\n"
+                    "   but could hit rate limits or cause instability."
+                )
+                if is_llm_agent
+                else (
+                    "Controls how many web pages are fetched in parallel.\n\n"
+                    "This mode does not use LLMs, so concurrency applies only to fetching."
+                )
             )
-            fetch_concurrency = llm_concurrency = concurrency
 
+            concurrency = st.slider(
+                concurrency_label,
+                min_value=1,
+                max_value=20,
+                value=10,
+                help=concurrency_help,
+            )
+            fetch_concurrency = concurrency
+            llm_concurrency = concurrency if is_llm_agent else 0
+
+        # --- Verbosity ---
         st.markdown("### 📣 Verbosity")
         verbose_default = get_environment() == "DEV"
         verbose = st.checkbox(
@@ -124,7 +154,27 @@ def render_sidebar_controls() -> dict[str, Any]:
             "Useful for unstable connections or rate-limited sites.",
         )
 
-    # Save values explicitly in session state for consistent access
+        llm_schema_placeholder = st.empty()
+
+        if selected_agent_mode == "llm-dynamic-adaptive":
+            with llm_schema_placeholder:
+                llm_schema_retries = st.slider(
+                    "🧠 LLM Schema Retries",
+                    min_value=0,
+                    max_value=5,
+                    value=2,
+                    key="llm_schema_retries",  # ensure widget state is preserved
+                    help=(
+                        "How many times to retry LLM extraction if required fields are missing.\n\n"
+                        "🔁 Useful when the AI omits key data (e.g. price, title).\n"
+                        "⚠️ Higher values increase latency and token cost."
+                    ),
+                )
+        else:
+            llm_schema_placeholder.empty()
+            llm_schema_retries = Settings().llm_schema_retries
+
+    # --- Store in session state ---
     st.session_state["screenshot_enabled"] = screenshot_enabled
     st.session_state["fetch_concurrency"] = fetch_concurrency
     st.session_state["llm_concurrency"] = llm_concurrency
@@ -132,6 +182,7 @@ def render_sidebar_controls() -> dict[str, Any]:
     st.session_state["openai_model"] = selected_model
     st.session_state["agent_mode"] = selected_agent_mode
     st.session_state["retry_attempts"] = retry_attempts
+    st.session_state["llm_schema_retries"] = llm_schema_retries
 
     return {
         "screenshot_enabled": screenshot_enabled,
@@ -141,6 +192,7 @@ def render_sidebar_controls() -> dict[str, Any]:
         "openai_model": selected_model,
         "agent_mode": selected_agent_mode,
         "retry_attempts": retry_attempts,
+        "llm_schema_retries": llm_schema_retries,
     }
 
 

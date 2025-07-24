@@ -4,22 +4,21 @@ from typing import Any
 
 import streamlit as st
 
+from agentic_scraper.backend.config.aliases import ScrapeResultWithSkipCount
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_EXTRACTION_FAILED,
     MSG_ERROR_PROCESSING_URL_FAILED,
     MSG_INFO_EXTRACTION_COMPLETE,
     MSG_INFO_FETCH_SKIPPED,
     MSG_INFO_FETCHING_URLS,
-    MSG_INFO_INVALID_URLS_SKIPPED,
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_USING_CACHE,
     MSG_INFO_VALID_URLS_FOUND,
     MSG_WARN_PROCESSING_URL_FAILED,
     MSG_WARNING_EXTRACTION_NONE,
 )
-from agentic_scraper.backend.config.types import ScrapeResultWithSkipCount
 from agentic_scraper.backend.core.logger_setup import get_logger
-from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.backend.core.settings import Settings, get_settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import PipelineConfig, ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
@@ -29,9 +28,9 @@ from agentic_scraper.backend.utils.validators import clean_input_urls, deduplica
 logger = get_logger()
 
 DOMAIN_EMOJIS = {
-    "youtube.com": "📺",
+    "youtube.com": "🎮",
     "github.com": "💻",
-    "amazon.com": "🛍️",
+    "amazon.com": "🍭",
     "medium.com": "✍️",
     "wikipedia.org": "📚",
     "google.com": "🔎",
@@ -53,26 +52,21 @@ def extract_domain_icon(url: str) -> str:
     return "🔗"
 
 
-async def run_scraper_pipeline(
-    urls: list[str],
-    config: PipelineConfig,
-) -> ScrapeResultWithSkipCount:
+def display_error_summaries(fetch_errors: list[str], extraction_errors: list[str]) -> None:
+    if fetch_errors:
+        with st.expander("🌐 Fetch Errors (could not load page)"):
+            for msg in fetch_errors:
+                st.markdown(f"- ❌ `{msg}`")
+    if extraction_errors:
+        with st.expander("🧠 Extraction Errors (LLM or validation failed)"):
+            for msg in extraction_errors:
+                st.markdown(f"- ❌ `{msg}`")
+
+
+async def fetch_and_prepare_inputs(
+    urls: list[str], config: PipelineConfig, settings: Settings
+) -> tuple[list[tuple[str, str]], list[str], int]:
     logger.info(MSG_INFO_FETCHING_URLS.format(n=len(urls)))
-
-    settings = get_settings().model_copy(
-        update={
-            "fetch_concurrency": config.fetch_concurrency,
-            "llm_concurrency": config.llm_concurrency,
-            "screenshot_enabled": config.screenshot_enabled,
-            "verbose": config.verbose,
-            "openai_model": config.openai_model,
-            "agent_mode": config.agent_mode,
-            "retry_attempts": config.retry_attempts,
-        }
-    )
-
-    sticky = st.empty()
-    sticky.info("⏳ Currently processing...", icon="🔄")
 
     with st.spinner("🌐 Fetching pages..."):
         fetch_results = await fetch_all(
@@ -83,14 +77,23 @@ async def run_scraper_pipeline(
 
     skipped = 0
     inputs = []
+    fetch_errors: list[str] = []
+
     for url, html in fetch_results.items():
         if html.startswith("__FETCH_ERROR__"):
             skipped += 1
+            fetch_errors.append(f"{url} — {html.replace('__FETCH_ERROR__:', '').strip()}")
             continue
         text = extract_main_text(html)
         inputs.append((url, text))
 
     logger.info(MSG_INFO_FETCH_SKIPPED.format(n=skipped))
+    return inputs, fetch_errors, skipped
+
+
+async def display_progress(
+    inputs: list[tuple[str, str]], config: PipelineConfig, settings: Settings
+) -> tuple[list[ScrapedItem], list[str]]:
     processed = 0
     total = len(inputs)
     progress = st.progress(0)
@@ -100,6 +103,8 @@ async def run_scraper_pipeline(
     log_box = st.expander("🧠 LLM Extraction Log", expanded=False)
     with log_box:
         st.caption("Processing progress will appear here.")
+
+    extraction_errors: list[str] = []
 
     def on_item_processed(item: ScrapedItem) -> None:
         nonlocal processed
@@ -112,13 +117,13 @@ async def run_scraper_pipeline(
         status_line.markdown(f"🔄 Processing: [{item.url}]({item.url})")
 
     def on_error(url: str, e: Exception) -> None:
+        extraction_errors.append(f"{url} — {e!s}")
         log_box.info(MSG_WARN_PROCESSING_URL_FAILED.format(url=url, error=e))
         if settings.is_verbose_mode:
             logger.exception(MSG_ERROR_PROCESSING_URL_FAILED)
         else:
             logger.error(MSG_ERROR_PROCESSING_URL_FAILED)
 
-    # the main processing part
     items = await run_worker_pool(
         inputs=inputs,
         settings=settings,
@@ -130,13 +135,39 @@ async def run_scraper_pipeline(
 
     progress.empty()
     status_line.empty()
-    sticky.empty()
 
     with log_box:
         if items:
             st.info("✅ Extraction pipeline completed")
         else:
             st.warning("⚠️ No items processed. Pipeline ended with zero results.")
+
+    return items, extraction_errors
+
+
+async def run_scraper_pipeline(
+    urls: list[str], config: PipelineConfig
+) -> ScrapeResultWithSkipCount:
+    settings = get_settings().model_copy(
+        update={
+            "fetch_concurrency": config.fetch_concurrency,
+            "llm_concurrency": config.llm_concurrency,
+            "screenshot_enabled": config.screenshot_enabled,
+            "verbose": config.verbose,
+            "openai_model": config.openai_model,
+            "agent_mode": config.agent_mode,
+            "retry_attempts": config.retry_attempts,
+            "llm_schema_retries": config.llm_schema_retries,
+        }
+    )
+
+    sticky = st.empty()
+    sticky.info("⏳ Currently processing...", icon="🔄")
+
+    inputs, fetch_errors, skipped = await fetch_and_prepare_inputs(urls, config, settings)
+    items, extraction_errors = await display_progress(inputs, config, settings)
+    sticky.empty()
+    display_error_summaries(fetch_errors, extraction_errors)
 
     if items:
         logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(n=len(items)))
@@ -146,14 +177,13 @@ async def run_scraper_pipeline(
     return items, skipped
 
 
-def process_and_run(
-    raw_input: str,
-    config: PipelineConfig,
-) -> tuple[list[ScrapedItem], int]:
+def process_and_run(raw_input: str, config: PipelineConfig) -> tuple[list[ScrapedItem], int]:
     urls, invalid_lines = validate_and_deduplicate_urls(raw_input)
 
     if invalid_lines:
-        st.warning(MSG_INFO_INVALID_URLS_SKIPPED.format(n=len(invalid_lines)))
+        with st.expander("⚠️ Skipped Invalid URLs"):
+            for url in invalid_lines:
+                st.markdown(f"- ❌ `{url}` — *invalid URL format*")
 
     if not urls:
         st.warning(MSG_INFO_NO_VALID_URLS)
@@ -221,5 +251,6 @@ def maybe_run_pipeline(raw_input: str, controls: dict[str, Any]) -> tuple[list[S
         openai_model=controls["openai_model"],
         agent_mode=controls["agent_mode"],
         retry_attempts=controls["retry_attempts"],
+        llm_schema_retries=controls["llm_schema_retries"],
     )
     return process_and_run(raw_input=raw_input, config=config)

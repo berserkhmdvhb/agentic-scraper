@@ -12,13 +12,13 @@ from tenacity import (
 
 from agentic_scraper.backend.config.constants import (
     DEFAULT_HEADERS,
+    FETCH_ERROR_PREFIX,
     FETCH_RETRY_DELAY_SECONDS,
 )
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_RETRYING_URL,
     MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION,
     MSG_ERROR_UNREACHABLE_FETCH_URL,
-    MSG_FETCH_ERROR_PREFIX,
     MSG_INFO_FETCH_SUCCESS,
     MSG_WARNING_FETCH_FAILED,
 )
@@ -91,21 +91,21 @@ async def fetch_all(
 
                 except RetryError as e:
                     cause = e.last_attempt.exception()
-                    results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {cause}"
+                    results[url] = f"{FETCH_ERROR_PREFIX}: {cause}"
                     if settings.is_verbose_mode:
                         logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION.format(url=url))
                     else:
                         logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url))
 
                 except (httpx.HTTPError, httpx.RequestError, asyncio.TimeoutError) as e:
-                    results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
+                    results[url] = f"{FETCH_ERROR_PREFIX}: {e}"
                     if settings.is_verbose_mode:
                         logger.exception(MSG_WARNING_FETCH_FAILED.format(url=url))
                     else:
                         logger.warning(MSG_WARNING_FETCH_FAILED.format(url=url))
 
                 except Exception as e:
-                    results[url] = f"{MSG_FETCH_ERROR_PREFIX}: {e}"
+                    results[url] = f"{FETCH_ERROR_PREFIX}: {e}"
                     logger.exception(MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION.format(url=url))
 
         await asyncio.gather(*(bounded_fetch(url) for url in urls))

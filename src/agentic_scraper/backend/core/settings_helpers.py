@@ -10,17 +10,12 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.utils.validators import (
     validate_agent_mode,
-    validate_backoff_max,
-    validate_backoff_min,
     validate_concurrency,
     validate_log_backup_count,
     validate_log_level,
     validate_log_max_bytes,
-    validate_max_tokens,
     validate_openai_model,
     validate_path,
-    validate_retry_attempts,
-    validate_temperature,
     validate_timeout,
 )
 
@@ -108,9 +103,8 @@ def _validate_optional_bool(
 
 def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     """Main entry point to validate incoming Settings values before instantiating."""
+
     _validate_optional_openai_model(values)
-    _validate_optional_float(values, "llm_temperature", validate_temperature)
-    _validate_optional_int(values, "llm_max_tokens", validate_max_tokens)
     _validate_optional_int(values, "max_concurrent_requests", validate_concurrency)
     _validate_optional_int(values, "request_timeout", validate_timeout)
     _validate_optional_str(values, "log_level", validate_log_level)
@@ -121,7 +115,5 @@ def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     _validate_optional_path(values, "dump_llm_json_dir")
     _validate_optional_str(values, "agent_mode", validate_agent_mode)
     _validate_optional_bool(values, "verbose", lambda v: v)  # no-op validator
-    _validate_optional_int(values, "retry_attempts", validate_retry_attempts)
-    _validate_optional_float(values, "retry_backoff_min", validate_backoff_min)
-    _validate_optional_float(values, "retry_backoff_max", validate_backoff_max)
+
     return values

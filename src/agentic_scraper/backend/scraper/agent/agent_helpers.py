@@ -3,7 +3,9 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlparse
 
+from bs4 import BeautifulSoup
 from openai import APIError, OpenAIError, RateLimitError
 from playwright.async_api import Error as PlaywrightError
 
@@ -91,3 +93,44 @@ def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
         with dump_path.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
         logger.debug(MSG_DEBUG_LLM_JSON_DUMP_SAVED.format(path=str(dump_path)))
+
+
+def extract_context_hints(html: str, url: str) -> dict[str, str]:
+    """
+    Extract contextual hints from HTML and URL for LLM prompting:
+    - Meta tags summary
+    - Breadcrumbs
+    - URL segments
+    """
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Meta tags
+    meta_tags = {
+        tag.get("name") or tag.get("property"): tag.get("content", "")
+        for tag in soup.find_all("meta")
+        if tag.get("content")
+    }
+    meta_summary = "; ".join(f"{k}={v}" for k, v in meta_tags.items() if k)
+
+    # Breadcrumbs
+    breadcrumb_selectors = [
+        '[class*="breadcrumb"]',
+        '[id*="breadcrumb"]',
+        '[class*="breadcrumbs"]',
+        '[id*="breadcrumbs"]',
+    ]
+    breadcrumb_texts: list[str] = []
+    for sel in breadcrumb_selectors:
+        breadcrumb_texts.extend(elem.get_text(strip=True) for elem in soup.select(sel))
+
+    breadcrumbs = " > ".join(breadcrumb_texts)
+
+    # URL segments
+    parsed = urlparse(url)
+    url_segments = " / ".join(filter(None, parsed.path.split("/")))
+
+    return {
+        "meta": meta_summary,
+        "breadcrumbs": breadcrumbs,
+        "url_segments": url_segments,
+    }

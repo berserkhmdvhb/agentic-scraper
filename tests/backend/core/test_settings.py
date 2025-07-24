@@ -32,6 +32,7 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_MAX_CONCURRENT_REQUESTS,
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_LLM_TEMPERATURE,
+    DEFAULT_LLM_SCHEMA_RETRIES,
     DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_AGENT_MODE,
     DEFAULT_DUMP_LLM_JSON_DIR,
@@ -47,11 +48,12 @@ def test_settings_loads_correctly_from_env(
 ) -> None:
     s = Settings()
     assert s.project_name == PROJECT_NAME
-    assert s.env == DEFAULT_ENV
+    assert s.env.value == DEFAULT_ENV
+    assert s.openai_model.value == DEFAULT_OPENAI_MODEL
+    assert s.log_level.value == DEFAULT_LOG_LEVEL
+    assert s.log_format.value == DEFAULT_LOG_FORMAT
+    assert s.agent_mode.value == DEFAULT_AGENT_MODE
     assert s.debug_mode == DEFAULT_DEBUG_MODE
-    assert s.openai_model == DEFAULT_OPENAI_MODEL
-    assert s.log_level == DEFAULT_LOG_LEVEL
-    assert s.log_format == DEFAULT_LOG_FORMAT
     assert s.log_max_bytes == DEFAULT_LOG_MAX_BYTES
     assert s.log_backup_count == DEFAULT_LOG_BACKUP_COUNT
     assert s.log_dir == DEFAULT_LOG_DIR
@@ -61,13 +63,12 @@ def test_settings_loads_correctly_from_env(
     assert s.llm_max_tokens == DEFAULT_LLM_MAX_TOKENS
     assert s.llm_temperature == DEFAULT_LLM_TEMPERATURE
     assert s.request_timeout == DEFAULT_REQUEST_TIMEOUT
-    assert s.agent_mode == DEFAULT_AGENT_MODE
     assert s.verbose == DEFAULT_VERBOSE
     assert s.retry_attempts == DEFAULT_RETRY_ATTEMPTS
     assert s.retry_backoff_min == DEFAULT_RETRY_BACKOFF_MIN
     assert s.retry_backoff_max == DEFAULT_RETRY_BACKOFF_MAX
     assert s.dump_llm_json_dir == DEFAULT_DUMP_LLM_JSON_DIR
-
+    assert s.llm_schema_retries == DEFAULT_LLM_SCHEMA_RETRIES
 
 def test_settings_raises_on_missing_api_key(
     monkeypatch: MonkeyPatch, reset_settings_cache: Any
@@ -181,3 +182,15 @@ def test_excluded_fields_do_not_appear_in_model_dump(
     dumped = s.model_dump()
     assert "fetch_concurrency" not in dumped
     assert "llm_concurrency" not in dumped
+
+def test_llm_schema_retries_bounds(monkeypatch: MonkeyPatch, reset_settings_cache: Any) -> None:
+    monkeypatch.setenv("LLM_SCHEMA_RETRIES", "-1")
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    with pytest.raises(ValueError):
+        Settings()
+
+def test_llm_temperature_out_of_bounds(monkeypatch: MonkeyPatch, reset_settings_cache: Any) -> None:
+    monkeypatch.setenv("LLM_TEMPERATURE", "999")
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    with pytest.raises(ValueError):
+        Settings()

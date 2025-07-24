@@ -61,7 +61,6 @@ MSG_WARNING_SETTING_INVALID = "Invalid {key}={original!r}: {error}"
 MSG_INFO_FETCH_SUCCESS = "Fetched {url} successfully"
 MSG_WARNING_FETCH_FAILED = "Failed to fetch {url}"
 MSG_ERROR_UNREACHABLE_FETCH_URL = "Unreachable code reached in fetch_url (unexpected fallback)"
-MSG_FETCH_ERROR_PREFIX = "__FETCH_ERROR__"
 MSG_DEBUG_RETRYING_URL = "Retrying {url} (attempt {no}): previous failure was {exc!r}"
 MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION = "Unexpected exception while fetching {url}"
 
@@ -147,6 +146,28 @@ MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED = (
     "Rule-based extraction failed to construct ScrapedItem for {url}: {error}"
 )
 
+# llm_dynamic_adaptive.py
+
+MSG_DEBUG_MISSING_IMPORTANT_FIELDS = (
+    "Missing critical fields {fields} in first pass, retrying with recovery prompt..."
+)
+
+MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL = (
+    "Adaptive LLM extraction succeeded for {url} with field recovery if needed."
+)
+
+MSG_DEBUG_CONTEXTUAL_HINTS_USED = (
+    "Using context hints for {url}: meta={meta},"
+    " breadcrumbs={breadcrumbs}, url_segments={url_segments}"
+)
+MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES = (
+    "Failed to extract sufficient fields after {attempts} adaptive attempts for {url}"
+)
+MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS = "Using best candidate with fields: {fields}"
+MSG_DEBUG_LLM_RETRY_ATTEMPT = "LLM retry attempt {attempt}/{total} for {url}"
+MSG_WARN_LLM_RATE_LIMIT_SLEEP = "Rate limit hit for {url}, sleeping {delay:.1f}s as advised..."
+
+
 # ---------------------------------------------------------------------
 # common/logging.py
 # ---------------------------------------------------------------------
@@ -181,3 +202,4 @@ MSG_ERROR_BACKOFF_MIN_NEGATIVE = "Retry backoff min must be non-negative."
 MSG_ERROR_BACKOFF_MAX_NEGATIVE = "Retry backoff max must be non-negative."
 MSG_ERROR_BACKOFF_MIN_GT_MAX = "Retry backoff min must be less than or equal to max."
 MSG_ERROR_RETRY_NEGATIVE = "Retry attempts must be non-negative"
+MSG_ERROR_INVALID_PRICE_FORMAT = "Invalid price format: {value}"
