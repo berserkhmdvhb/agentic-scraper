@@ -15,6 +15,7 @@ MSG_INFO_VALID_URLS_FOUND = "✅ {n} valid URLs detected."
 MSG_SUCCESS_EXTRACTION_DONE = "✅ Extraction done!"
 MSG_ERROR_EXTRACTION_FAILED = "❌ LLM extraction failed: {error}"
 MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR = "Unexpected error during extraction pipeline"
+MSG_INFO_APP_RESET_TRIGGERED = "User triggered app reset via sidebar."
 
 # ─── Backend ───
 
@@ -166,7 +167,7 @@ MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES = (
 MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS = "Using best candidate with fields: {fields}"
 MSG_DEBUG_LLM_RETRY_ATTEMPT = "LLM retry attempt {attempt}/{total} for {url}"
 MSG_WARN_LLM_RATE_LIMIT_SLEEP = "Rate limit hit for {url}, sleeping {delay:.1f}s as advised..."
-
+MSG_DEBUG_FIELD_SCORE_PER_RETRY = "[{url}] Retry #{attempt}: score={score}, fields={fields}"
 
 # ---------------------------------------------------------------------
 # common/logging.py
