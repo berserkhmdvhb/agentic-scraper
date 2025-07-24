@@ -3,6 +3,7 @@
 [![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
 ![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white)
 
+
 # 🕵️ Agentic Scraper
 
 **Agentic Scraper** is an intelligent, LLM-powered web scraping platform with a modular backend and a Streamlit interface. It supports adaptive agents, schema-aware retries, multilingual readiness, and fast parallel scraping for structured data extraction at scale.
@@ -32,17 +33,17 @@
 
 ## ⚙️ Tech Stack
 
-| Layer             | Tools                                         |
-| ----------------- | --------------------------------------------- |
-| Async Fetching    | `httpx`, `asyncio`, `tenacity`                |
-| HTML Parsing      | `BeautifulSoup4`                              |
-| Screenshots       | `playwright.async_api`                        |
-| Agent Logic       | `openai.ChatCompletion`, retry loop           |
-| Schema Validation | `pydantic v2`                                 |
-| UI Layer          | `Streamlit`, `streamlit-aggrid`               |
-| Settings/Logging  | `.env`, `loguru`, centralized messages        |
-| Backend API       | `FastAPI` (`backend/api/`)                    |
-| Dev Tools         | `ruff`, `pytest`, `Makefile`, `mypy` |
+| Layer             | Tools                                  |
+| ----------------- | -------------------------------------- |
+| Async Fetching    | `httpx`, `asyncio`, `tenacity`         |
+| HTML Parsing      | `BeautifulSoup4`                       |
+| Screenshots       | `playwright.async_api`                 |
+| Agent Logic       | `openai.ChatCompletion`, retry loop    |
+| Schema Validation | `pydantic v2`                          |
+| UI Layer          | `Streamlit`, `streamlit-aggrid`        |
+| Settings/Logging  | `.env`, `loguru`, centralized messages |
+| Backend API       | `FastAPI` (`backend/api/`)             |
+| Dev Tools         | `ruff`, `pytest`, `Makefile`, `mypy`   |
 
 ---
 
@@ -58,7 +59,8 @@
 > The UI dynamically adapts to the selected mode — retry sliders and model selectors appear only for LLM-based modes.
 
 ---
-## 🔬 Scraping Pipeline Overview
+
+## 🔬 Scraping Architecture
 
 The scraping pipeline consists of two major components:
 
@@ -130,27 +132,6 @@ Each agent returns a `ScrapedItem` that conforms to the schema and may include f
 
 ---
 
-The core fetching logic is implemented in [`fetcher.py`](src/agentic_scraper/backend/scraper/fetcher.py), using an async pipeline built on `httpx.AsyncClient` and `tenacity`.
-
-### Features:
-
-* **Concurrent requests** using `asyncio.gather`
-* **Retry with backoff** (e.g., on timeouts or 5xx errors)
-* **Bot-bypass headers** to simulate real browsers
-* **Context-aware fetch timeout** based on URL/domain
-* **Pluggable middleware** for logging and screenshot triggering
-
-Each fetch task returns an enriched `FetchedDocument` object with:
-
-* original URL
-* resolved final URL (after redirects)
-* HTTP status, headers, and HTML body
-* contextual metadata (e.g., domain, fetch timestamp)
-
-This document is then passed to the selected agent for parsing and structured extraction.
-
----
-
 ## 🧠 Adaptive Retry Logic (for LLM Agents)
 
 Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when critical fields (e.g. `title`, `price`, `job_title`) are missing.
@@ -165,8 +146,8 @@ Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when cri
 
 → Enables **self-healing extraction** and **schema robustness** on diverse webpages.
 
-
 ---
+
 
 ## 📁 Project Structure
 
