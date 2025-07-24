@@ -42,7 +42,10 @@ MSG_ERROR_INVALID_LOG_LEVEL = "Invalid log level: {value}. Valid options: {valid
 MSG_ERROR_INVALID_LOG_BYTES = "Log max bytes must be greater than 0. Got: {value}"
 MSG_ERROR_INVALID_BACKUP_COUNT = "Log backup count must be greater than 0. Got: {value}"
 MSG_ERROR_INVALID_ENV = "Invalid environment: {value}. Valid options: {valid_options}"
-
+MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX = (
+    "Retry backoff min ({min}) cannot be greater than max ({max})."
+)
+MSG_ERROR_LOG_BACKUP_COUNT_INVALID = "Log backup count must be > 0 if log_max_bytes > 0."
 # settings_helpers.py
 MSG_DEBUG_SETTING_OVERRIDDEN = "Overridden {key} = {validated!r} (from env: {original!r})"
 MSG_DEBUG_SETTING_SKIPPED = "Skipping {key}: blank or unset → using default"
@@ -170,3 +173,7 @@ MSG_ERROR_NOT_A_DIRECTORY = "Path {path} exists but is not a directory."
 MSG_ERROR_UNSUPPORTED_OPENAI_MODEL = (
     "Unsupported OpenAI model: {model!r}. Must be one of: {valid_models}"
 )
+MSG_ERROR_BACKOFF_MIN_NEGATIVE = "Retry backoff min must be non-negative."
+MSG_ERROR_BACKOFF_MAX_NEGATIVE = "Retry backoff max must be non-negative."
+MSG_ERROR_BACKOFF_MIN_GT_MAX = "Retry backoff min must be less than or equal to max."
+MSG_ERROR_RETRY_NEGATIVE = "Retry attempts must be non-negative"

@@ -9,6 +9,9 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_SETTING_INVALID,
 )
 from agentic_scraper.backend.utils.validators import (
+    validate_agent_mode,
+    validate_backoff_max,
+    validate_backoff_min,
     validate_concurrency,
     validate_log_backup_count,
     validate_log_level,
@@ -16,6 +19,7 @@ from agentic_scraper.backend.utils.validators import (
     validate_max_tokens,
     validate_openai_model,
     validate_path,
+    validate_retry_attempts,
     validate_temperature,
     validate_timeout,
 )
@@ -114,4 +118,10 @@ def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     _validate_optional_int(values, "log_backup_count", validate_log_backup_count)
     _validate_optional_path(values, "log_dir")
     _validate_optional_path(values, "screenshot_dir")
+    _validate_optional_path(values, "dump_llm_json_dir")
+    _validate_optional_str(values, "agent_mode", validate_agent_mode)
+    _validate_optional_bool(values, "verbose", lambda v: v)  # no-op validator
+    _validate_optional_int(values, "retry_attempts", validate_retry_attempts)
+    _validate_optional_float(values, "retry_backoff_min", validate_backoff_min)
+    _validate_optional_float(values, "retry_backoff_max", validate_backoff_max)
     return values

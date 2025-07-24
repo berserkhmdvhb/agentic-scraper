@@ -14,6 +14,8 @@ from agentic_scraper.backend.config.aliases import (
 )
 from agentic_scraper.backend.config.constants import (
     DEFAULT_AGENT_MODE,
+    DEFAULT_DEBUG_MODE,
+    DEFAULT_DUMP_LLM_JSON_DIR,
     DEFAULT_ENV,
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_LLM_TEMPERATURE,
@@ -25,15 +27,23 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_MAX_CONCURRENT_REQUESTS,
     DEFAULT_OPENAI_MODEL,
     DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_RETRY_ATTEMPTS,
+    DEFAULT_RETRY_BACKOFF_MAX,
+    DEFAULT_RETRY_BACKOFF_MIN,
     DEFAULT_SCREENSHOT_DIR,
     DEFAULT_SCREENSHOT_ENABLED,
+    DEFAULT_VERBOSE,
     PROJECT_NAME,
 )
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES,
-    MSG_ERROR_MISSING_API_KEY,
 )
 from agentic_scraper.backend.core.settings_helpers import validated_settings
+from agentic_scraper.backend.utils.validators import (
+    validate_backoff_range,
+    validate_log_rotation_config,
+    validate_openai_api_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +51,7 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     # General
     project_name: str = PROJECT_NAME
-    debug_mode: bool = Field(default=False, validation_alias="DEBUG")
+    debug_mode: bool = Field(default=DEFAULT_DEBUG_MODE, validation_alias="DEBUG")
     env: Environment = Field(default=DEFAULT_ENV, validation_alias="ENV")
 
     # OpenAI
@@ -83,7 +93,7 @@ class Settings(BaseSettings):
     )
     log_format: LogFormat = Field(default=DEFAULT_LOG_FORMAT, validation_alias="LOG_FORMAT")
     verbose: bool = Field(
-        default=False,
+        default=DEFAULT_VERBOSE,
         validation_alias="VERBOSE",
         description="If true, enables detailed debug logs and full tracebacks.",
     )
@@ -94,23 +104,23 @@ class Settings(BaseSettings):
 
     # Retry behavior (used in agent.py with tenacity)
     retry_attempts: int = Field(
-        default=2,
+        default=DEFAULT_RETRY_ATTEMPTS,
         validation_alias="RETRY_ATTEMPTS",
         description="Number of times to retry transient LLM errors (OpenAIError)",
     )
     retry_backoff_min: float = Field(
-        default=1.0,
+        default=DEFAULT_RETRY_BACKOFF_MIN,
         validation_alias="RETRY_BACKOFF_MIN",
         description="Minimum backoff time (seconds) for retry delay",
     )
     retry_backoff_max: float = Field(
-        default=10.0,
+        default=DEFAULT_RETRY_BACKOFF_MAX,
         validation_alias="RETRY_BACKOFF_MAX",
         description="Maximum backoff time (seconds) for retry delay",
     )
 
     dump_llm_json_dir: str | None = Field(
-        default=None,
+        default=DEFAULT_DUMP_LLM_JSON_DIR,
         validation_alias="DUMP_LLM_JSON_DIR",
         description="Optional directory to dump full LLM parsed data for debugging/inspection.",
     )
@@ -127,8 +137,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
-        if self.openai_api_key in (None, "", "<<MISSING>>"):
-            raise ValueError(MSG_ERROR_MISSING_API_KEY)
+        self.openai_api_key = validate_openai_api_key(self.openai_api_key)
+
+        validate_backoff_range(self.retry_backoff_min, self.retry_backoff_max)
+        validate_log_rotation_config(self.log_max_bytes, self.log_backup_count)
+
         return self
 
     model_config = {
