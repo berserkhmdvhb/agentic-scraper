@@ -2,11 +2,14 @@ name: Tests
 
 on:
   push:
+    tags:
+      - 'v*.*.*'
     paths-ignore:
       - '**.md'
   pull_request:
     paths-ignore:
       - '**.md'
+
 
 permissions:
   contents: write
@@ -30,7 +33,7 @@ jobs:
           echo "Shell: $SHELL"
 
       - name: 🐍 Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -77,5 +80,5 @@ jobs:
   refresh-badge:
     name: 🔁 Refresh Coverage Badge
     needs: test
-    if: ${{ success() && github.ref == 'refs/heads/main' }}
+    if: ${{ success() && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
     uses: ./.github/workflows/badge-refresh.yml
