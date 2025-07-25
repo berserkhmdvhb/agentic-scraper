@@ -8,6 +8,27 @@
 
 **Agentic Scraper** is an intelligent, LLM-powered web scraping platform with a modular backend and a Streamlit interface. It supports adaptive agents, schema-aware retries, multilingual readiness, and fast parallel scraping for structured data extraction at scale.
 
+# Table of Contents
+## 📑 Table of Contents
+
+- [🚀 Features](#-features)
+- [📸 Demo](#-demo)
+- [⚙️ Tech Stack](#️-tech-stack)
+- [🧠 Agent Modes](#-agent-modes)
+- [🔬 Scraping Architecture](#-scraping-architecture)
+- [🧠 Adaptive Retry Logic](#-adaptive-retry-logic-for-llm-agents)
+- [📁 Project Structure](#-project-structure)
+- [🧰 Installation](#-installation)
+- [🐳 Run via Docker](#-run-via-docker)
+- [▶️ Running the App](#-running-the-app)
+- [🔧 Environment Configuration (.env)](#-env-configuration)
+- [🧪 How It Works](#-how-it-works)
+- [✨ Example Output](#-example-output)
+- [🚀 CI/CD & Deployment](#-cicd--deployment)
+- [🗺 Roadmap](#-roadmap)
+- [📜 License](#-license)
+
+
 ---
 
 ## 🚀 Features
