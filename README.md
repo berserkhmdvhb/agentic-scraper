@@ -11,20 +11,31 @@
 # Table of Contents
 ## 📑 Table of Contents
 
+## 📑 Table of Contents
+
 - [🚀 Features](#-features)
 - [📸 Demo](#-demo)
 - [⚙️ Tech Stack](#️-tech-stack)
 - [🧠 Agent Modes](#-agent-modes)
 - [🔬 Scraping Architecture](#-scraping-architecture)
+  - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
+  - [🧬 Agent Extraction](#-agent-extraction-in-agent)
 - [🧠 Adaptive Retry Logic](#-adaptive-retry-logic-for-llm-agents)
 - [📁 Project Structure](#-project-structure)
 - [🧰 Installation](#-installation)
-- [🐳 Run via Docker](#-run-via-docker)
+  - [👤 For Users](#-for-users)
+  - [💼 For Developers](#-for-developers)
+  - [🐳 Run via Docker](#-run-via-docker)
 - [▶️ Running the App](#-running-the-app)
+  - [Online](#online)
+  - [Local](#local)
 - [🔧 Environment Configuration (.env)](#-env-configuration)
 - [🧪 How It Works](#-how-it-works)
 - [✨ Example Output](#-example-output)
 - [🚀 CI/CD & Deployment](#-cicd--deployment)
+  - [🧪 Continuous Integration](#-continuous-integration)
+  - [🚀 Continuous Delivery (Render)](#-continuous-delivery-render)
+  - [📦 Docker Support](#-docker-support)
 - [🗺 Roadmap](#-roadmap)
 - [📜 License](#-license)
 
@@ -112,7 +123,7 @@ This stage feeds clean, validated inputs into the next step: agent-based extract
 
 ---
 
-### 🧠 Agent Extraction (in `agent/`)
+### 🧬 Agent Extraction (in `agent/`)
 
 The Agent layer transforms raw HTML into structured output by selecting relevant fields and filling a JSON schema. The agent used is determined by the `AGENT_MODE` setting.
 
@@ -285,7 +296,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 poetry install
 ```
 
-### 🐳 Run via Docker
+#### 🐳 Run via Docker
 
 To launch both frontend and backend locally using Docker Compose:
 
