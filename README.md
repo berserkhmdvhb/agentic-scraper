@@ -328,8 +328,9 @@ Then visit:
  Visit the hosted version domains here: 
 
  
-- 🔗 **Frontend (Streamlit UI):** [https://agenticscraper.onrender.com](https://agenticscraper.onrender.com)  
-- 🔗 **Backend (FastAPI API):** [https://api-agenticscraper.onrender.com](https://api-agenticscraper.onrender.com)
+
+- 🔗  [![**Frontend (Streamlit UI):**](https://img.shields.io/badge/frontend-render-blueviolet?logo=render)](https://agenticscraper.onrender.com)
+- 🔗  [![**Backend (FastAPI API):**](https://img.shields.io/badge/backend-render-blueviolet?logo=render)](https://api-agenticscraper.onrender.com)
 
 ### Local
 
@@ -421,11 +422,15 @@ Pre-built Docker images for both frontend and backend are available:
 
 * **Frontend:**
   [![Docker: Frontend](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend)
+
   `docker pull hmdvhb/agentic-scraper-frontend`
 
 * **Backend:**
   [![Docker: Backend](https://img.shields.io/badge/docker-backend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-backend)
+
   `docker pull hmdvhb/agentic-scraper-backend`
+
+
 
 These images are automatically published on every versioned release and push to `main`. Use them to quickly deploy the app without building locally.
 
