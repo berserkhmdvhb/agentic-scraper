@@ -186,7 +186,32 @@ Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when cri
 
 
 ## 📁 Project Structure
+### Overview
 
+```
+agentic_scraper/
+├── .env, sample.env, Makefile, README.md, docker-compose.yml
+├── Dockerfile.backend, Dockerfile.frontend
+├── pyproject.toml, requirements.txt, poetry.lock
+├── run.py, run_api.py, run_batch.py, run_experiments.py
+├── .github/workflows/             # GitHub Actions CI/CD workflows
+├── docs/                          # Developer and testing docs
+├── input/                         # URL input files
+├── tests/                         # Unit and integration tests
+├── src/
+│   └── agentic_scraper/
+│       ├── backend/
+│       │   ├── api/               # FastAPI app and routes
+│       │   ├── config/            # Constants, aliases, enums, messages
+│       │   ├── core/              # Logger and settings
+│       │   ├── scraper/
+│       │   │   ├── agent/         # Modular agent strategies (LLMs, rules)
+│       │   │   ├── fetcher, parser, pipeline, screenshotter, worker_pool
+│       │   └── utils/             # Validators and shared helpers
+│       └── frontend/              # Streamlit UI (core, display, runner)
+```
+
+### Detailed
 ```
 agentic_scraper/
 ├── .env                         # Local config
@@ -195,18 +220,33 @@ agentic_scraper/
 ├── run.py                       # CLI launcher for Streamlit
 ├── README.md                    # Project documentation
 ├── sample.env                   # Example environment file
+├── requirements.txt             # Exported requirements (pip)
+├── poetry.lock                  # Poetry lock file
+├── remove_bom.py                # Utility script
+├── run_api.py                   # CLI launcher for FastAPI backend
+├── run_batch.py                 # CLI for batch scraping
+├── run_experiments.py           # Concurrency benchmarking script
+├── mock_api.py                  # Local mock server for experiments testing
 ├── docker-compose.yml           # Orchestrates frontend and backend containers
 ├── Dockerfile.backend           # Builds the FastAPI backend image
 ├── Dockerfile.frontend          # Builds the Streamlit frontend image
+├── logo.jpg                     # Project logo (used in README/demo)
+├── LICENSE                      # License file
+├── .github/workflows/           # GitHub Actions CI/CD workflows
+│   ├── badge-refresh.yml
+│   ├── check-requirements.yml
+│   ├── docker-build-backend.yml
+│   ├── docker-build-frontend.yml
+│   └── tests.yml
 ├── docs/                        # Additional documentation
-│   └── development/, testing/   # Dev/test-specific notes
-├── logs/                        # Log output grouped by environment
-│   ├── DEV/
-│   ├── UAT/
-│   └── PROD/
+├── input/                       # Sample input files
+│   ├── urls1.txt
+│   └── urls2.txt
 ├── screenshots/                 # Captured screenshots per scrape
-├── tests/                       # Unit and integration tests
-│   └── (mirrors src/ structure)
+├── tests/                       # Unit and manual tests
+│   ├── backend/core/test_settings.py
+│   ├── manual/screenshotter_test.py
+│   └── manual/validators_test.py
 ├── src/                         # Source code (main application)
 │   └── agentic_scraper/
 │       ├── backend/
@@ -214,17 +254,17 @@ agentic_scraper/
 │       │   │   ├── main.py                  # FastAPI app entrypoint
 │       │   │   ├── models.py                # API models/schemas
 │       │   │   └── routes/
-│       │   │       ├── scrape.py            # Scrape endpoint logic
+│       │   │       └── scrape.py            # Scrape endpoint logic
 │       │   ├── config/
 │       │   │   ├── aliases.py               # Input aliases, enums
 │       │   │   ├── constants.py             # Default values
 │       │   │   ├── messages.py              # All log/UI messages
-│       │   │   ├── types.py                 # Strongly-typed enums
+│       │   │   └── types.py                 # Strongly-typed enums
 │       │   ├── core/
 │       │   │   ├── logger_helpers.py        # Logging formatter utilities
 │       │   │   ├── logger_setup.py          # Loguru setup
 │       │   │   ├── settings.py              # Global settings model
-│       │   │   ├── settings_helpers.py      # Validation, resolution helpers
+│       │   │   └── settings_helpers.py      # Validation, resolution helpers
 │       │   ├── scraper/
 │       │   │   ├── fetcher.py               # HTML fetching with retries
 │       │   │   ├── models.py                # Scraped item schema
@@ -233,20 +273,23 @@ agentic_scraper/
 │       │   │   ├── screenshotter.py         # Playwright screenshot logic
 │       │   │   ├── worker_pool.py           # Async task concurrency manager
 │       │   │   └── agent/
-│       │   │       ├── agent_helpers.py             # Agent utils
-│       │   │       ├── field_utils.py               # Field scoring, synonyms
-│       │   │       ├── llm_dynamic.py               # LLM agent: dynamic fields
-│       │   │       ├── llm_dynamic_adaptive.py      # LLM agent: retries, context
-│       │   │       ├── llm_fixed.py                 # LLM agent: fixed schema
-│       │   │       ├── prompt_helpers.py            # Prompt generation
-│       │   │       ├── rule_based.py                # Rule-based parser
+│       │   │       ├── agent_helpers.py     # Agent utils
+│       │   │       ├── field_utils.py       # Field scoring, synonyms
+│       │   │       ├── llm_dynamic.py       # LLM agent: dynamic fields
+│       │   │       ├── llm_dynamic_adaptive.py # LLM agent: retries, context
+│       │   │       ├── llm_fixed.py         # LLM agent: fixed schema
+│       │   │       ├── prompt_helpers.py    # Prompt generation
+│       │   │       └── rule_based.py        # Rule-based parser
 │       │   └── utils/
-│       │       ├── validators.py            # Input validators
+│       │       └── validators.py            # Input validators
 │       └── frontend/
 │           ├── app.py                      # Streamlit UI entrypoint
+│           ├── models.py                   # Shared data schemas
 │           ├── ui_core.py                  # Sidebar + config widgets
 │           ├── ui_display.py               # Table, chart, image display
-│           ├── ui_runner.py                # Async scrape runner + hooks
+│           └── ui_runner.py                # Async scrape runner + hooks
+```
+
 
 ```
 ---
