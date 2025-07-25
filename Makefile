@@ -7,8 +7,10 @@
         check-updates check-toml \
         clean clean-logs clean-cache clean-coverage clean-build clean-pyc clean-all \
         build publish publish-test upload-coverage \
-		export-requirements check-requirements-sync \
-		mock-server run-api \
+        export-requirements check-requirements-sync \
+        mock-server run-api \
+        docker-build docker-up docker-down docker-restart docker-logs docker-shell
+
 
 PYTHON := python
 
@@ -58,7 +60,13 @@ help::
 	@echo "  check-requirements-sync  Check if requirements.txt matches pyproject.toml"
 	@echo "  mock-server              Start the mock FastAPI server at http://localhost:8000"
 	@echo "  run-api                  Start the FastAPI backend at http://localhost:8000"
-	
+	@echo "  docker-up                 Start app (Streamlit + FastAPI)"
+	@echo "  docker-down               Stop containers"
+	@echo "  docker-build              Build Docker images"
+	@echo "  docker-restart            Rebuild & restart everything"
+	@echo "  docker-logs               View logs (all services)"
+	@echo "  docker-shell              Enter backend container shell"	
+
 install:
 	$(PYTHON) -m pip install -e .
 
@@ -207,4 +215,26 @@ mock-server:
 	python mock_api.py --fail-rate $(FAIL_RATE)
 	
 run-api:
-	uvicorn agentic_scraper.backend.api.main:app --reload
+	uvicorn agentic_scraper.backend.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+docker-build:
+	docker-compose build
+
+docker-up:
+	docker-compose up
+
+docker-down:
+	docker-compose down
+
+docker-restart:
+	docker-compose down --volumes --remove-orphans
+	docker-compose up --build
+
+docker-logs:
+	docker-compose logs -f
+
+docker-shell:
+	docker exec -it agentic_scraper_backend bash
+
+docker-clean:
+	docker system prune -af --volumes
