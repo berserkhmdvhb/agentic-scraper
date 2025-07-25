@@ -49,6 +49,7 @@ dev = [
   "pytest-asyncio",
   "pytest-cov",
   "pytest-watch",
+  "python-jose[cryptography]",
   "ruff",
   "twine",
   "types-beautifulsoup4",
