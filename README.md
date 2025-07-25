@@ -2,7 +2,6 @@
   <img src="logo.png" alt="Agentic Scraper Logo" width="300"/>
 </p>
 
-<h1 align="center">🕵️ Agentic Scraper</h1>
 
 <p align="center">
   <em>LLM-powered web scraping, built for adaptability, structure, and concurrent performance.</em><br/>
