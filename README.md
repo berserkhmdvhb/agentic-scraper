@@ -221,6 +221,7 @@ agentic_scraper/
 ```
 
 ### Detailed
+
 ```
 agentic_scraper/
 ├── .env                         # Local config
@@ -300,7 +301,7 @@ agentic_scraper/
 ```
 
 
-```
+
 ---
 
 ## 🧰 Installation
