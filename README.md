@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.jpg" alt="Agentic Scraper Logo" width="200"/>
+  <img src="logo.png" alt="Agentic Scraper Logo" width="300"/>
 </p>
 
 <h1 align="center">🕵️ Agentic Scraper</h1>
@@ -9,20 +9,31 @@
   <em>Modular FastAPI backend · Streamlit UI · Schema-guided agents with self-healing retries.</em>
 </p>
 
-</p>
-
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper" alt="License"/></a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper" alt="License"/>
+  </a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python" alt="Python"/>
-  <a href="https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend"><img src="https://img.shields.io/badge/docker-frontend-blue?logo=docker" alt="Docker: Frontend"/></a>
-  <a href="https://hub.docker.com/r/hmdvhb/agentic-scraper-backend"><img src="https://img.shields.io/badge/docker-backend-blue?logo=docker" alt="Docker: Backend"/></a>
+  <a href="https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend">
+    <img src="https://img.shields.io/badge/docker-frontend-blue?logo=docker" alt="Docker: Frontend"/>
+  </a>
+  <a href="https://hub.docker.com/r/hmdvhb/agentic-scraper-backend">
+    <img src="https://img.shields.io/badge/docker-backend-blue?logo=docker" alt="Docker: Backend"/>
+  </a>
   <img src="https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white" alt="Lint: Ruff"/>
-  <a href="https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml"><img src="https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg" alt="CI: Tests"/></a>
-  <a href="https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main"><img src="https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300" alt="Coverage"/></a>
-  <a href="https://agenticscraper.onrender.com"><img src="https://img.shields.io/badge/frontend-render-blueviolet?logo=render" alt="Frontend"/></a>
-  <a href="https://api-agenticscraper.onrender.com"><img src="https://img.shields.io/badge/backend-render-blueviolet?logo=render" alt="Backend"/></a>
+  <a href="https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml">
+    <img src="https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg" alt="CI: Tests"/>
+  </a>
+  <a href="https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main">
+    <img src="https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300" alt="Coverage"/>
+  </a>
+  <a href="https://agenticscraper.onrender.com">
+    <img src="https://img.shields.io/badge/frontend-render-blueviolet?logo=render" alt="Frontend"/>
+  </a>
+  <a href="https://api-agenticscraper.onrender.com">
+    <img src="https://img.shields.io/badge/backend-render-blueviolet?logo=render" alt="Backend"/>
+  </a>
 </p>
-
 
 
 ## 📑 Table of Contents
