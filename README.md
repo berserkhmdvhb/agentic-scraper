@@ -448,7 +448,7 @@ Automated tests, linting, and type checks are run via [GitHub Actions](https://g
 
 ### 🚀 Continuous Delivery (Render)
 Production deployments are triggered automatically when changes are pushed to `main`.
-To see the hosted domains, visit [Running the App](#running-the-app)
+To see the hosted domains, visit [Running the App](#%EF%B8%8F-running-the-app)
 
 ### 📦 Docker Support
 
