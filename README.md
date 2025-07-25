@@ -9,7 +9,7 @@
 [![CD: Backend Deploy](https://img.shields.io/badge/backend-render-blueviolet?logo=render)](https://api-agenticscraper.onrender.com)
 
 
-# 🕵️ Agentic Scraper <img src="inst/figures/logo.png" align="right" style="width: 25%;"/>
+# 🕵️ Agentic Scraper <img src="inst/figures/logo.jpg" align="right" style="width: 25%;"/>
 
 **Agentic Scraper** is an intelligent, LLM-powered web scraping platform with a modular backend and a Streamlit interface. It supports adaptive agents, schema-aware retries, multilingual readiness, and fast parallel scraping for structured data extraction at scale.
 
