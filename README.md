@@ -9,7 +9,6 @@
 **Agentic Scraper** is an intelligent, LLM-powered web scraping platform with a modular backend and a Streamlit interface. It supports adaptive agents, schema-aware retries, multilingual readiness, and fast parallel scraping for structured data extraction at scale.
 
 # Table of Contents
-## 📑 Table of Contents
 
 ## 📑 Table of Contents
 
