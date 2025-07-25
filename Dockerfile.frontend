@@ -27,4 +27,4 @@ COPY . /app
 EXPOSE 8501 8000
 
 # Entrypoint is defined per service in docker-compose
-CMD ["streamlit", "run", "agentic_scraper.frontend/app.py", "--server.port=8000", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "src/agentic_scraper/frontend/app.py", "--server.port=8000", "--server.address=0.0.0.0"]
