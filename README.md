@@ -5,8 +5,10 @@
 <h1 align="center">🕵️ Agentic Scraper</h1>
 
 <p align="center">
-  <strong>LLM-powered web scraping, reimagined for adaptability and scale.</strong><br/>
-  Modular FastAPI backend · Streamlit UI · Self-healing agents with schema awareness.
+  <em>LLM-powered web scraping, reimagined for adaptability and scale.</em><br/>
+  <em>Modular FastAPI backend · Streamlit UI · Self-healing agents with schema awareness.</em>
+</p>
+
 </p>
 
 <p align="center">
