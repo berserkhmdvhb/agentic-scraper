@@ -8,7 +8,7 @@ with path.open("rb") as f:
 
 # Strip UTF-8 BOM if present
 if data.startswith(b"\xef\xbb\xbf"):
-    print("Stripping BOM from urls1.txt...")
+    print("Stripping BOM from file urls1.txt...")
     data = data[3:]
     with path.open("wb") as f:
         f.write(data)
