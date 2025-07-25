@@ -1,17 +1,26 @@
-[![License](https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper)](LICENSE)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python)
-[![Docker: Frontend](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend)
-[![Docker: Backend](https://img.shields.io/badge/docker-backend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-backend)
-![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white)
-[![CI: Tests GA](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml)
-[![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
-[![CD: Frontend Deploy](https://img.shields.io/badge/frontend-render-blueviolet?logo=render)](https://agenticscraper.onrender.com)
-[![CD: Backend Deploy](https://img.shields.io/badge/backend-render-blueviolet?logo=render)](https://api-agenticscraper.onrender.com)
+<p align="center">
+  <img src="logo.jpg" alt="Agentic Scraper Logo" width="200"/>
+</p>
 
+<h1 align="center">🕵️ Agentic Scraper</h1>
 
-# Agentic Scraper <img src="logo.jpg" align="right" style="width: 15%;"/>
+<p align="center">
+  <strong>An intelligent, LLM-powered web scraping platform</strong><br/>
+  Modular backend + Streamlit frontend + adaptive agents.
+</p>
 
-**Agentic Scraper** is an intelligent, LLM-powered web scraping platform with a modular backend and a Streamlit interface. It supports adaptive agents, schema-aware retries, multilingual readiness, and fast parallel scraping for structured data extraction at scale.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper" alt="License"/></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python" alt="Python"/>
+  <a href="https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend"><img src="https://img.shields.io/badge/docker-frontend-blue?logo=docker" alt="Docker: Frontend"/></a>
+  <a href="https://hub.docker.com/r/hmdvhb/agentic-scraper-backend"><img src="https://img.shields.io/badge/docker-backend-blue?logo=docker" alt="Docker: Backend"/></a>
+  <img src="https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white" alt="Lint: Ruff"/>
+  <a href="https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml"><img src="https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg" alt="CI: Tests"/></a>
+  <a href="https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main"><img src="https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300" alt="Coverage"/></a>
+  <a href="https://agenticscraper.onrender.com"><img src="https://img.shields.io/badge/frontend-render-blueviolet?logo=render" alt="Frontend"/></a>
+  <a href="https://api-agenticscraper.onrender.com"><img src="https://img.shields.io/badge/backend-render-blueviolet?logo=render" alt="Backend"/></a>
+</p>
+
 
 
 ## 📑 Table of Contents
