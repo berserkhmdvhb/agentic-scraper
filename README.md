@@ -13,7 +13,6 @@
 
 **Agentic Scraper** is an intelligent, LLM-powered web scraping platform with a modular backend and a Streamlit interface. It supports adaptive agents, schema-aware retries, multilingual readiness, and fast parallel scraping for structured data extraction at scale.
 
-# Table of Contents
 
 ## 📑 Table of Contents
 
@@ -33,7 +32,7 @@
 - [▶️ Running the App](#%EF%B8%8F-running-the-app)
   - [Online](#online)
   - [Local](#local)
-- [🔧 Environment Configuration (.env)](#-env-configuration)
+- [🔧 Environment Configuration (.env)](#-environment-configuration-env)
 - [🧪 How It Works](#-how-it-works)
 - [✨ Example Output](#-example-output)
 - [🚀 CI/CD & Deployment](#-cicd--deployment)
@@ -97,6 +96,10 @@
 | `llm-fixed`            | LLM extracts fixed schema fields (e.g. title, price)     |
 | `llm-dynamic`          | LLM chooses relevant fields based on page content        |
 | `llm-dynamic-adaptive` | Adds retries, field importance, and contextual reasoning |
+
+> Recommended: use llm-dynamic-adaptive for best results.
+
+
 
 > The UI dynamically adapts to the selected mode — retry sliders and model selectors appear only for LLM-based modes.
 
@@ -319,7 +322,7 @@ pip install git+https://github.com/berserkhmdvhb/agentic-scraper.git
 playwright install
 ```
 
-> Screenshots require separate Playwright setup. [Install docs →](https://playwright.dev/python/docs/intro)
+>  Screenshots require installing Playwright separately. [Install docs →](https://playwright.dev/python/docs/intro)
 
 **Alternative (pip + requirements.txt):**
 
@@ -395,11 +398,11 @@ Or, use the shortcut:
 python run.py
 ```
 
-You'll be prompted to enter your OpenAI API key and a list of URLs to scrape. Results will display in real time with screenshots and metadata.
+The app prompts you for an OpenAI API key and URLs to scrape.
 
 ---
 
-## 🔧 .env Configuration
+## 🔧 Environment Configuration (.env)
 
 ```ini
 OPENAI_API_KEY=sk-...
