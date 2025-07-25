@@ -5,7 +5,7 @@
 
 <p align="center">
   <em>LLM-powered web scraping, built for adaptability, structure, and concurrent performance.</em><br/>
-  <em>Modular FastAPI backend · Streamlit UI · Schema-guided agents with self-healing retries.</em>
+  <em>Modular FastAPI backend · Streamlit UI · Schema-guided agents with self-healing retries</em>
 </p>
 
 <p align="center">
