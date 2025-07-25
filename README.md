@@ -1,6 +1,7 @@
 [![License](https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python)
-![Docker](https://img.shields.io/badge/docker-ready-blue?logo=docker)
+[![Docker: Frontend](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend)
+[![Docker: Backend](https://img.shields.io/badge/docker-backend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-backend)
 ![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white)
 [![CI: Tests GA](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
@@ -414,7 +415,19 @@ We’ve added production-ready Docker configuration:
 
 > Use `docker-compose up` to spin up the app locally with both services.
 
+#### 🐳 Docker Hub Images
 
+Pre-built Docker images for both frontend and backend are available:
+
+* **Frontend:**
+  [![Docker: Frontend](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend)
+  `docker pull hmdvhb/agentic-scraper-frontend`
+
+* **Backend:**
+  [![Docker: Backend](https://img.shields.io/badge/docker-backend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-backend)
+  `docker pull hmdvhb/agentic-scraper-backend`
+
+These images are automatically published on every versioned release and push to `main`. Use them to quickly deploy the app without building locally.
 
 ---
 
