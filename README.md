@@ -5,8 +5,8 @@
 <h1 align="center">🕵️ Agentic Scraper</h1>
 
 <p align="center">
-  <strong>An intelligent, LLM-powered web scraping platform</strong><br/>
-  Modular backend + Streamlit frontend + adaptive agents.
+  <strong>LLM-powered web scraping, reimagined for adaptability and scale.</strong><br/>
+  Modular FastAPI backend · Streamlit UI · Self-healing agents with schema awareness.
 </p>
 
 <p align="center">
