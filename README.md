@@ -2,7 +2,7 @@
 [![Tests](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
 ![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white)
-
+![Deploy: Render](https://img.shields.io/badge/deploy-render-blueviolet?logo=render&label=CD)
 
 # 🕵️ Agentic Scraper
 
@@ -159,6 +159,9 @@ agentic_scraper/
 ├── run.py                       # CLI launcher for Streamlit
 ├── README.md                    # Project documentation
 ├── sample.env                   # Example environment file
+├── docker-compose.yml           # Orchestrates frontend and backend containers
+├── Dockerfile.backend           # Builds the FastAPI backend image
+├── Dockerfile.frontend          # Builds the Streamlit frontend image
 ├── docs/                        # Additional documentation
 │   └── development/, testing/   # Dev/test-specific notes
 ├── logs/                        # Log output grouped by environment
@@ -208,12 +211,15 @@ agentic_scraper/
 │           ├── ui_core.py                  # Sidebar + config widgets
 │           ├── ui_display.py               # Table, chart, image display
 │           ├── ui_runner.py                # Async scrape runner + hooks
+
 ```
 ---
 
 ## 🧰 Installation
 
 ### 👤 For Users
+
+### Locally
 
 **Install from GitHub (Recommended):**
 
@@ -258,6 +264,27 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 poetry install
 ```
+
+### 🐳 Run via Docker
+
+To launch both frontend and backend locally using Docker Compose:
+
+```bash
+docker-compose up --build
+```
+or using make
+
+```bash
+make docker-up
+make docker-build
+```
+
+Then visit:
+
+- Frontend: http://localhost:8501
+- Backend: http://localhost:8000
+
+
 
 ---
 
@@ -322,6 +349,32 @@ The UI overrides `.env` if sidebar values are selected.
   "screenshot_path": "screenshots/example-f3d4c2a1.png"
 }
 ```
+
+---
+
+## 🚀 CI/CD & Deployment
+
+Agentic Scraper now supports **full CI/CD** with Docker-based builds and continuous deployment to Render.com.
+
+### 🧪 Continuous Integration
+Automated tests, linting, and type checks are run via [GitHub Actions](https://github.com/berserkhmdvhb/agentic-scraper/actions) on every push and PR.
+
+### 🚀 Continuous Delivery (Render)
+Production deployments are triggered automatically when changes are pushed to `main`.
+
+- 🔗 **Frontend (Streamlit UI):** [https://agenticscraper.onrender.com](https://agenticscraper.onrender.com)  
+- 🔗 **Backend (FastAPI API):** [https://api-agenticscraper.onrender.com](https://api-agenticscraper.onrender.com)
+
+### 📦 Docker Support
+
+We’ve added production-ready Docker configuration:
+- `Dockerfile.backend` – builds the FastAPI backend
+- `Dockerfile.frontend` – builds the Streamlit frontend
+- `docker-compose.yml` – orchestrates both services for local dev or deployment
+
+> Use `docker-compose up` to spin up the app locally with both services.
+
+
 
 ---
 
