@@ -27,5 +27,4 @@ COPY . /app
 EXPOSE 8501 8000
 
 # Entrypoint is defined per service in docker-compose
-CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
+CMD ["uvicorn", "agentic_scraper.backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
