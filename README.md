@@ -69,17 +69,23 @@
 
 ## ⚙️ Tech Stack
 
-| Layer             | Tools                                  |
-| ----------------- | -------------------------------------- |
-| Async Fetching    | `httpx`, `asyncio`, `tenacity`         |
-| HTML Parsing      | `BeautifulSoup4`                       |
-| Screenshots       | `playwright.async_api`                 |
-| Agent Logic       | `openai.ChatCompletion`, retry loop    |
-| Schema Validation | `pydantic v2`                          |
-| UI Layer          | `Streamlit`, `streamlit-aggrid`        |
-| Settings/Logging  | `.env`, `loguru`, centralized messages |
-| Backend API       | `FastAPI` (`backend/api/`)             |
-| Dev Tools         | `ruff`, `pytest`, `Makefile`, `mypy`   |
+| Layer                         | Tools                                                    |
+| ----------------------------- | -------------------------------------------------------- |
+| **Async Fetching**            | `httpx`, `asyncio`, `tenacity`                           |
+| **HTML Parsing**              | `BeautifulSoup4`                                         |
+| **Screenshots**               | `playwright.async_api`                                   |
+| **Agent Logic**               | `OpenAI API`, `ChatCompletion`, schema retry loop        |
+| **Schema Validation**         | `Pydantic v2`                                            |
+| **UI Layer**                  | `Streamlit`, `streamlit-aggrid`                          |
+| **Settings & Logging**        | `.env`, `loguru`, centralized `messages.py`              |
+| **Backend API**               | `FastAPI`, `Pydantic`, `uvicorn`                         |
+| **Authentication / Security** | Auth0, OAuth2, OIDC *(in progress)*                      |
+| **Testing**                   | `pytest`, `conftest.py` fixtures                         |
+| **Linting & Typing**          | `ruff`, `mypy`                                           |
+| **Tooling & Automation**      | `Makefile`, `Docker`, `Docker Compose`                   |
+| **Deployment**                | `Render.com`, Docker Hub (`frontend` & `backend` images) |
+
+
 
 ---
 
