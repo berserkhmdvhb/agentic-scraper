@@ -495,11 +495,11 @@ These images are automatically published on every versioned release and push to 
 * [x] Field scoring to prioritize important fields
 * [x] Conditional UI for agent settings
 * [x] FastAPI backend (in progress)
-* [ ] SQLite export + scrape history view
+* [x] Docker container deployment
 * [ ] Multilingual support + auto-translation
 * [ ] User authentication with Auth0
 * [ ] Authentication protocol with OAuth2 + OIDC
-* [x] Docker container deployment
+
 
 ---
 
