@@ -12,8 +12,7 @@ import importlib
 import logging
 from collections.abc import Generator
 from io import StringIO
-from pathlib import Path
-from typing import Callable, ContextManager
+from typing import Callable
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
