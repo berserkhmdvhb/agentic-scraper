@@ -30,7 +30,7 @@
   - [👤 For Users](#-for-users)
   - [💼 For Developers](#-for-developers)
   - [🐳 Run via Docker](#-run-via-docker)
-- [▶️ Running the App](#-running-the-app)
+- [▶️ Running the App](#%EF%B8%8F-running-the-app)
   - [Online](#online)
   - [Local](#local)
 - [🔧 Environment Configuration (.env)](#-env-configuration)
