@@ -1,8 +1,12 @@
 [![License](https://img.shields.io/github/license/berserkhmdvhb/agentic-scraper)](LICENSE)
-[![Tests](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml)
-[![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python)
+![Docker](https://img.shields.io/badge/docker-ready-blue?logo=docker)
 ![Lint: Ruff](https://img.shields.io/badge/lint-ruff-blue?logo=python&logoColor=white)
-![Deploy: Render](https://img.shields.io/badge/deploy-render-blueviolet?logo=render&label=CD)
+[![CI: Tests GA](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/berserkhmdvhb/agentic-scraper/actions/workflows/tests.yml)
+[![Coverage](https://img.shields.io/coveralls/github/berserkhmdvhb/agentic-scraper/main?cacheSeconds=300)](https://coveralls.io/github/berserkhmdvhb/agentic-scraper?branch=main)
+[![CD: Frontend Deploy](https://img.shields.io/badge/frontend-render-blueviolet?logo=render)](https://agenticscraper.onrender.com)
+[![CD: Backend Deploy](https://img.shields.io/badge/backend-render-blueviolet?logo=render)](https://api-agenticscraper.onrender.com)
+
 
 # 🕵️ Agentic Scraper
 
