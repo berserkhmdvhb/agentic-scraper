@@ -219,7 +219,6 @@ agentic_scraper/
 
 ### 👤 For Users
 
-### Locally
 
 **Install from GitHub (Recommended):**
 
@@ -272,7 +271,7 @@ To launch both frontend and backend locally using Docker Compose:
 ```bash
 docker-compose up --build
 ```
-or using make
+Or use the Makefile shortcuts:
 
 ```bash
 make docker-up
@@ -287,8 +286,16 @@ Then visit:
 
 
 ---
-
 ## ▶️ Running the App
+
+### Online
+ Visit the hosted version domains here: 
+
+ 
+- 🔗 **Frontend (Streamlit UI):** [https://agenticscraper.onrender.com](https://agenticscraper.onrender.com)  
+- 🔗 **Backend (FastAPI API):** [https://api-agenticscraper.onrender.com](https://api-agenticscraper.onrender.com)
+
+### Local
 
 Start the Streamlit UI:
 
@@ -361,9 +368,7 @@ Automated tests, linting, and type checks are run via [GitHub Actions](https://g
 
 ### 🚀 Continuous Delivery (Render)
 Production deployments are triggered automatically when changes are pushed to `main`.
-
-- 🔗 **Frontend (Streamlit UI):** [https://agenticscraper.onrender.com](https://agenticscraper.onrender.com)  
-- 🔗 **Backend (FastAPI API):** [https://api-agenticscraper.onrender.com](https://api-agenticscraper.onrender.com)
+To see the hosted domains, visit [Running the App](#running-the-app)
 
 ### 📦 Docker Support
 
@@ -388,7 +393,7 @@ We’ve added production-ready Docker configuration:
 * [ ] Multilingual support + auto-translation
 * [ ] User authentication with Auth0
 * [ ] Authentication protocol with OAuth2 + OIDC
-* [ ] Docker container deployment
+* [x] Docker container deployment
 
 ---
 
