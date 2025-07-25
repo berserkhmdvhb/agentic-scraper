@@ -5,8 +5,9 @@ from urllib.parse import urlparse
 
 from agentic_scraper.backend.config.constants import (
     FETCH_ERROR_PREFIX,
-    MAX_CONCURRENCY_HARD_LIMIT,
+    MIN_ENCRYPTION_SECRET_LENGTH,
     VALID_AGENT_MODES,
+    VALID_AUTH0_ALGORITHMS,
     VALID_ENVIRONMENTS,
     VALID_LOG_LEVELS,
     VALID_OPENAI_MODELS,
@@ -14,10 +15,14 @@ from agentic_scraper.backend.config.constants import (
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SKIPPED_INVALID_URL,
     MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX,
+    MSG_ERROR_EMPTY_AUTH0_ALGORITHMS,
     MSG_ERROR_EMPTY_STRING,
     MSG_ERROR_INVALID_AGENT_MODE,
+    MSG_ERROR_INVALID_API_AUDIENCE,
+    MSG_ERROR_INVALID_AUTH0_ALGORITHMS,
+    MSG_ERROR_INVALID_AUTH0_DOMAIN,
     MSG_ERROR_INVALID_BACKUP_COUNT,
-    MSG_ERROR_INVALID_CONCURRENCY,
+    MSG_ERROR_INVALID_ENCRYPTION_SECRET,
     MSG_ERROR_INVALID_ENV,
     MSG_ERROR_INVALID_LOG_BYTES,
     MSG_ERROR_INVALID_LOG_LEVEL,
@@ -134,12 +139,6 @@ def validate_openai_model(model: str) -> str:
             )
         )
     return model
-
-
-def validate_concurrency(concurrency: int) -> int:
-    if not (0 < concurrency <= MAX_CONCURRENCY_HARD_LIMIT):
-        raise ValueError(MSG_ERROR_INVALID_CONCURRENCY.format(value=concurrency))
-    return concurrency
 
 
 def validate_timeout(seconds: int) -> int:
@@ -266,3 +265,38 @@ def clean_price(v: str | float | None) -> float | str | None:
         except ValueError:
             raise ValueError(MSG_ERROR_INVALID_PRICE_FORMAT.format(value=v)) from None
     return v
+
+
+def validate_auth0_domain(domain: str) -> str:
+    if not domain or "." not in domain:
+        raise ValueError(MSG_ERROR_INVALID_AUTH0_DOMAIN)
+    return domain.strip()
+
+
+def validate_api_audience(audience: str) -> str:
+    if not audience.startswith("http"):
+        raise ValueError(MSG_ERROR_INVALID_API_AUDIENCE)
+    return audience.rstrip("/")
+
+
+def validate_encryption_secret(secret: str) -> str:
+    if len(secret.strip()) < MIN_ENCRYPTION_SECRET_LENGTH:
+        raise ValueError(
+            MSG_ERROR_INVALID_ENCRYPTION_SECRET.format(value=MIN_ENCRYPTION_SECRET_LENGTH)
+        )
+    return secret.strip()
+
+
+def validate_auth0_algorithms(value: list[str]) -> list[str]:
+    if not value:
+        raise ValueError(MSG_ERROR_EMPTY_AUTH0_ALGORITHMS)
+
+    invalid = [alg for alg in value if alg not in VALID_AUTH0_ALGORITHMS]
+    if invalid:
+        raise ValueError(
+            MSG_ERROR_INVALID_AUTH0_ALGORITHMS.format(
+                algo=", ".join(invalid),
+                valid_options=", ".join(sorted(VALID_AUTH0_ALGORITHMS)),
+            )
+        )
+    return value

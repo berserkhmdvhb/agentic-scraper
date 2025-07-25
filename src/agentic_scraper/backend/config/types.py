@@ -34,3 +34,7 @@ class LogLevel(str, Enum):
 class LogFormat(str, Enum):
     PLAIN = "plain"
     JSON = "json"
+
+
+class Auth0Algs(str, Enum):
+    RS256 = "RS256"

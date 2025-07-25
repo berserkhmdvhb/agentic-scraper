@@ -1,14 +1,17 @@
 import logging
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
 from agentic_scraper.backend.config.constants import (
+    DEFAULT_AUTH0_ALGORITHM,
     DEFAULT_DEBUG_MODE,
     DEFAULT_DUMP_LLM_JSON_DIR,
+    DEFAULT_FETCH_CONCURRENCY,
+    DEFAULT_LLM_CONCURRENCY,
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_LLM_SCHEMA_RETRIES,
     DEFAULT_LLM_TEMPERATURE,
@@ -23,11 +26,15 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_SCREENSHOT_DIR,
     DEFAULT_SCREENSHOT_ENABLED,
     DEFAULT_VERBOSE,
+    MAX_FETCH_CONCURRENCY,
+    MAX_LLM_CONCURRENCY,
     MAX_LLM_MAX_TOKENS,
     MAX_LLM_SCHEMA_RETRIES,
     MAX_LLM_TEMPERATURE,
     MAX_RETRY_ATTEMPTS,
     MIN_BACKOFF_SECONDS,
+    MIN_FETCH_CONCURRENCY,
+    MIN_LLM_CONCURRENCY,
     MIN_LLM_MAX_TOKENS,
     MIN_LLM_SCHEMA_RETRIES,
     MIN_LLM_TEMPERATURE,
@@ -117,8 +124,21 @@ class Settings(BaseSettings):
     )
 
     # Execution tuning (CLI/batch mode only)
-    fetch_concurrency: int = Field(default=10, validation_alias="FETCH_CONCURRENCY", exclude=True)
-    llm_concurrency: int = Field(default=2, validation_alias="LLM_CONCURRENCY", exclude=True)
+    fetch_concurrency: int = Field(
+        default=DEFAULT_FETCH_CONCURRENCY,
+        validation_alias="FETCH_CONCURRENCY",
+        exclude=True,
+        ge=MIN_FETCH_CONCURRENCY,
+        le=MAX_FETCH_CONCURRENCY,
+    )
+
+    llm_concurrency: int = Field(
+        default=DEFAULT_LLM_CONCURRENCY,
+        validation_alias="LLM_CONCURRENCY",
+        exclude=True,
+        ge=MIN_LLM_CONCURRENCY,
+        le=MAX_LLM_CONCURRENCY,
+    )
 
     # Retry behavior (used in agent.py with tenacity)
     dump_llm_json_dir: str | None = Field(
@@ -146,13 +166,24 @@ class Settings(BaseSettings):
         description="Maximum backoff time (seconds) for retry delay",
     )
 
-    llm_schema_retries: int = Field(
-        default=DEFAULT_LLM_SCHEMA_RETRIES,
-        validation_alias="LLM_SCHEMA_RETRIES",
-        ge=MIN_LLM_SCHEMA_RETRIES,
-        le=MAX_LLM_SCHEMA_RETRIES,
-        description="How many times to retry adaptive LLM prompts if required fields are missing.",
-    )
+    llm_schema_retries: Annotated[
+        int,
+        Field(
+            validation_alias="LLM_SCHEMA_RETRIES",
+            ge=MIN_LLM_SCHEMA_RETRIES,
+            le=MAX_LLM_SCHEMA_RETRIES,
+            description="How many times to retry adaptive LLM prompts "
+            "if required fields are missing.",
+        ),
+    ] = DEFAULT_LLM_SCHEMA_RETRIES
+
+    # Authentication & Security
+    auth0_domain: str = Field(..., validation_alias="AUTH0_DOMAIN")
+    auth0_client_id: str = Field(..., validation_alias="AUTH0_CLIENT_ID")
+    auth0_client_secret: str = Field(..., validation_alias="AUTH0_CLIENT_SECRET")
+    api_audience: str = Field(..., validation_alias="API_AUDIENCE")
+    auth0_algorithms: list[str] = Field(default=[DEFAULT_AUTH0_ALGORITHM])
+    encryption_secret: str = Field(..., validation_alias="ENCRYPTION_SECRET")
 
     # Derived
     @property
@@ -166,23 +197,23 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
-        self.openai_api_key = validate_openai_api_key(self.openai_api_key)
-
+        validate_openai_api_key(self.openai_api_key)
         validate_backoff_range(self.retry_backoff_min, self.retry_backoff_max)
         validate_log_rotation_config(self.log_max_bytes, self.log_backup_count)
-
         return self
 
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
         "extra": "ignore",
+        "validate_default": True,
+        "validate_assignment": True,
     }
 
 
 @cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings.model_validate({})
 
 
 def log_settings(settings: Settings) -> None:

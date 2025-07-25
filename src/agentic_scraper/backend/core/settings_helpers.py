@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from agentic_scraper.backend.config.messages import (
@@ -10,7 +9,10 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.utils.validators import (
     validate_agent_mode,
-    validate_concurrency,
+    validate_api_audience,
+    validate_auth0_algorithms,
+    validate_auth0_domain,
+    validate_encryption_secret,
     validate_log_backup_count,
     validate_log_level,
     validate_log_max_bytes,
@@ -20,6 +22,20 @@ from agentic_scraper.backend.utils.validators import (
 )
 
 logger = logging.getLogger(__name__)
+
+TRUE_STRINGS = {"1", "true", "yes", "on"}
+
+
+def str_to_bool(s: str) -> bool:
+    return s.strip().lower() in TRUE_STRINGS
+
+
+def parse_str_list(raw: str) -> list[str]:
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def safe_int(s: str) -> int:
+    return int(float(s))  # handles "5.0" gracefully
 
 
 def _coerce_and_validate(
@@ -33,7 +49,7 @@ def _coerce_and_validate(
 
     raw = values[key]
 
-    if isinstance(raw, (int, float, Path, bool)):
+    if isinstance(raw, list):
         try:
             validated = validator(raw)
             values[key] = validated
@@ -79,7 +95,7 @@ def _validate_optional_float(
 def _validate_optional_int(
     values: dict[str, Any], key: str, validator: Callable[[int], int]
 ) -> None:
-    _coerce_and_validate(values, key, int, validator)
+    _coerce_and_validate(values, key, safe_int, validator)
 
 
 def _validate_optional_str(
@@ -95,17 +111,21 @@ def _validate_optional_path(values: dict[str, Any], key: str) -> None:
 def _validate_optional_bool(
     values: dict[str, Any], key: str, validator: Callable[[bool], bool]
 ) -> None:
-    def str_to_bool(s: str) -> bool:
-        return s.lower() in {"1", "true", "yes", "on"}
-
     _coerce_and_validate(values, key, str_to_bool, validator)
+
+
+def _validate_optional_list(
+    values: dict[str, Any],
+    key: str,
+    validator: Callable[[list[str]], list[str]],
+) -> None:
+    _coerce_and_validate(values, key, parse_str_list, validator)
 
 
 def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     """Main entry point to validate incoming Settings values before instantiating."""
 
     _validate_optional_openai_model(values)
-    _validate_optional_int(values, "max_concurrent_requests", validate_concurrency)
     _validate_optional_int(values, "request_timeout", validate_timeout)
     _validate_optional_str(values, "log_level", validate_log_level)
     _validate_optional_int(values, "log_max_bytes", validate_log_max_bytes)
@@ -115,5 +135,9 @@ def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     _validate_optional_path(values, "dump_llm_json_dir")
     _validate_optional_str(values, "agent_mode", validate_agent_mode)
     _validate_optional_bool(values, "verbose", lambda v: v)  # no-op validator
+    _validate_optional_str(values, "auth0_domain", validate_auth0_domain)
+    _validate_optional_str(values, "api_audience", validate_api_audience)
+    _validate_optional_str(values, "encryption_secret", validate_encryption_secret)
+    _validate_optional_list(values, "auth0_algorithms", validate_auth0_algorithms)
 
     return values

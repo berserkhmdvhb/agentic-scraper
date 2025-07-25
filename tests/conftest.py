@@ -9,10 +9,11 @@ This file provides reusable fixtures to:
 """
 
 import importlib
+import json
 import logging
 from collections.abc import Generator
 from io import StringIO
-from typing import Callable
+from typing import Any, Callable
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -34,12 +35,16 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_MAX_CONCURRENT_REQUESTS,
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_LLM_TEMPERATURE,
+    DEFAULT_LLM_SCHEMA_RETRIES,
     DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_RETRY_ATTEMPTS,
     DEFAULT_RETRY_BACKOFF_MIN,
     DEFAULT_RETRY_BACKOFF_MAX,
     DEFAULT_VERBOSE,
     DEFAULT_DEBUG_MODE,
+    DEFAULT_AUTH0_ALGORITHM,
+    DEFAULT_LLM_CONCURRENCY,
+    DEFAULT_FETCH_CONCURRENCY,
 )
 
 __all__ = [
@@ -55,28 +60,6 @@ __all__ = [
 # Environment Cleanup and Settings Reset
 # ---------------------------------------------------------------------
 
-from agentic_scraper.backend.config.constants import (
-    DEFAULT_AGENT_MODE,
-    DEFAULT_DEBUG_MODE,
-    DEFAULT_DUMP_LLM_JSON_DIR,
-    DEFAULT_LLM_SCHEMA_RETRIES,
-    DEFAULT_ENV,
-    DEFAULT_LOG_BACKUP_COUNT,
-    DEFAULT_LOG_DIR,
-    DEFAULT_LOG_FORMAT,
-    DEFAULT_LOG_LEVEL,
-    DEFAULT_LLM_MAX_TOKENS,
-    DEFAULT_LLM_TEMPERATURE,
-    DEFAULT_MAX_CONCURRENT_REQUESTS,
-    DEFAULT_OPENAI_MODEL,
-    DEFAULT_REQUEST_TIMEOUT,
-    DEFAULT_RETRY_ATTEMPTS,
-    DEFAULT_RETRY_BACKOFF_MIN,
-    DEFAULT_RETRY_BACKOFF_MAX,
-    DEFAULT_SCREENSHOT_DIR,
-    DEFAULT_SCREENSHOT_ENABLED,
-    DEFAULT_VERBOSE,
-)
 
 # Shared list of env vars for clearing and setting
 
@@ -103,6 +86,14 @@ AGENTIC_ENV_VARS = [
     "LLM_SCHEMA_RETRIES",
     "DEBUG",
     "VERBOSE",
+    "FETCH_CONCURRENCY",
+    "LLM_CONCURRENCY",
+    "AUTH0_DOMAIN",
+    "AUTH0_CLIENT_ID",
+    "AUTH0_CLIENT_SECRET",
+    "API_AUDIENCE",
+    "AUTH0_ALGORITHMS",
+    "ENCRYPTION_SECRET",
 ]
 
 
@@ -131,6 +122,14 @@ def mock_env(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("DUMP_LLM_JSON_DIR", DEFAULT_DUMP_LLM_JSON_DIR)
     monkeypatch.setenv("DEBUG", str(DEFAULT_DEBUG_MODE))
     monkeypatch.setenv("LLM_SCHEMA_RETRIES", str(DEFAULT_LLM_SCHEMA_RETRIES))
+    monkeypatch.setenv("FETCH_CONCURRENCY", str(DEFAULT_FETCH_CONCURRENCY))
+    monkeypatch.setenv("LLM_CONCURRENCY", str(DEFAULT_LLM_CONCURRENCY))
+    monkeypatch.setenv("AUTH0_DOMAIN", "test.auth0.com")
+    monkeypatch.setenv("AUTH0_CLIENT_ID", "client-id")
+    monkeypatch.setenv("AUTH0_CLIENT_SECRET", "client-secret")
+    monkeypatch.setenv("API_AUDIENCE", "https://api.example.com")
+    monkeypatch.setenv("AUTH0_ALGORITHMS", json.dumps([DEFAULT_AUTH0_ALGORITHM]))
+    monkeypatch.setenv("ENCRYPTION_SECRET", "x" * 32)
 
 @pytest.fixture(autouse=True)
 def clear_agentic_env(monkeypatch: MonkeyPatch) -> None:
@@ -138,6 +137,14 @@ def clear_agentic_env(monkeypatch: MonkeyPatch) -> None:
     for var in AGENTIC_ENV_VARS:
         monkeypatch.delenv(var, raising=False)
 
+@pytest.fixture(autouse=True)
+def disable_env_file(monkeypatch: MonkeyPatch) -> None:
+    class Configless(settings_module.Settings):
+        model_config = {
+            **settings_module.Settings.model_config,
+            "env_file": None,
+        }
+    monkeypatch.setattr(settings_module, "Settings", Configless)
 
 @pytest.fixture
 def reset_settings_cache() -> Generator[None, None, None]:
@@ -162,6 +169,34 @@ def reload_settings(monkeypatch: MonkeyPatch) -> Callable[[dict[str, str]], None
 def set_env_var(monkeypatch: MonkeyPatch) -> Callable[[str, str], None]:
     """Convenience fixture to patch a single env var."""
     return monkeypatch.setenv
+
+@pytest.fixture
+def settings(mock_env: None, reset_settings_cache: Any) -> settings_module.Settings:
+    """Return a Settings object using the mocked environment."""
+    return settings_module.Settings(
+        auth0_domain="test.auth0.com",
+        auth0_client_id="client-id",
+        auth0_client_secret="client-secret",
+        api_audience="https://api.example.com",
+        encryption_secret="x" * 32,
+    )
+
+
+@pytest.fixture
+def settings_factory() -> Callable[..., settings_module.Settings]:
+    """Factory to create Settings instances with override support and strict validation."""
+    def _make(**overrides: Any) -> settings_module.Settings:
+        base = {
+            "auth0_domain": "test.auth0.com",
+            "auth0_client_id": "client-id",
+            "auth0_client_secret": "client-secret",
+            "api_audience": "https://api.example.com",
+            "encryption_secret": "x" * 32,
+        }
+        merged = {**base, **overrides}
+        return settings_module.Settings.model_validate(merged)
+    return _make
+
 
 # ---------------------------------------------------------------------
 # Logging Capture

@@ -1,5 +1,6 @@
 from agentic_scraper.backend.config.types import (
     AgentMode,
+    Auth0Algs,
     Environment,
     LogFormat,
     LogLevel,
@@ -85,6 +86,14 @@ DEFAULT_RETRY_ATTEMPTS = 2
 DEFAULT_RETRY_BACKOFF_MIN = 1.0
 DEFAULT_RETRY_BACKOFF_MAX = 10.0
 
+DEFAULT_FETCH_CONCURRENCY = 10
+MIN_FETCH_CONCURRENCY = 1
+MAX_FETCH_CONCURRENCY = 100
+
+DEFAULT_LLM_CONCURRENCY = 2
+MIN_LLM_CONCURRENCY = 1
+MAX_LLM_CONCURRENCY = 10
+
 # === Logging ===
 DEFAULT_LOG_MAX_BYTES = 1_000_000
 DEFAULT_LOG_BACKUP_COUNT = 5
@@ -99,9 +108,16 @@ DEFAULT_LOG_FORMAT: str = LogFormat.PLAIN.value
 DEFAULT_SCREENSHOT_DIR = "screenshots"
 DEFAULT_LOG_DIR = "logs"
 
+
+# === Security & Authenticaion ===
+MIN_ENCRYPTION_SECRET_LENGTH = 32
+DEFAULT_AUTH0_ALGORITHM: str = Auth0Algs.RS256.value
+VALID_AUTH0_ALGORITHMS: set[str] = {alg.value for alg in Auth0Algs}
+
 # logger_setup.py
 LOGGER_NAME = "agentic_scraper"
 DEFAULT_DUMP_LLM_JSON_DIR = "./.cache/llm_dumps"
+
 
 # ---------------------------------------------------------------------
 # scraper/
