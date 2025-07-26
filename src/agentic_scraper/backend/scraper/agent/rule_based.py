@@ -17,7 +17,7 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     capture_optional_screenshot,
     log_structured_data,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
 
 logger = logging.getLogger(__name__)
 
@@ -82,34 +82,27 @@ def guess_description(text: str) -> str | None:
 
 
 async def extract_structured_data(
-    text: str,
-    url: str,
+    request: ScrapeRequest,
     *,
-    take_screenshot: bool = False,
     settings: Settings,
 ) -> ScrapedItem | None:
     """
-    Perform rule-based scraping to extract structured fields from text.
-
-    This fallback method attempts to heuristically determine basic fields
-    like title, description, and price using simple pattern matching.
+    Perform rule-based scraping to extract structured fields from page content.
 
     Args:
-        text (str): Main visible content extracted from the page.
-        url (str): The source page URL.
-        take_screenshot (bool): Whether to capture a screenshot of the page.
-        settings (Settings): Runtime scraper configuration.
+        request (ScrapeRequest): Includes text, URL, screenshot toggle, etc.
+        settings (Settings): Runtime configuration.
 
     Returns:
         ScrapedItem | None: Structured data or None if validation fails.
     """
-    title = guess_title(text)
-    description = guess_description(text)
-    price = guess_price(text)
+    title = guess_title(request.text)
+    description = guess_description(request.text)
+    price = guess_price(request.text)
     screenshot_path: str | None = None
 
-    if take_screenshot:
-        screenshot_path = await capture_optional_screenshot(url, settings)
+    if request.take_screenshot:
+        screenshot_path = await capture_optional_screenshot(request.url, settings)
 
     log_structured_data(
         {
@@ -125,7 +118,7 @@ async def extract_structured_data(
 
     try:
         return ScrapedItem(
-            url=HttpUrl(url),
+            url=HttpUrl(request.url),
             title=title,
             description=description,
             price=price,
@@ -134,5 +127,5 @@ async def extract_structured_data(
             screenshot_path=screenshot_path,
         )
     except ValidationError as exc:
-        logger.warning(MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED.format(url=url, error=exc))
+        logger.warning(MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED.format(url=request.url, error=exc))
         return None

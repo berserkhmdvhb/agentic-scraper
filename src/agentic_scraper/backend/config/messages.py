@@ -26,6 +26,10 @@ MSG_INFO_APP_RESET_TRIGGERED = "User triggered app reset via sidebar."
 # main.py
 MSG_INFO_SCRAPE_REQUEST_RECEIVED = "Received scrape request for {n} URL(s)"
 
+# lifecycle.py
+MSG_INFO_SHUTDOWN_LOG = "Shutdown complete, cleaning up resources..."
+MSG_INFO_PRELOADING_JWKS = "Preloading JWKS from Auth0..."
+MSG_DEBUG_LIFESPAN_STARTED = "Lifespan started for app: {app}"
 
 # ---------------------------------------------------------------------
 # core/

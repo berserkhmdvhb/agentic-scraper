@@ -33,9 +33,7 @@ async def scrape(
 
     results, stats = await scrape_with_stats(
         [str(url) for url in request.urls],
-        settings,
-        openai_api_key=creds["api_key"],
-        openai_project_id=creds["project_id"],
+        settings=settings,
+        openai=creds,  # creds is already OpenAIConfig
     )
-
     return ScrapeResponse(results=results, stats=stats)

@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 from typing import cast
 
+from agentic_scraper.backend.scraper.models import OpenAIConfig
 from agentic_scraper.backend.utils.crypto import decrypt, encrypt
 
 # File path to local encrypted user credential store
@@ -38,12 +39,12 @@ def save_user_credentials(user_id: str, api_key: str, project_id: str) -> None:
     _save_store(store)
 
 
-def load_user_credentials(user_id: str) -> dict[str, str] | None:
+def load_user_credentials(user_id: str) -> OpenAIConfig | None:
     store = _load_store()
     user_data = store.get(user_id)
     if not user_data:
         return None
-    return {
-        "api_key": decrypt(user_data["api_key"]),
-        "project_id": decrypt(user_data["project_id"]),
-    }
+    return OpenAIConfig(
+        api_key=decrypt(user_data["api_key"]),
+        project_id=decrypt(user_data["project_id"]),
+    )

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from dataclasses import dataclass
 
 from agentic_scraper.backend.config.aliases import (
     OnErrorCallback,
@@ -19,17 +20,50 @@ from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem, Sc
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class WorkerPoolConfig:
+    """
+    Configuration for running the asynchronous scraping worker pool.
+
+    Encapsulates parameters that control the behavior of the worker pool, including:
+    - Whether to take screenshots during scraping.
+    - OpenAI credentials used for LLM-based extraction.
+    - Concurrency level (number of parallel workers).
+    - Maximum size of the task queue.
+    - Optional callbacks for handling success and error events.
+
+    This configuration is passed alongside runtime `Settings` to `run_worker_pool`.
+    """
+
+    take_screenshot: bool
+    openai: OpenAIConfig
+    concurrency: int = 10
+    max_queue_size: int | None = None
+    on_item_processed: OnSuccessCallback | None = None
+    on_error: OnErrorCallback | None = None
+
+
+@dataclass
+class _WorkerContext:
+    """
+    Internal context passed to each worker, bundling settings, credentials,
+    screenshot preference, and callbacks.
+    """
+
+    settings: Settings
+    take_screenshot: bool
+    openai: OpenAIConfig
+    on_item_processed: OnSuccessCallback | None = None
+    on_error: OnErrorCallback | None = None
+
+
 # ─── Worker Task ───
 async def worker(
     *,
     worker_id: int,
     queue: asyncio.Queue[ScrapeInput],
     results: list[ScrapedItem],
-    settings: Settings,
-    take_screenshot: bool,
-    openai: OpenAIConfig,
-    on_item_processed: OnSuccessCallback | None = None,
-    on_error: OnErrorCallback | None = None,
+    context: _WorkerContext,
 ) -> None:
     """
     Worker coroutine that consumes scraping tasks from a queue, runs structured extraction,
@@ -39,11 +73,7 @@ async def worker(
         worker_id (int): ID used for logging/debugging individual workers.
         queue (asyncio.Queue[ScrapeInput]): Queue of (url, cleaned_text) inputs.
         results (list[ScrapedItem]): Shared list where valid results are appended.
-        settings (Settings): Global runtime configuration.
-        take_screenshot (bool): Whether to capture screenshots during extraction.
-        openai (OpenAIConfig): Encapsulated OpenAI API credentials for the user.
-        on_item_processed (Optional[Callable]): Callback called with each ScrapedItem.
-        on_error (Optional[Callable]): Callback called with (url, Exception) on failure.
+        context (WorkerContext): Runtime configuration and shared context for each worker.
 
     Returns:
         None
@@ -55,26 +85,26 @@ async def worker(
                 request = ScrapeRequest(
                     text=text,
                     url=url,
-                    take_screenshot=take_screenshot,
-                    openai=openai,
+                    take_screenshot=context.take_screenshot,
+                    openai=context.openai,
                 )
 
-                item = await extract_structured_data(request, settings=settings)
+                item = await extract_structured_data(request, settings=context.settings)
 
                 if item is not None:
                     results.append(item)
-                    if on_item_processed:
-                        on_item_processed(item)
+                    if context.on_item_processed:
+                        context.on_item_processed(item)
 
             except Exception as e:
-                if settings.is_verbose_mode:
+                if context.settings.is_verbose_mode:
                     logger.exception(MSG_ERROR_WORKER_FAILED.format(url=url))
                 else:
                     logger.warning(MSG_WARNING_WORKER_FAILED_SHORT.format(url=url, error=e))
-                if on_error:
-                    on_error(url, e)
+                if context.on_error:
+                    context.on_error(url, e)
             finally:
-                if settings.is_verbose_mode:
+                if context.settings.is_verbose_mode:
                     logger.debug(
                         MSG_DEBUG_WORKER_PROGRESS.format(
                             worker_id=worker_id,
@@ -92,12 +122,7 @@ async def run_worker_pool(
     inputs: list[ScrapeInput],
     *,
     settings: Settings,
-    concurrency: int = 10,
-    take_screenshot: bool = False,
-    openai: OpenAIConfig,
-    max_queue_size: int | None = None,
-    on_item_processed: OnSuccessCallback | None = None,
-    on_error: OnErrorCallback | None = None,
+    config: WorkerPoolConfig,
 ) -> list[ScrapedItem]:
     """
     Run concurrent scraping using a worker pool.
@@ -105,24 +130,28 @@ async def run_worker_pool(
     Args:
         inputs (list[ScrapeInput]): List of (url, cleaned_text) tuples.
         settings (Settings): Global scraper configuration.
-        concurrency (int): Number of concurrent worker tasks.
-        take_screenshot (bool): Whether to capture screenshots of pages.
-        openai (OpenAIConfig): OpenAI credentials for authenticated API access.
-        max_queue_size (Optional[int]): Queue size limit (0 = unlimited).
-        on_item_processed (Optional[Callable]): Callback for successful results.
-        on_error (Optional[Callable]): Callback for handling errors.
+        config (WorkerPoolConfig):
+            Parameters that control scraping behavior and worker pool operation.
 
     Returns:
         list[ScrapedItem]: Collected structured data items.
     """
-    queue: asyncio.Queue[ScrapeInput] = asyncio.Queue(maxsize=max_queue_size or 0)
+    queue: asyncio.Queue[ScrapeInput] = asyncio.Queue(maxsize=config.max_queue_size or 0)
     results: list[ScrapedItem] = []
 
     if settings.is_verbose_mode:
-        logger.info(MSG_INFO_WORKER_POOL_START.format(enabled=take_screenshot))
+        logger.info(MSG_INFO_WORKER_POOL_START.format(enabled=config.take_screenshot))
 
     for input_item in inputs:
         await queue.put(input_item)
+
+    context = _WorkerContext(
+        settings=settings,
+        take_screenshot=config.take_screenshot,
+        openai=config.openai,
+        on_item_processed=config.on_item_processed,
+        on_error=config.on_error,
+    )
 
     workers = [
         asyncio.create_task(
@@ -130,14 +159,10 @@ async def run_worker_pool(
                 worker_id=i,
                 queue=queue,
                 results=results,
-                settings=settings,
-                take_screenshot=take_screenshot,
-                openai=openai,
-                on_item_processed=on_item_processed,
-                on_error=on_error,
+                context=context,
             )
         )
-        for i in range(concurrency)
+        for i in range(config.concurrency)
     ]
 
     await queue.join()

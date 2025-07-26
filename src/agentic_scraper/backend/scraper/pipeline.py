@@ -1,12 +1,12 @@
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
-from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
+from agentic_scraper.backend.scraper.worker_pool import WorkerPoolConfig, run_worker_pool
 
 if TYPE_CHECKING:
     from agentic_scraper.backend.config.aliases import ScrapeInput
@@ -18,18 +18,15 @@ async def scrape_urls(
     openai: OpenAIConfig,
 ) -> list[ScrapedItem]:
     """
-    Fetch HTML, extract clean text, and run LLM worker pool to extract structured data.
+    Fetch HTML, extract main text, and run LLM-based extraction with worker pool.
 
     Args:
-        urls (list[str]): List of URLs to scrape.
-        settings (Settings): Runtime configuration (concurrency, logging, screenshot).
-        openai (OpenAIConfig): OpenAI credentials used for LLM extraction.
+        urls (list[str]): List of target URLs.
+        settings (Settings): Runtime scraper settings.
+        openai (OpenAIConfig): OpenAI credentials for structured extraction.
 
     Returns:
-        list[ScrapedItem]: List of successfully extracted items from the given URLs.
-
-    Raises:
-        RuntimeError: If scraping or LLM processing fails at a critical step.
+        list[ScrapedItem]: Successfully extracted structured items.
     """
     html_by_url = await fetch_all(
         urls=urls,
@@ -37,19 +34,22 @@ async def scrape_urls(
         concurrency=settings.fetch_concurrency,
     )
 
-    scrape_inputs: list[ScrapeInput] = []
-    for url, html in html_by_url.items():
-        if html.startswith(FETCH_ERROR_PREFIX):
-            continue
-        text = extract_main_text(html)
-        scrape_inputs.append((url, text))
+    scrape_inputs: list[ScrapeInput] = [
+        (url, extract_main_text(html))
+        for url, html in html_by_url.items()
+        if not html.startswith(FETCH_ERROR_PREFIX)
+    ]
+
+    pool_config = WorkerPoolConfig(
+        take_screenshot=settings.screenshot_enabled,
+        openai=openai,
+        concurrency=settings.llm_concurrency,
+    )
 
     return await run_worker_pool(
         inputs=scrape_inputs,
         settings=settings,
-        concurrency=settings.llm_concurrency,
-        take_screenshot=settings.screenshot_enabled,
-        openai=openai,
+        config=pool_config,
     )
 
 
@@ -57,33 +57,31 @@ async def scrape_with_stats(
     urls: list[str],
     settings: Settings,
     openai: OpenAIConfig,
-) -> tuple[list[ScrapedItem], dict[str, Any]]:
+) -> tuple[list[ScrapedItem], dict[str, float | int]]:
     """
-    Orchestrates scraping of a list of URLs and returns results with execution stats.
+    Scrape a list of URLs and return structured results with execution metrics.
 
     Args:
-        urls (list[str]): List of URLs to scrape.
-        settings (Settings): Runtime configuration object.
-        openai (OpenAIConfig): OpenAI credentials used for LLM extraction.
+        urls (list[str]): Input URLs to scrape and extract from.
+        settings (Settings): Global scraper configuration.
+        openai (OpenAIConfig): OpenAI API credentials.
 
     Returns:
-        tuple[list[ScrapedItem], dict[str, Any]]: A tuple containing:
-            - List of extracted items (`ScrapedItem`)
-            - Dictionary of statistics (e.g., duration, success/failure counts)
-
-    Raises:
-        ValueError: If the inputs are invalid or scraping fails at a systemic level.
-        RuntimeError: If the scraping pipeline encounters critical errors (e.g., worker pool crash).
+        tuple:
+            - list[ScrapedItem]: Extracted structured items.
+            - dict[str, float | int]: Statistics on scraping run.
     """
     start = time.perf_counter()
-    results = await scrape_urls(urls, settings, openai=openai)
-    duration = time.perf_counter() - start
+
+    results = await scrape_urls(urls, settings=settings, openai=openai)
+
+    duration = round(time.perf_counter() - start, 2)
 
     stats = {
         "num_urls": len(urls),
         "num_success": len(results),
         "num_failed": len(urls) - len(results),
-        "duration_sec": round(duration, 2),
+        "duration_sec": duration,
     }
 
     return results, stats

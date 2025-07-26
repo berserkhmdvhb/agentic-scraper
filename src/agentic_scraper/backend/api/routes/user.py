@@ -51,4 +51,4 @@ def get_credentials(user: CurrentUser) -> UserCredentialsOut:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No credentials stored for this user."
         )
-    return UserCredentialsOut(**creds)
+    return UserCredentialsOut(**creds.model_dump())
