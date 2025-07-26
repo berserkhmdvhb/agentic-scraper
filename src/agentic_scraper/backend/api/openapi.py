@@ -13,6 +13,7 @@ security_scheme = {
     }
 }
 
+
 def custom_openapi(app: FastAPI) -> dict[str, Any]:
     """
     Customizes the OpenAPI schema to include JWT Bearer authentication.
@@ -42,11 +43,12 @@ def custom_openapi(app: FastAPI) -> dict[str, Any]:
     openapi_schema["info"]["contact"] = {
         "name": "API Support",
         "url": "https://example.com/support",
-        "email": "support@example.com"
+        "email": "support@example.com",
     }
     openapi_schema["info"]["license"] = {
         "name": "MIT",
-        "url": "https://opensource.org/licenses/MIT"}
+        "url": "https://opensource.org/licenses/MIT",
+    }
 
     # Add security scheme to OpenAPI schema
     openapi_schema["components"]["securitySchemes"] = security_scheme

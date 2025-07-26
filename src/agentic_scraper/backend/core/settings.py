@@ -54,6 +54,7 @@ from agentic_scraper.backend.config.types import (
     OpenAIModel,
 )
 from agentic_scraper.backend.core.settings_helpers import validated_settings
+from agentic_scraper.backend.scraper.models import OpenAIConfig
 from agentic_scraper.backend.utils.validators import (
     validate_backoff_range,
     validate_log_rotation_config,
@@ -70,9 +71,8 @@ class Settings(BaseSettings):
     env: Environment = Field(default=Environment.DEV, validation_alias="ENV")
 
     # OpenAI
-    openai_api_key: str | None = Field(default="<<MISSING>>", validation_alias="OPENAI_API_KEY")
     openai_model: OpenAIModel = Field(default=OpenAIModel.GPT_3_5, validation_alias="OPENAI_MODEL")
-    openai_project_id: str | None = Field(default=None, validation_alias="OPENAI_PROJECT_ID")
+    openai: OpenAIConfig  # Now the OpenAIConfig model is nested under 'openai'
 
     # Network
     request_timeout: int = DEFAULT_REQUEST_TIMEOUT
@@ -197,7 +197,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
-        validate_openai_api_key(self.openai_api_key)
+        # Validate OpenAI API key
+        validate_openai_api_key(self.openai.api_key)  # Access through `self.openai.api_key`
+
+        # Validate retry backoff range
         validate_backoff_range(self.retry_backoff_min, self.retry_backoff_max)
         validate_log_rotation_config(self.log_max_bytes, self.log_backup_count)
         return self
@@ -222,7 +225,7 @@ def log_settings(settings: Settings) -> None:
     log_settings.already_logged = True  # type: ignore[attr-defined]
 
     safe_dump = settings.model_dump(
-        exclude={"openai_api_key", "openai_project_id"},
+        exclude={"openai"},  # Exclude the entire 'openai' attribute
         mode="json",
     )
     formatted = "\n".join(f"  {k}: {v}" for k, v in safe_dump.items())

@@ -28,19 +28,21 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://agenticscraper.onrender.com/",  # Allow production frontend
-        "http://localhost:8501"  # Allow local Streamlit for testing
+        "http://localhost:8501",  # Allow local Streamlit for testing
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 # Enable Swagger UI Bearer Token support by modifying the app.openapi assignment
 def custom_openapi_for_app() -> dict[str, Any]:  # Add type hinting
     return custom_openapi(app)
 
+
 # Assign the custom OpenAPI schema function to app.openapi
-app.openapi = custom_openapi_for_app  # type: ignore
+app.openapi = custom_openapi_for_app  # type: ignore[method-assign]
 
 
 # Health check route

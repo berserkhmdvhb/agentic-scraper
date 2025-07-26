@@ -22,7 +22,7 @@ from agentic_scraper.backend.core.settings import Settings, get_settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
-from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
+from agentic_scraper.backend.scraper.worker_pool import WorkerPoolConfig, run_worker_pool
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
 from agentic_scraper.frontend.models import PipelineConfig
 
@@ -128,10 +128,11 @@ async def display_progress(
     items = await run_worker_pool(
         inputs=inputs,
         settings=settings,
-        concurrency=config.llm_concurrency,
-        take_screenshot=config.screenshot_enabled,
-        on_item_processed=on_item_processed,
-        on_error=on_error,
+        config=WorkerPoolConfig(
+            take_screenshot=config.screenshot_enabled,
+            openai=settings.openai,  # Assuming settings hold the OpenAI config
+            concurrency=config.llm_concurrency,
+        ),
     )
 
     progress.empty()
@@ -149,6 +150,7 @@ async def display_progress(
 async def run_scraper_pipeline(
     urls: list[str], config: PipelineConfig
 ) -> ScrapeResultWithSkipCount:
+    # Update settings to reflect openai credentials properly
     settings = get_settings().model_copy(
         update={
             "fetch_concurrency": config.fetch_concurrency,
@@ -162,18 +164,40 @@ async def run_scraper_pipeline(
         }
     )
 
+    # Ensure that we correctly pass openai credentials to the worker pool
+    openai_credentials = settings.openai  # The updated structure for OpenAI config
+
     sticky = st.empty()
     sticky.info("⏳ Currently processing...", icon="🔄")
 
+    # Fetch input URLs and prepare data
     inputs, fetch_errors, skipped = await fetch_and_prepare_inputs(urls, config, settings)
+
+    # Perform the scraping extraction and handle the progress
     items, extraction_errors = await display_progress(inputs, config, settings)
+
+    # Remove sticky status when done
     sticky.empty()
+
+    # Display error summaries
     display_error_summaries(fetch_errors, extraction_errors)
 
+    # Log completion status
     if items:
         logger.info(MSG_INFO_EXTRACTION_COMPLETE.format(n=len(items)))
     else:
         logger.warning(MSG_WARNING_EXTRACTION_NONE)
+
+    # Pass openai_credentials to the worker pool through WorkerPoolConfig
+    items = await run_worker_pool(
+        inputs=inputs,
+        settings=settings,
+        config=WorkerPoolConfig(
+            take_screenshot=config.screenshot_enabled,
+            openai=openai_credentials,  # Use openai_credentials here
+            concurrency=config.llm_concurrency,
+        ),
+    )
 
     return items, skipped
 
