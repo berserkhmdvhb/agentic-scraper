@@ -28,7 +28,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://agenticscraper.onrender.com/",  # Allow production frontend
-        "http://localhost:8501",  # Allow local Streamlit for testing
+        "http://localhost:8501",
+        "http://127.0.0.1:8000",  # Allow local Streamlit for testing
     ],
     allow_credentials=True,
     allow_methods=["*"],
