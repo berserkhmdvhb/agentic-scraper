@@ -17,7 +17,8 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     log_structured_data,
     parse_llm_response,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.agent.prompt_helpers import build_prompt
+from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
@@ -26,67 +27,61 @@ logger = logging.getLogger(__name__)
 
 
 async def extract_structured_data(
-    text: str,
-    url: str,
+    request: ScrapeRequest,
     *,
-    take_screenshot: bool = False,
     settings: Settings,
 ) -> ScrapedItem | None:
+    """
+    LLM-based extraction with dynamic prompt and per-user API credentials.
+
+    Args:
+        request (ScrapeRequest): Encapsulated parameters including input text, URL,
+            screenshot flag, and OpenAI credentials.
+        settings (Settings): Runtime configuration.
+
+    Returns:
+        ScrapedItem | None: Structured result or None on failure.
+    """
     async for attempt in AsyncRetrying(
         stop=stop_after_attempt(settings.retry_attempts),
         wait=wait_exponential(
-            multiplier=1, min=settings.retry_backoff_min, max=settings.retry_backoff_max
+            multiplier=1,
+            min=settings.retry_backoff_min,
+            max=settings.retry_backoff_max,
         ),
         retry=retry_if_exception_type(OpenAIError),
         reraise=True,
     ):
         with attempt:
-            return await _extract_impl(
-                text, url, take_screenshot=take_screenshot, settings=settings
-            )
+            return await _extract_impl(request=request, settings=settings)
     return None
 
 
 async def _extract_impl(
-    text: str,
-    url: str,
     *,
-    take_screenshot: bool,
+    request: ScrapeRequest,
     settings: Settings,
 ) -> ScrapedItem | None:
-    prompt = f"""
-You are a smart web content extraction agent.
+    """
+    Core LLM extraction logic using a dynamic prompt and user-provided page text.
 
-Analyze the content of the page provided below and return a structured JSON object
-containing the most relevant information.
+    Args:
+        request (ScrapeRequest): Input data including HTML, URL, screenshot toggle, and credentials.
+        settings (Settings): Runtime scraper settings.
 
-You must:
-- Infer the page type (e.g. blog, product, job ad, article).
-- Extract appropriate fields based on that type.
-- Only include fields that are **explicitly present** in the text.
-- Return **valid JSON only**, no markdown or explanation.
-
-Common fields per type include:
-- Blog: title, author, date, tags, summary
-- Product: title, price, brand, availability, features
-- Job ad: job_title, company, location, salary, requirements
-- Article: headline, author, published_date, summary, tags
-
-Always include:
-- url: the original URL of the page
-- page_type: a short label for the type of page (e.g. "product", "blog")
-
-Page URL: {url}
-
-Page Content:
-{text[:4000]}
-""".strip()
+    Returns:
+        ScrapedItem | None: Validated structured item or None on failure.
+    """
+    prompt = build_prompt(
+        text=request.text,
+        url=request.url,
+        prompt_style="simple",
+    )
 
     messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
-
     client = AsyncOpenAI(
-        api_key=settings.openai_api_key,
-        project=settings.openai_project_id,
+        api_key=request.openai.api_key,
+        project=request.openai.project_id,
     )
 
     try:
@@ -96,20 +91,20 @@ Page Content:
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
         )
-
         content = response.choices[0].message.content
         if not content:
-            logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=url))
+            logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=request.url))
             return None
 
-        raw_data = parse_llm_response(content, url, settings)
+        raw_data = parse_llm_response(content, request.url, settings)
         if raw_data is None:
             return None
 
-        raw_data["url"] = url
-        if take_screenshot:
+        raw_data["url"] = request.url
+
+        if request.take_screenshot:
             screenshot_path = await capture_optional_screenshot(
-                url=url,
+                url=request.url,
                 settings=settings,
             )
             if screenshot_path:
@@ -118,13 +113,13 @@ Page Content:
         try:
             item = ScrapedItem.model_validate(raw_data)
         except ValidationError as ve:
-            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
+            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=request.url, exc=ve))
             return None
         else:
             log_structured_data(item.model_dump(mode="json"), settings=settings)
-            logger.info(MSG_INFO_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
+            logger.info(MSG_INFO_EXTRACTION_SUCCESS_WITH_URL.format(url=request.url))
             return item
 
     except (RateLimitError, APIError, OpenAIError) as e:
-        handle_openai_exception(e, url=url, settings=settings)
+        handle_openai_exception(e, url=request.url, settings=settings)
         return None

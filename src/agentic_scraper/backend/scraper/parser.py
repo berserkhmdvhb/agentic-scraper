@@ -33,7 +33,17 @@ def extract_main_text(html: str) -> str:
 
 def extract_title_from_soup(soup: BeautifulSoup, settings: Settings) -> str | None:
     """
-    Extract the <title> tag content from a BeautifulSoup object.
+    Extract the page title from a BeautifulSoup object.
+
+    Looks for the <title> tag and returns its trimmed text if found. Logs debug output
+    if verbose mode is enabled.
+
+    Args:
+        soup (BeautifulSoup): Parsed HTML document.
+        settings (Settings): Global runtime settings for logging verbosity.
+
+    Returns:
+        str | None: Page title if found, else None.
     """
     title_tag = soup.find("title")
     if isinstance(title_tag, Tag):
@@ -47,7 +57,17 @@ def extract_title_from_soup(soup: BeautifulSoup, settings: Settings) -> str | No
 
 def extract_meta_description_from_soup(soup: BeautifulSoup, settings: Settings) -> str | None:
     """
-    Extract the meta description from a BeautifulSoup object if present.
+    Extract the meta description from a BeautifulSoup object.
+
+    Looks for a <meta name="description"> tag and returns its trimmed "content" value
+    if available. Logs debug output if verbose mode is enabled.
+
+    Args:
+        soup (BeautifulSoup): Parsed HTML document.
+        settings (Settings): Global runtime settings for logging verbosity.
+
+    Returns:
+        str | None: Meta description content if found, else None.
     """
     meta_tag = soup.find("meta", attrs={"name": "description"})
     if isinstance(meta_tag, Tag):
@@ -64,6 +84,16 @@ def extract_meta_description_from_soup(soup: BeautifulSoup, settings: Settings) 
 def extract_author_from_soup(soup: BeautifulSoup, settings: Settings) -> str | None:
     """
     Attempt to extract the author's name from known meta tags in a BeautifulSoup object.
+
+    Tries a list of common author-related meta tag attributes such as "author",
+    "article:author", and "byline". Logs debug output if verbose mode is enabled.
+
+    Args:
+        soup (BeautifulSoup): Parsed HTML document.
+        settings (Settings): Global runtime settings for logging verbosity.
+
+    Returns:
+        str | None: Author name if found, else None.
     """
     candidates = [{"name": "author"}, {"property": "article:author"}, {"name": "byline"}]
     for attr in candidates:
@@ -81,7 +111,18 @@ def extract_author_from_soup(soup: BeautifulSoup, settings: Settings) -> str | N
 
 def parse_all_metadata(html: str, settings: Settings) -> dict[str, str | None]:
     """
-    Parse common metadata fields from an HTML document.
+    Parse common metadata fields (title, description, author) from an HTML document.
+
+    Internally parses the HTML into a BeautifulSoup object and applies individual
+    extractors for title, meta description, and author.
+
+    Args:
+        html (str): Raw HTML content of the page.
+        settings (Settings): Global runtime settings for logging verbosity.
+
+    Returns:
+        dict[str, str | None]: Dictionary with keys 'title', 'description', and 'author'.
+        Each value may be None if not found.
     """
     soup = BeautifulSoup(html, "html.parser")
     return {

@@ -16,20 +16,34 @@ logger = logging.getLogger(__name__)
 
 
 def slugify(text: str) -> str:
-    """Sanitize string for safe filename."""
+    """
+    Convert a string into a safe, filesystem-friendly slug.
+
+    Non-alphanumeric characters are replaced with dashes, and the result
+    is trimmed and truncated to a maximum of 40 characters.
+
+    Args:
+        text (str): Input string to sanitize (e.g., domain or page title).
+
+    Returns:
+        str: Slugified string safe for use in filenames.
+    """
     return re.sub(r"[^a-zA-Z0-9]+", "-", text.lower()).strip("-")[:40]
 
 
 async def capture_screenshot(url: str, output_dir: Path) -> str | None:
     """
-    Captures a full-page screenshot of the given URL and saves it in the output directory.
+    Capture a full-page screenshot of the given URL using Playwright.
+
+    The output file is named using a combination of the domain slug and
+    a short hash of the URL to ensure uniqueness.
 
     Args:
-        url (str): The URL to capture.
-        output_dir (Path): The directory to save the screenshot in.
+        url (str): The target URL to capture.
+        output_dir (Path): Directory where the screenshot will be saved.
 
     Returns:
-        str | None: Path to the saved screenshot, or None if failed.
+        str | None: Filesystem path to the saved screenshot, or None if capture failed.
     """
     if not is_valid_url(url):
         logger.error("Invalid URL passed to capture_screenshot: %s", url)

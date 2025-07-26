@@ -1,7 +1,7 @@
 import logging
+from typing import Literal
 
 from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS, MAX_TEXT_FOR_FEWSHOT
-from agentic_scraper.backend.config.messages import MSG_DEBUG_CONTEXTUAL_HINTS_USED
 
 logger = logging.getLogger(__name__)
 
@@ -33,26 +33,64 @@ Required JSON schema (example fields):
 """
 
 
-def build_enhanced_prompt(text: str, url: str, context_hints: dict[str, str]) -> str:
-    """Construct a detailed LLM prompt with context, schema, and optional few-shot example."""
-    meta = context_hints.get("meta")
-    breadcrumbs = context_hints.get("breadcrumbs")
-    url_segments = context_hints.get("url_segments")
+def build_prompt(
+    text: str,
+    url: str,
+    context_hints: dict[str, str] | None = None,
+    *,
+    prompt_style: Literal["simple", "enhanced"] = "simple",
+) -> str:
+    """
+    Build a structured prompt for LLM content extraction based on the chosen style.
 
-    logger.debug(
-        MSG_DEBUG_CONTEXTUAL_HINTS_USED.format(
-            url=url,
-            meta=meta or "N/A",
-            breadcrumbs=breadcrumbs or "N/A",
-            url_segments=url_segments or "N/A",
-        )
-    )
+    Args:
+        text (str): The visible HTML text to analyze.
+        url (str): The source page URL.
+        context_hints (dict | None): Optional metadata like meta tags or breadcrumbs.
+        prompt_style (str): Choose between "simple" and "enhanced".
+
+    Returns:
+        str: The full LLM prompt string.
+    """
+    if prompt_style == "simple":
+        return f"""
+You are a smart web content extraction agent.
+
+Analyze the content of the page provided below and return a structured JSON object
+containing the most relevant information.
+
+You must:
+- Infer the page type (e.g. blog, product, job ad, article).
+- Extract appropriate fields based on that type.
+- Only include fields that are **explicitly present** in the text.
+- Return **valid JSON only**, no markdown or explanation.
+
+Common fields per type include:
+- Blog: title, author, date, tags, summary
+- Product: title, price, brand, availability, features
+- Job ad: job_title, company, location, salary, requirements
+- Article: headline, author, published_date, summary, tags
+
+Always include:
+- url: the original URL of the page
+- page_type: a short label for the type of page (e.g. "product", "blog")
+
+Page URL: {url}
+
+Page Content:
+{text[:4000]}
+""".strip()
+
+    # Enhanced prompt with context
+    meta = context_hints.get("meta") if context_hints else "N/A"
+    breadcrumbs = context_hints.get("breadcrumbs") if context_hints else "N/A"
+    url_segments = context_hints.get("url_segments") if context_hints else "N/A"
 
     context_block = f"""
 Extra context:
-- Meta tags: {meta or "N/A"}
-- Breadcrumbs: {breadcrumbs or "N/A"}
-- URL segments: {url_segments or "N/A"}
+- Meta tags: {meta}
+- Breadcrumbs: {breadcrumbs}
+- URL segments: {url_segments}
 """
 
     example_block = FEW_SHOT_EXAMPLE if len(text) < MAX_TEXT_FOR_FEWSHOT else ""

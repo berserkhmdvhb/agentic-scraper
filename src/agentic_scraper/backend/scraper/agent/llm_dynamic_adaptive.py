@@ -38,12 +38,12 @@ from agentic_scraper.backend.scraper.agent.field_utils import (
     normalize_keys,
     score_fields,
 )
-from agentic_scraper.backend.scraper.agent.prompt_helpers import build_enhanced_prompt
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.agent.prompt_helpers import build_prompt
+from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
 
 logger = logging.getLogger(__name__)
 
-RATE_LIMIT_RETRY_REGEX = re.compile(r"(?:retry|try again).*?(\\d+(?:\\.\\d+)?)s", re.IGNORECASE)
+RATE_LIMIT_RETRY_REGEX = re.compile(r"(?:retry|try again).*?(\d+(?:\.\d+)?)s", re.IGNORECASE)
 
 
 async def run_llm_with_retries(
@@ -52,6 +52,22 @@ async def run_llm_with_retries(
     settings: Settings,
     url: str,
 ) -> str | None:
+    """
+    Calls the OpenAI Chat Completion API with retry logic and rate limit handling.
+
+    This function wraps an OpenAI call using tenacity to automatically retry
+    on transient `OpenAIError` exceptions. If a rate limit is detected with a delay,
+    it pauses accordingly before retrying.
+
+    Args:
+        client (AsyncOpenAI): An authenticated OpenAI async client.
+        messages (list[ChatCompletionMessageParam]): Chat history to send to the model.
+        settings (Settings): Retry configuration (attempts, backoff).
+        url (str): URL for context, used in logging.
+
+    Returns:
+        str | None: The raw text content returned by the model, or None on failure.
+    """
     async for attempt in AsyncRetrying(
         stop=stop_after_attempt(settings.retry_attempts),
         wait=wait_random_exponential(
@@ -93,6 +109,29 @@ async def process_llm_output(
     take_screenshot: bool,
     settings: Settings,
 ) -> tuple[ScrapedItem | None, str, set[str], dict[str, Any]]:
+    """
+    Parses, normalizes, and validates the raw LLM response into a structured ScrapedItem.
+
+    This function handles:
+    - JSON parsing
+    - Field normalization
+    - Screenshot capture (if enabled)
+    - Pydantic schema validation
+    - Logging of structured data
+
+    Args:
+        content (str): Raw JSON string returned by the LLM.
+        url (str): The source URL of the content.
+        take_screenshot (bool): Whether to capture a screenshot if validation succeeds.
+        settings (Settings): Application settings for logging, screenshot, and model validation.
+
+    Returns:
+        tuple:
+            - ScrapedItem | None: Validated item or None on failure.
+            - str: Inferred or extracted page type.
+            - set[str]: Observed field names in the JSON object.
+            - dict[str, Any]: The raw parsed JSON data.
+    """
     raw_data = parse_llm_response(content, url, settings)
     if raw_data is None:
         return None, "", set(), {}
@@ -117,22 +156,35 @@ async def process_llm_output(
 
 
 async def extract_adaptive_data(
-    text: str,
-    url: str,
+    request: ScrapeRequest,
     *,
-    context_hints: dict[str, str] | None = None,
-    take_screenshot: bool = False,
     settings: Settings,
 ) -> ScrapedItem | None:
-    if context_hints is None:
-        context_hints = extract_context_hints(text, url)
+    """
+    Extract structured data from text using an adaptive LLM loop with retries.
 
-    prompt = build_enhanced_prompt(text, url, context_hints)
+    Args:
+        request (ScrapeRequest):
+            Includes text, URL, optional screenshot and context hints, and OpenAI credentials.
+        settings (Settings): Project settings for retries, temperature, etc.
+
+    Returns:
+        ScrapedItem | None: Validated structured item, or None on failure.
+    """
+    if request.context_hints is None:
+        context_hints = request.context_hints or extract_context_hints(request.text, request.url)
+
+    prompt = build_prompt(
+        text=request.text,
+        url=request.url,
+        prompt_style="enhanced",
+        context_hints=context_hints,
+    )
     messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
 
     client = AsyncOpenAI(
-        api_key=settings.openai_api_key,
-        project=settings.openai_project_id,
+        api_key=request.openai.api_key,
+        project=request.openai.project_id,
     )
 
     best_score = 0
@@ -143,17 +195,17 @@ async def extract_adaptive_data(
             MSG_DEBUG_LLM_RETRY_ATTEMPT.format(
                 attempt=attempt_num,
                 total=settings.llm_schema_retries,
-                url=url,
+                url=request.url,
             )
         )
-        content = await run_llm_with_retries(client, messages, settings, url)
+        content = await run_llm_with_retries(client, messages, settings, request.url)
         if content is None:
             return None
 
         item, page_type, observed_fields, raw_data = await process_llm_output(
             content=content,
-            url=url,
-            take_screenshot=take_screenshot,
+            url=request.url,
+            take_screenshot=request.take_screenshot,
             settings=settings,
         )
 
@@ -183,7 +235,7 @@ async def extract_adaptive_data(
         score = score_fields(observed_fields)
         logger.debug(
             MSG_DEBUG_FIELD_SCORE_PER_RETRY.format(
-                url=url,
+                url=request.url,
                 attempt=attempt_num,
                 score=score,
                 fields=sorted(observed_fields),
@@ -198,15 +250,15 @@ async def extract_adaptive_data(
         try:
             item = ScrapedItem.model_validate(best_fields)
         except ValidationError as ve:
-            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
+            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=request.url, exc=ve))
         else:
-            logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
+            logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=request.url))
             return item
 
     logger.warning(
         MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES.format(
             attempts=settings.llm_schema_retries,
-            url=url,
+            url=request.url,
         )
     )
     return None

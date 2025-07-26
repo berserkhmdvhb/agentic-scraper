@@ -13,6 +13,17 @@ settings = get_settings()
 
 @lru_cache
 def get_jwks() -> list[dict[str, Any]]:
+    """
+    Fetch and cache the JSON Web Key Set (JWKS) from Auth0.
+
+    This set contains the public RSA keys used to verify JWT signatures.
+
+    Returns:
+        list[dict[str, Any]]: A list of public keys in JWKS format.
+
+    Raises:
+        HTTPException: If the JWKS endpoint cannot be reached or returns an error.
+    """
     url = f"https://{settings.auth0_domain}/.well-known/jwks.json"
     try:
         response = httpx.get(url)
@@ -26,6 +37,25 @@ def get_jwks() -> list[dict[str, Any]]:
 
 
 def verify_jwt(token: str) -> dict[str, Any]:
+    """
+    Verify a JWT using Auth0's public keys.
+
+    This function:
+    - Extracts the JWT header
+    - Locates the matching RSA key in the JWKS
+    - Decodes and validates the token's signature and claims
+
+    Args:
+        token (str): The encoded JWT string to validate.
+
+    Returns:
+        dict[str, Any]: The decoded token payload if valid.
+
+    Raises:
+        HTTPException:
+            - 401 if the token is expired, malformed, or unverifiable.
+            - 503 if JWKS cannot be fetched.
+    """
     try:
         unverified_header = jwt.get_unverified_header(token)
         jwks = get_jwks()

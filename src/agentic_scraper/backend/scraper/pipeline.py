@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
 from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
 
@@ -12,16 +12,24 @@ if TYPE_CHECKING:
     from agentic_scraper.backend.config.aliases import ScrapeInput
 
 
-async def scrape_urls(urls: list[str], settings: Settings) -> list[ScrapedItem]:
+async def scrape_urls(
+    urls: list[str],
+    settings: Settings,
+    openai: OpenAIConfig,
+) -> list[ScrapedItem]:
     """
-    Fetch HTML, extract clean text, run LLM worker pool, return all results.
+    Fetch HTML, extract clean text, and run LLM worker pool to extract structured data.
 
     Args:
-        urls (List[str]): List of URLs to scrape.
-        settings (Settings): Runtime config (concurrency, screenshot, logging).
+        urls (list[str]): List of URLs to scrape.
+        settings (Settings): Runtime configuration (concurrency, logging, screenshot).
+        openai (OpenAIConfig): OpenAI credentials used for LLM extraction.
 
     Returns:
-        List[ScrapedItem]: Successful results.
+        list[ScrapedItem]: List of successfully extracted items from the given URLs.
+
+    Raises:
+        RuntimeError: If scraping or LLM processing fails at a critical step.
     """
     html_by_url = await fetch_all(
         urls=urls,
@@ -41,20 +49,34 @@ async def scrape_urls(urls: list[str], settings: Settings) -> list[ScrapedItem]:
         settings=settings,
         concurrency=settings.llm_concurrency,
         take_screenshot=settings.screenshot_enabled,
+        openai=openai,
     )
 
 
 async def scrape_with_stats(
-    urls: list[str], settings: Settings
+    urls: list[str],
+    settings: Settings,
+    openai: OpenAIConfig,
 ) -> tuple[list[ScrapedItem], dict[str, Any]]:
     """
-    Run scrape_urls and return results with basic metrics.
+    Orchestrates scraping of a list of URLs and returns results with execution stats.
+
+    Args:
+        urls (list[str]): List of URLs to scrape.
+        settings (Settings): Runtime configuration object.
+        openai (OpenAIConfig): OpenAI credentials used for LLM extraction.
 
     Returns:
-        Tuple[List[ScrapedItem], Dict[str, Any]]: Items and stats like duration and success count.
+        tuple[list[ScrapedItem], dict[str, Any]]: A tuple containing:
+            - List of extracted items (`ScrapedItem`)
+            - Dictionary of statistics (e.g., duration, success/failure counts)
+
+    Raises:
+        ValueError: If the inputs are invalid or scraping fails at a systemic level.
+        RuntimeError: If the scraping pipeline encounters critical errors (e.g., worker pool crash).
     """
     start = time.perf_counter()
-    results = await scrape_urls(urls, settings)
+    results = await scrape_urls(urls, settings, openai=openai)
     duration = time.perf_counter() - start
 
     stats = {

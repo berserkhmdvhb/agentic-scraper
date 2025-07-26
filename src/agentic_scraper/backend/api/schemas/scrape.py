@@ -7,7 +7,9 @@ from agentic_scraper.backend.scraper.models import ScrapedItem
 UrlsType = Annotated[
     list[HttpUrl],
     Field(
-        min_items=1, description="List of URLs to scrape", examples=[["https://example.com/page1"]]
+        min_items=1,
+        description="List of URLs to scrape",
+        examples=[["https://example.com/page1"]],
     ),
 ]
 

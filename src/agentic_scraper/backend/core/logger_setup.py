@@ -18,10 +18,25 @@ from agentic_scraper.backend.core.settings import (
 
 
 def get_logger() -> logging.Logger:
+    """
+    Get the main logger instance used throughout the application.
+
+    Returns:
+        logging.Logger: The application-level logger with the configured name.
+    """
     return logging.getLogger(LOGGER_NAME)
 
 
 def teardown_logger(logger: logging.Logger | None = None) -> None:
+    """
+    Flush and remove all handlers from the specified logger.
+
+    This is useful for resetting the logger during testing or before reinitializing.
+
+    Args:
+        logger (logging.Logger | None):
+            Logger instance to clean up. If None, uses the default application logger.
+    """
     logger = logger or get_logger()
     for handler in logger.handlers[:]:
         handler.flush()
@@ -32,6 +47,24 @@ def teardown_logger(logger: logging.Logger | None = None) -> None:
 def setup_logging(
     *, reset: bool = False, return_handlers: bool = False
 ) -> list[logging.Handler] | None:
+    """
+    Set up logging for both console and rotating file output with structured formatting.
+
+    This function initializes:
+    - A console stream handler (level based on settings or verbose mode)
+    - A rotating file handler (always logs DEBUG level)
+
+    Applies consistent formatting, environment tagging, and log rotation settings.
+
+    Args:
+        reset (bool, optional): If True, clears existing handlers before setup. Defaults to False.
+        return_handlers (bool, optional):
+            If True, returns the installed handlers for testing or inspection.
+
+    Returns:
+        list[logging.Handler] | None:
+            The created logging handlers if `return_handlers` is True, else None.
+    """
     logger = get_logger()
 
     if reset:

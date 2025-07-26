@@ -23,7 +23,18 @@ logger = logging.getLogger(__name__)
 
 
 def guess_price(text: str) -> float | None:
-    """Find and return the first valid-looking price in the text."""
+    """
+    Extract the first valid price from the text using regex.
+
+    The regex pattern matches numbers that appear to be prices (e.g. €19.99 or 45,00).
+    Commas are replaced with dots before parsing.
+
+    Args:
+        text (str): Raw page text.
+
+    Returns:
+        float | None: Parsed price or None if not found or invalid.
+    """
     price_match = re.search(REGEX_PRICE_PATTERN, text)
     if price_match:
         try:
@@ -34,7 +45,15 @@ def guess_price(text: str) -> float | None:
 
 
 def guess_title(text: str) -> str | None:
-    """Return the first non-empty line as a title."""
+    """
+    Extract a potential title from the first non-empty line in the text.
+
+    Args:
+        text (str): Raw page text.
+
+    Returns:
+        str | None: Cleaned title or None if not found.
+    """
     for line in text.strip().splitlines():
         clean = line.strip()
         if clean:
@@ -43,7 +62,17 @@ def guess_title(text: str) -> str | None:
 
 
 def guess_description(text: str) -> str | None:
-    """Return the first paragraph with a reasonable length."""
+    """
+    Find the first paragraph of reasonable length to use as a description.
+
+    A valid paragraph must meet the configured min/max character thresholds.
+
+    Args:
+        text (str): Raw page text.
+
+    Returns:
+        str | None: Selected paragraph or None if none match criteria.
+    """
     paragraphs = re.split(REGEX_PARAGRAPH_SPLIT_PATTERN, text)
     for p in paragraphs:
         clean = p.strip()
@@ -60,7 +89,19 @@ async def extract_structured_data(
     settings: Settings,
 ) -> ScrapedItem | None:
     """
-    Rule-based fallback extraction from plain text input.
+    Perform rule-based scraping to extract structured fields from text.
+
+    This fallback method attempts to heuristically determine basic fields
+    like title, description, and price using simple pattern matching.
+
+    Args:
+        text (str): Main visible content extracted from the page.
+        url (str): The source page URL.
+        take_screenshot (bool): Whether to capture a screenshot of the page.
+        settings (Settings): Runtime scraper configuration.
+
+    Returns:
+        ScrapedItem | None: Structured data or None if validation fails.
     """
     title = guess_title(text)
     description = guess_description(text)

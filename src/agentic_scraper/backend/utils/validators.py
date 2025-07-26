@@ -44,6 +44,7 @@ def format_with_valid_options(
     value: str,
     valid_values: set[str],
 ) -> str:
+    """Format an error message with the given value and allowed options."""
     return template.format(
         **{value_label: value},
         valid_options=", ".join(sorted(valid_values)),
@@ -51,29 +52,13 @@ def format_with_valid_options(
 
 
 def is_valid_url(url: str) -> bool:
-    """
-    Check if a given string is a valid HTTP/HTTPS URL.
-
-    Args:
-        url (str): The URL to validate.
-
-    Returns:
-        bool: True if valid, False otherwise.
-    """
+    """Check if a string is a valid HTTP/HTTPS URL."""
     parsed = urlparse(url.strip())
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
 def clean_input_urls(raw: str) -> list[str]:
-    """
-    Process raw input text (from textarea or file) into a list of cleaned URLs.
-
-    Args:
-        raw (str): Multi-line string with one or more URLs.
-
-    Returns:
-        list[str]: List of valid, stripped URLs.
-    """
+    """Split and clean raw multiline input into a list of valid URLs."""
     lines = raw.strip().splitlines()
     cleaned = [line.strip() for line in lines if line.strip()]
 
@@ -88,15 +73,7 @@ def clean_input_urls(raw: str) -> list[str]:
 
 
 def deduplicate_urls(urls: list[str]) -> list[str]:
-    """
-    Remove duplicate URLs while preserving order.
-
-    Args:
-        urls (list[str]): Input list of URLs.
-
-    Returns:
-        list[str]: Unique URLs in original order.
-    """
+    """Remove duplicates from a list of URLs, preserving order."""
     seen = set()
     result = []
     for url in urls:
@@ -107,15 +84,7 @@ def deduplicate_urls(urls: list[str]) -> list[str]:
 
 
 def filter_successful(results: dict[str, str]) -> dict[str, str]:
-    """
-    Filter out URLs where fetching failed (error string prefixed with __FETCH_ERROR__).
-
-    Args:
-        results (dict[str, str]): Map of url → html or error message.
-
-    Returns:
-        dict[str, str]: Only successfully fetched URLs.
-    """
+    """Filter out entries that contain fetch errors."""
     return {url: html for url, html in results.items() if not html.startswith(FETCH_ERROR_PREFIX)}
 
 
@@ -129,6 +98,7 @@ def filter_successful(results: dict[str, str]) -> dict[str, str]:
 
 
 def validate_openai_model(model: str) -> str:
+    """Ensure the OpenAI model string is among supported values."""
     if model not in VALID_OPENAI_MODELS:
         raise ValueError(
             format_with_valid_options(
@@ -142,12 +112,14 @@ def validate_openai_model(model: str) -> str:
 
 
 def validate_timeout(seconds: int) -> int:
+    """Ensure timeout value is a positive integer."""
     if seconds <= 0:
         raise ValueError(MSG_ERROR_INVALID_TIMEOUT.format(value=seconds))
     return seconds
 
 
 def validate_log_level(level: str) -> str:
+    """Ensure log level is valid (e.g., DEBUG, INFO)."""
     level = level.upper()
     if level not in VALID_LOG_LEVELS:
         raise ValueError(
@@ -162,22 +134,26 @@ def validate_log_level(level: str) -> str:
 
 
 def validate_log_max_bytes(n: int) -> int:
+    """Ensure max log file size is positive."""
     if n <= 0:
         raise ValueError(MSG_ERROR_INVALID_LOG_BYTES.format(value=n))
     return n
 
 
 def validate_log_backup_count(n: int) -> int:
+    """Ensure log backup count is non-negative."""
     if n < 0:
         raise ValueError(MSG_ERROR_INVALID_BACKUP_COUNT.format(value=n))
     return n
 
 
 def validate_path(path_str: str) -> Path:
+    """Convert a string to an absolute resolved Path."""
     return Path(path_str).resolve()
 
 
 def validate_env(env: str) -> str:
+    """Ensure the environment is one of the supported values."""
     if env.upper() not in VALID_ENVIRONMENTS:
         raise ValueError(
             format_with_valid_options(
@@ -191,6 +167,7 @@ def validate_env(env: str) -> str:
 
 
 def validate_optional_str(value: str | None, field_name: str = "value") -> str | None:
+    """Ensure optional string is not empty if present."""
     if value is None:
         return None
     if value.strip() == "":
@@ -199,13 +176,14 @@ def validate_optional_str(value: str | None, field_name: str = "value") -> str |
 
 
 def validate_price(value: float | None) -> float | None:
-    """Ensure price is non-negative if present."""
+    """Ensure price is non-negative, if provided."""
     if value is not None and value < 0:
         raise ValueError(MSG_ERROR_INVALID_PRICE.format(value=value))
     return value
 
 
 def ensure_directory(path: Path) -> Path:
+    """Ensure the given path exists and is a directory."""
     path = path.resolve()
     if path.exists() and not path.is_dir():
         raise ValueError(MSG_ERROR_NOT_A_DIRECTORY % path)
@@ -214,6 +192,7 @@ def ensure_directory(path: Path) -> Path:
 
 
 def validate_agent_mode(mode: str) -> str:
+    """Ensure the agent mode is one of the valid options."""
     mode = mode.strip().lower()
     if mode not in VALID_AGENT_MODES:
         raise ValueError(
@@ -228,13 +207,14 @@ def validate_agent_mode(mode: str) -> str:
 
 
 def validate_openai_api_key(api_key: str | None) -> str:
+    """Raise error if API key is missing or invalid."""
     if api_key in (None, "", "<<MISSING>>"):
         raise ValueError(MSG_ERROR_MISSING_API_KEY)
     return str(api_key)
 
 
 def validate_or_create_dir(path_str: str) -> str:
-    """Ensure the given path is a valid directory; create it if missing."""
+    """Ensure the path is a directory, create if missing."""
     path = Path(path_str)
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
@@ -244,11 +224,13 @@ def validate_or_create_dir(path_str: str) -> str:
 
 
 def validate_log_rotation_config(max_bytes: int, backup_count: int) -> None:
+    """Validate that log rotation parameters are compatible."""
     if max_bytes > 0 and backup_count <= 0:
         raise ValueError(MSG_ERROR_LOG_BACKUP_COUNT_INVALID)
 
 
 def validate_backoff_range(min_backoff: float, max_backoff: float) -> None:
+    """Ensure min backoff does not exceed max."""
     if min_backoff > max_backoff:
         raise ValueError(
             MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX.format(min=min_backoff, max=max_backoff)
@@ -256,7 +238,7 @@ def validate_backoff_range(min_backoff: float, max_backoff: float) -> None:
 
 
 def clean_price(v: str | float | None) -> float | str | None:
-    """Sanitize and convert a price string like '$1,299.99' or '€1.299,99' to float."""
+    """Parse and sanitize a price string or float."""
     if isinstance(v, str):
         cleaned = re.sub(r"[^\d.,-]", "", v)
         cleaned = cleaned.replace(",", "")
@@ -268,18 +250,21 @@ def clean_price(v: str | float | None) -> float | str | None:
 
 
 def validate_auth0_domain(domain: str) -> str:
+    """Ensure the Auth0 domain is syntactically valid."""
     if not domain or "." not in domain:
         raise ValueError(MSG_ERROR_INVALID_AUTH0_DOMAIN)
     return domain.strip()
 
 
 def validate_api_audience(audience: str) -> str:
+    """Ensure the API audience starts with 'http'."""
     if not audience.startswith("http"):
         raise ValueError(MSG_ERROR_INVALID_API_AUDIENCE)
     return audience.rstrip("/")
 
 
 def validate_encryption_secret(secret: str) -> str:
+    """Ensure encryption secret meets length requirements."""
     if len(secret.strip()) < MIN_ENCRYPTION_SECRET_LENGTH:
         raise ValueError(
             MSG_ERROR_INVALID_ENCRYPTION_SECRET.format(value=MIN_ENCRYPTION_SECRET_LENGTH)
@@ -288,6 +273,7 @@ def validate_encryption_secret(secret: str) -> str:
 
 
 def validate_auth0_algorithms(value: list[str]) -> list[str]:
+    """Ensure provided Auth0 algorithms are in the allowed list."""
     if not value:
         raise ValueError(MSG_ERROR_EMPTY_AUTH0_ALGORITHMS)
 

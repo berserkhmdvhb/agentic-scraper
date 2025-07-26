@@ -7,7 +7,6 @@ from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt,
 
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
-    MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL,
     MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
     MSG_INFO_EXTRACTION_SUCCESS_WITH_URL,
     MSG_SYSTEM_PROMPT,
@@ -19,7 +18,7 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     log_structured_data,
     parse_llm_response,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
@@ -28,46 +27,66 @@ logger = logging.getLogger(__name__)
 
 
 async def extract_structured_data(
-    text: str,
-    url: str,
+    request: ScrapeRequest,
     *,
-    take_screenshot: bool = False,
     settings: Settings,
 ) -> ScrapedItem | None:
     """
-    Run OpenAI + optional screenshot capture with retry behavior driven by Settings.
+    Run fixed-schema OpenAI extraction with retry logic and optional screenshot capture.
+
+    This function sends the provided page content to an LLM using a consistent system prompt,
+    parses the JSON result, optionally captures a screenshot, and validates the structured data.
+
+    Args:
+        request (ScrapeRequest): Encapsulated request parameters including text, url,
+            screenshot preference, and OpenAI credentials.
+        settings (Settings): Runtime settings including retry limits, model choice, etc.
+
+    Returns:
+        ScrapedItem | None: A structured, validated result object, or None if extraction failed.
     """
     async for attempt in AsyncRetrying(
         stop=stop_after_attempt(settings.retry_attempts),
         wait=wait_exponential(
-            multiplier=1, min=settings.retry_backoff_min, max=settings.retry_backoff_max
+            multiplier=1,
+            min=settings.retry_backoff_min,
+            max=settings.retry_backoff_max,
         ),
         retry=retry_if_exception_type(OpenAIError),
         reraise=True,
     ):
         with attempt:
             return await _extract_impl(
-                text, url, take_screenshot=take_screenshot, settings=settings
+                request=request,
+                settings=settings,
             )
 
     return None
 
 
 async def _extract_impl(
-    text: str,
-    url: str,
     *,
-    take_screenshot: bool,
+    request: ScrapeRequest,
     settings: Settings,
 ) -> ScrapedItem | None:
+    """
+    Run OpenAI + optional screenshot capture with retry behavior driven by Settings.
+
+    Args:
+        request (ScrapeRequest): Input data including HTML, URL, screenshot toggle, and credentials.
+        settings (Settings): Global runtime settings.
+
+    Returns:
+        ScrapedItem | None: Parsed result or None on failure.
+    """
     messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": MSG_SYSTEM_PROMPT},
-        {"role": "user", "content": text[:4000]},
+        {"role": "user", "content": request.text[:4000]},
     ]
 
     client = AsyncOpenAI(
-        api_key=settings.openai_api_key,
-        project=settings.openai_project_id,
+        api_key=request.openai.api_key,
+        project=request.openai.project_id,
     )
 
     try:
@@ -78,36 +97,31 @@ async def _extract_impl(
             max_tokens=settings.llm_max_tokens,
         )
 
-        try:
-            content = response.choices[0].message.content
-        except (IndexError, AttributeError):
-            logger.warning(MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL.format(url=url))
-            return None
-
+        content = response.choices[0].message.content
         if content is None:
-            logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=url))
+            logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=request.url))
             return None
 
-        raw_data = parse_llm_response(content, url, settings)
+        raw_data = parse_llm_response(content, request.url, settings)
         if raw_data is None:
             return None
 
-        if take_screenshot:
-            screenshot = await capture_optional_screenshot(url, settings)
+        if request.take_screenshot:
+            screenshot = await capture_optional_screenshot(request.url, settings)
             if screenshot:
                 raw_data["screenshot_path"] = screenshot
 
         try:
-            item = ScrapedItem.model_validate({**raw_data, "url": url})
+            item = ScrapedItem.model_validate({**raw_data, "url": request.url})
         except ValidationError as ve:
-            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
+            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=request.url, exc=ve))
             return None
         else:
             log_structured_data(item.model_dump(mode="json"), settings=settings)
-            logger.info(MSG_INFO_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
+            logger.info(MSG_INFO_EXTRACTION_SUCCESS_WITH_URL.format(url=request.url))
             return item
 
     except (RateLimitError, APIError, OpenAIError) as e:
-        handle_openai_exception(e, url=url, settings=settings)
+        handle_openai_exception(e, url=request.url, settings=settings)
 
     return None

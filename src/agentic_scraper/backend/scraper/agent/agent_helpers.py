@@ -31,8 +31,17 @@ logger = logging.getLogger(__name__)
 
 def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, Any] | None:
     """
-    Safely parse LLM JSON content. Logs errors and returns None on failure.
+    Safely parse JSON output from an LLM response.
+
+    Args:
+        content (str): Raw JSON string returned by the LLM.
+        url (str): URL the content is associated with (for logging context).
+        settings (Settings): Runtime configuration settings.
+
+    Returns:
+        dict[str, Any] | None: Parsed dictionary if successful, otherwise None.
     """
+
     try:
         return cast("dict[str, Any]", json.loads(content))
     except json.JSONDecodeError as e:
@@ -44,8 +53,16 @@ def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, 
 
 async def capture_optional_screenshot(url: str, settings: Settings) -> str | None:
     """
-    Try to capture a screenshot. Logs any failure and returns None.
+    Attempt to capture a screenshot of the given URL using Playwright.
+
+    Args:
+        url (str): Web page URL to capture.
+        settings (Settings): Configuration settings, including screenshot directory.
+
+    Returns:
+        str | None: Path to the screenshot file, or None on failure.
     """
+
     try:
         return await capture_screenshot(url, output_dir=Path(settings.screenshot_dir))
     except (PlaywrightError, OSError, ValueError):
@@ -55,8 +72,14 @@ async def capture_optional_screenshot(url: str, settings: Settings) -> str | Non
 
 def handle_openai_exception(e: OpenAIError, url: str, settings: Settings) -> None:
     """
-    Log structured errors from OpenAI exceptions with optional verbose detail.
+    Log OpenAI-related exceptions with context-aware verbosity.
+
+    Args:
+        e (OpenAIError): Exception raised by the OpenAI client.
+        url (str): URL being processed when the error occurred.
+        settings (Settings): Runtime configuration settings.
     """
+
     if isinstance(e, RateLimitError):
         logger.warning(MSG_ERROR_RATE_LIMIT_LOG_WITH_URL.format(url=url))
         if settings.is_verbose_mode:
@@ -73,6 +96,16 @@ def handle_openai_exception(e: OpenAIError, url: str, settings: Settings) -> Non
 
 
 def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
+    """
+    Log and optionally persist structured LLM output.
+
+    If `settings.is_verbose_mode` is enabled, logs a summary of field types.
+    If `settings.dump_llm_json_dir` is set, dumps the raw data to a timestamped JSON file.
+
+    Args:
+        data (dict[str, Any]): Parsed structured data from the LLM.
+        settings (Settings): Configuration flags for logging and dumping behavior.
+    """
     if not settings.is_verbose_mode:
         return
 
@@ -97,10 +130,19 @@ def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
 
 def extract_context_hints(html: str, url: str) -> dict[str, str]:
     """
-    Extract contextual hints from HTML and URL for LLM prompting:
-    - Meta tags summary
-    - Breadcrumbs
-    - URL segments
+    Extract structured hints from HTML and URL to improve LLM prompt context.
+
+    This includes:
+    - Meta tags (name/content or property/content pairs)
+    - Breadcrumb-like elements (from known CSS classes/IDs)
+    - URL path segments
+
+    Args:
+        html (str): Full HTML content of the page.
+        url (str): The originating URL for the page.
+
+    Returns:
+        dict[str, str]: Dictionary with 'meta', 'breadcrumbs', and 'url_segments' keys.
     """
     soup = BeautifulSoup(html, "html.parser")
 

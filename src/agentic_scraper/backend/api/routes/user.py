@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, TypedDict
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
@@ -12,16 +12,23 @@ from agentic_scraper.backend.api.user_store import load_user_credentials, save_u
 
 router = APIRouter()
 
-CurrentUser = Annotated[dict, Depends(get_current_user)]
+
+class AuthUser(TypedDict):
+    sub: str
+    email: str | None
+    name: str | None
+
+
+CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
 
 
 @router.get("/me", tags=["User"])
 def get_me(user: CurrentUser) -> UserProfile:
-    return {
-        "sub": user["sub"],
-        "email": user.get("email"),
-        "name": user.get("name"),
-    }
+    return UserProfile(
+        sub=user["sub"],
+        email=user.get("email"),
+        name=user.get("name"),
+    )
 
 
 @router.post("/openai-credentials", status_code=status.HTTP_204_NO_CONTENT, tags=["User"])
@@ -37,11 +44,11 @@ def post_credentials(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/openai-credentials")
+@router.get("/openai-credentials", tags=["User"])
 def get_credentials(user: CurrentUser) -> UserCredentialsOut:
     creds = load_user_credentials(user["sub"])
     if not creds:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No credentials stored for this user."
         )
-    return creds
+    return UserCredentialsOut(**creds)

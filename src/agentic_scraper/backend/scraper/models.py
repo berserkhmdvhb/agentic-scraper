@@ -7,7 +7,12 @@ from agentic_scraper.backend.utils.validators import (
 
 
 class ScrapedItem(BaseModel):
-    """The structured output from scraping a single webpage."""
+    """
+    Represents structured data extracted from a single web page.
+
+    This model is returned by all scraping agents. It includes common fields such as title,
+    description, price, and publication metadata. Extra fields from the LLM are allowed.
+    """
 
     url: HttpUrl
     title: str | None = Field(default=None, description="Main title or heading")
@@ -35,4 +40,19 @@ class ScrapedItem(BaseModel):
     )
 
     class Config:
+        """Pydantic configuration: allow extra fields returned by the LLM."""
+
         extra = "allow"  # Allow LLM to return more fields than expected
+
+
+class OpenAIConfig(BaseModel):
+    api_key: str
+    project_id: str
+
+
+class ScrapeRequest(BaseModel):
+    text: str
+    url: str
+    take_screenshot: bool = False
+    openai: OpenAIConfig
+    context_hints: dict[str, str] | None = None
