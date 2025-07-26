@@ -46,8 +46,8 @@ class ScrapedItem(BaseModel):
 
 
 class OpenAIConfig(BaseModel):
-    api_key: str
-    project_id: str
+    api_key: str | None = None
+    project_id: str | None = None
 
 
 class ScrapeRequest(BaseModel):

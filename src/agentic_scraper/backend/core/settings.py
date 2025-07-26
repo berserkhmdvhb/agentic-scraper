@@ -72,7 +72,7 @@ class Settings(BaseSettings):
 
     # OpenAI
     openai_model: OpenAIModel = Field(default=OpenAIModel.GPT_3_5, validation_alias="OPENAI_MODEL")
-    openai: OpenAIConfig  # Now the OpenAIConfig model is nested under 'openai'
+    openai: OpenAIConfig | None = None
 
     # Network
     request_timeout: int = DEFAULT_REQUEST_TIMEOUT
@@ -198,7 +198,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_config(self) -> "Settings":
         # Validate OpenAI API key
-        validate_openai_api_key(self.openai.api_key)  # Access through `self.openai.api_key`
+        if self.openai:
+            validate_openai_api_key(self.openai.api_key)  # Access through `self.openai.api_key`
 
         # Validate retry backoff range
         validate_backoff_range(self.retry_backoff_min, self.retry_backoff_max)
