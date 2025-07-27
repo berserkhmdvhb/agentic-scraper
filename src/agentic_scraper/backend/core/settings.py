@@ -63,7 +63,6 @@ from agentic_scraper.backend.utils.validators import (
 
 logger = logging.getLogger(__name__)
 
-
 class Settings(BaseSettings):
     # General
     project_name: str = PROJECT_NAME
@@ -84,7 +83,6 @@ class Settings(BaseSettings):
     )
 
     # Agent behavior
-
     agent_mode: AgentMode = Field(
         default=AgentMode.LLM_FIXED,
         validation_alias="AGENT_MODE",
@@ -179,10 +177,12 @@ class Settings(BaseSettings):
 
     # Authentication & Security
     auth0_domain: str = Field(..., validation_alias="AUTH0_DOMAIN")
+    auth0_issuer: str = Field(..., validation_alias="AUTH0_ISSUER")
     auth0_client_id: str = Field(..., validation_alias="AUTH0_CLIENT_ID")
     auth0_client_secret: str = Field(..., validation_alias="AUTH0_CLIENT_SECRET")
     api_audience: str = Field(..., validation_alias="API_AUDIENCE")
-    auth0_algorithms: list[str] = Field(default=[DEFAULT_AUTH0_ALGORITHM])
+    auth0_algorithm: list[str] = Field(default=[DEFAULT_AUTH0_ALGORITHM])
+    auth0_audience: str = Field(..., validation_alias="AUTH0_AUDIENCE")
     encryption_secret: str = Field(..., validation_alias="ENCRYPTION_SECRET")
 
     # Derived

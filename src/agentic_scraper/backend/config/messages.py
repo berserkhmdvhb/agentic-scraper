@@ -31,6 +31,36 @@ MSG_INFO_SHUTDOWN_LOG = "Shutdown complete, cleaning up resources..."
 MSG_INFO_PRELOADING_JWKS = "Preloading JWKS from Auth0..."
 MSG_DEBUG_LIFESPAN_STARTED = "Lifespan started for app: {app}"
 
+
+# user_store.py
+MSG_ERROR_INVALID_CREDENTIALS = "Error saving credentials for user {user_id}: {error}"
+MSG_ERROR_DECRYPTION_FAILED = "Error decrypting credentials for user {user_id}: {error}"
+MSG_ERROR_LOADING_USER_STORE = "Failed to load user store"
+MSG_ERROR_SAVING_USER_STORE = "Failed to save user store: {error}"
+MSG_WARNING_CREDENTIALS_NOT_FOUND = "Credentials not found for user {user_id}"
+
+# auth/dependencies.py
+# ruff: noqa: S105
+MSG_ERROR_INVALID_TOKEN = "Invalid or expired token: {error}"
+MSG_WARNING_INSUFFICIENT_PERMISSIONS = "User does not have required permissions: {scopes}"
+MSG_ERROR_INTERNAL_SERVER = "Internal server error during token validation: {error}"
+MSG_ERROR_MISSING_SCOPES = "The token is missing one or more required scopes: {scopes}"
+
+
+# auth/auth0_helpers.py
+# auth0_helpers.py messages
+
+MSG_INFO_FETCHING_JWKS = "Fetching JWKS from {url}"
+MSG_INFO_JWKS_FETCHED = "JWKS fetched successfully, {num_keys} keys found."
+MSG_ERROR_FETCHING_JWKS = "Failed to fetch JWKS from Auth0: {error}"
+MSG_ERROR_INVALID_JWT_HEADER = "Unable to extract unverified JWT header."
+MSG_ERROR_NO_RSA_KEY = "No matching RSA key found for kid {kid}"
+MSG_INFO_DECODING_JWT = "Decoding JWT and verifying signature, expiration, and claims..."
+MSG_ERROR_JWT_EXPIRED = "JWT token has expired: {error}"
+MSG_ERROR_JWT_VERIFICATION = "JWT verification error: {error}"
+MSG_ERROR_JWT_UNEXPECTED = "Unexpected error during JWT verification: {error}"
+
+
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------
@@ -215,6 +245,10 @@ MSG_ERROR_INVALID_AUTH0_DOMAIN = (
     "AUTH0_DOMAIN must be a valid Auth0 domain (e.g., dev-xxx.us.auth0.com)"
 )
 MSG_ERROR_INVALID_API_AUDIENCE = "API_AUDIENCE must be a valid URL (e.g., https://api.example.com/)"
-MSG_ERROR_INVALID_ENCRYPTION_SECRET = "ENCRYPTION_SECRET must be at least {value} characters long"  # noqa: S105
+MSG_ERROR_INVALID_ENCRYPTION_SECRET = "ENCRYPTION_SECRET must be at least {value} characters long"
 MSG_ERROR_INVALID_AUTH0_ALGORITHMS = "Invalid auth0_algorithms {algo}. Optionas are {valid_options}"
 MSG_ERROR_EMPTY_AUTH0_ALGORITHMS = "auth0_algorithms must not be empty"
+MSG_ERROR_UNEXPECTED_EXCEPTION = "Unexpected error during token validation."
+MSG_INFO_USER_AUTHORIZED = "User successfully authenticated and authorized."
+
+

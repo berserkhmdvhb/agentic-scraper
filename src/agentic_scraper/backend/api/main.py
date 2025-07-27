@@ -7,8 +7,8 @@ from agentic_scraper import __api_version__ as api_version  # Using lowercase fo
 from agentic_scraper import __version__ as version  # Using lowercase for PEP8 compliance
 from agentic_scraper.backend.api.lifecycle import lifespan  # Directly use lifespan context here
 from agentic_scraper.backend.api.openapi import custom_openapi
-from agentic_scraper.backend.api.routes.scrape import router as scrape_router
-from agentic_scraper.backend.api.routes.user import router as user_router
+from agentic_scraper.backend.api.routes.v1.scrape import router as scrape_router
+from agentic_scraper.backend.api.routes.v1.user import router as user_router
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 
 # Setup logging

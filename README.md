@@ -282,43 +282,56 @@ agentic_scraper/
 │   └── agentic_scraper/
 │       ├── backend/
 │       │   ├── api/
-│       │   │   ├── main.py                  # FastAPI app entrypoint
-│       │   │   ├── models.py                # API models/schemas
-│       │   │   └── routes/
-│       │   │       └── scrape.py            # Scrape endpoint logic
+│       │   │   ├── lifecycle.py                  # Manages lifecycle of requests
+│       │   │   ├── main.py                       # FastAPI app entrypoint
+│       │   │   ├── openapi.py                    # Defines OpenAPI schema
+│       │   │   ├── user_store.py                 # User data management
+│       │   │   ├── __init__.py                   # Initializes the API package
+│       │   │   ├── auth/
+│       │   │   │   ├── auth0_helpers.py          # Auth0 integration helpers
+│       │   │   │   ├── dependencies.py           # Authentication dependencies
+│       │   │   │   └── __init__.py               # Initializes the auth package
+│       │   │   ├── routes/
+│       │   │   │   ├── scrape.py                 # Scrape endpoint logic
+│       │   │   │   ├── user.py                   # User-related routes
+│       │   │   │   └── __init__.py               # Initializes the routes package
+│       │   │   └── schemas/
+│       │   │       ├── scrape.py                 # Scrape-related data schemas
+│       │   │       ├── user.py                   # User-related data schemas
+│       │   │       └── __init__.py               # Initializes the schemas package
 │       │   ├── config/
-│       │   │   ├── aliases.py               # Input aliases, enums
-│       │   │   ├── constants.py             # Default values
-│       │   │   ├── messages.py              # All log/UI messages
-│       │   │   └── types.py                 # Strongly-typed enums
+│       │   │   ├── aliases.py                    # Input aliases, enums
+│       │   │   ├── constants.py                  # Default values
+│       │   │   ├── messages.py                   # All log/UI messages
+│       │   │   └── types.py                      # Strongly-typed enums
 │       │   ├── core/
-│       │   │   ├── logger_helpers.py        # Logging formatter utilities
-│       │   │   ├── logger_setup.py          # Loguru setup
-│       │   │   ├── settings.py              # Global settings model
-│       │   │   └── settings_helpers.py      # Validation, resolution helpers
+│       │   │   ├── logger_helpers.py             # Logging formatter utilities
+│       │   │   ├── logger_setup.py               # Loguru setup
+│       │   │   ├── settings.py                   # Global settings model
+│       │   │   └── settings_helpers.py           # Validation, resolution helpers
 │       │   ├── scraper/
-│       │   │   ├── fetcher.py               # HTML fetching with retries
-│       │   │   ├── models.py                # Scraped item schema
-│       │   │   ├── parser.py                # HTML parsing logic
-│       │   │   ├── pipeline.py              # Orchestration pipeline
-│       │   │   ├── screenshotter.py         # Playwright screenshot logic
-│       │   │   ├── worker_pool.py           # Async task concurrency manager
+│       │   │   ├── fetcher.py                    # HTML fetching with retries
+│       │   │   ├── models.py                     # Scraped item schema
+│       │   │   ├── parser.py                     # HTML parsing logic
+│       │   │   ├── pipeline.py                   # Orchestration pipeline
+│       │   │   ├── screenshotter.py              # Playwright screenshot logic
+│       │   │   ├── worker_pool.py                # Async task concurrency manager
 │       │   │   └── agent/
-│       │   │       ├── agent_helpers.py     # Agent utils
-│       │   │       ├── field_utils.py       # Field scoring, synonyms
-│       │   │       ├── llm_dynamic.py       # LLM agent: dynamic fields
-│       │   │       ├── llm_dynamic_adaptive.py # LLM agent: retries, context
-│       │   │       ├── llm_fixed.py         # LLM agent: fixed schema
-│       │   │       ├── prompt_helpers.py    # Prompt generation
-│       │   │       └── rule_based.py        # Rule-based parser
+│       │   │       ├── agent_helpers.py          # Agent utils
+│       │   │       ├── field_utils.py            # Field scoring, synonyms
+│       │   │       ├── llm_dynamic.py            # LLM agent: dynamic fields
+│       │   │       ├── llm_dynamic_adaptive.py   # LLM agent: retries, context
+│       │   │       ├── llm_fixed.py              # LLM agent: fixed schema
+│       │   │       ├── prompt_helpers.py         # Prompt generation
+│       │   │       └── rule_based.py             # Rule-based parser
 │       │   └── utils/
-│       │       └── validators.py            # Input validators
+│       │       └── validators.py                 # Input validators
 │       └── frontend/
-│           ├── app.py                      # Streamlit UI entrypoint
-│           ├── models.py                   # Shared data schemas
-│           ├── ui_core.py                  # Sidebar + config widgets
-│           ├── ui_display.py               # Table, chart, image display
-│           └── ui_runner.py                # Async scrape runner + hooks
+│           ├── app.py                           # Streamlit UI entrypoint
+│           ├── models.py                        # Shared data schemas
+│           ├── ui_core.py                       # Sidebar + config widgets
+│           ├── ui_display.py                    # Table, chart, image display
+│           └── ui_runner.py                     # Async scrape runner + hooks
 ```
 
 

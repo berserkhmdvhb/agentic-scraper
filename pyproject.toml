@@ -106,7 +106,7 @@ ignore = [
   "TC003",
   "COM812"
 ]
-per-file-ignores = {"tests/*" = ["S101", "S603"]}
+per-file-ignores = {"tests/*" = ["S101", "S603"], "src/agentic_scraper/backend/api/auth/dependencies.py" = ["B008"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

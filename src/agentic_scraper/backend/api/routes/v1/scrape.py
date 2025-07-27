@@ -2,6 +2,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.schemas.scrape import ScrapeRequest, ScrapeResponse
 from agentic_scraper.backend.api.user_store import load_user_credentials
@@ -10,17 +11,19 @@ from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
-router = APIRouter()
+router = APIRouter(prefix=f"/api/{api_version}")
 settings = get_settings()
 logger = get_logger()
+
 
 CurrentUser = Annotated[dict[str, Any], Depends(get_current_user)]
 
 
-@router.post("/scrape")
+@router.post("/scrape", status_code=status.HTTP_202_ACCEPTED, tags=["Scrape"])
 async def scrape(
     request: ScrapeRequest,
     user: CurrentUser,
+
 ) -> ScrapeResponse:
     logger.info(MSG_INFO_SCRAPE_REQUEST_RECEIVED.format(n=len(request.urls)))
 
@@ -34,6 +37,6 @@ async def scrape(
     results, stats = await scrape_with_stats(
         [str(url) for url in request.urls],
         settings=settings,
-        openai=creds,  # creds is already OpenAIConfig
+        openai=creds,
     )
     return ScrapeResponse(results=results, stats=stats)
