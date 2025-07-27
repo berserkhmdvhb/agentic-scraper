@@ -38,10 +38,18 @@ def _load_store() -> dict[str, dict[str, str]]:
 def _save_store(store: dict[str, dict[str, str]]) -> None:
     """Saves the user store to file."""
     try:
+        # Use tempfile to ensure safe temporary file handling
         with tempfile.NamedTemporaryFile("w", dir=USER_STORE.parent, delete=False) as tmp:
+            # Write to the temporary file
             json.dump(store, tmp, indent=2)
-            tmp.flush()
+            tmp.flush()  # Ensure data is written to the file
+
+            # Properly close the temporary file before replacing
+            tmp.close()
+
+            # Now, replace the original file with the temporary file
             Path(tmp.name).replace(USER_STORE)
+
     except OSError as e:  # Catch specific OSError
         error_message = MSG_ERROR_SAVING_USER_STORE.format(error=str(e))
         logger.exception(error_message, exc_info=e)  # Use exception logging
