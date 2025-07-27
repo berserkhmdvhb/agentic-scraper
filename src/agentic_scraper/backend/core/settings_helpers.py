@@ -136,7 +136,7 @@ def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     _validate_optional_str(values, "agent_mode", validate_agent_mode)
     _validate_optional_bool(values, "verbose", lambda v: v)  # no-op validator
     _validate_optional_str(values, "auth0_domain", validate_auth0_domain)
-    _validate_optional_str(values, "api_audience", validate_api_audience)
+    _validate_optional_str(values, "auth0_api_audience", validate_api_audience)
     _validate_optional_str(values, "encryption_secret", validate_encryption_secret)
     _validate_optional_list(values, "auth0_algorithms", validate_auth0_algorithms)
 

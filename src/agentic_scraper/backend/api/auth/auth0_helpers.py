@@ -30,7 +30,7 @@ def raise_http_exception(status_code: int, detail: str, error: Exception) -> Non
     logger.exception(detail)  # Log the exception details
     raise HTTPException(status_code=status_code, detail=detail) from error
 @lru_cache
-def get_jwks() -> list[dict[str, Any]]:
+async def get_jwks() -> list[dict[str, Any]]:
     """
     Fetch and cache the JSON Web Key Set (JWKS) from Auth0.
 
@@ -45,16 +45,18 @@ def get_jwks() -> list[dict[str, Any]]:
     url = f"{settings.auth0_issuer}/.well-known/jwks.json"
     try:
         logger.info(MSG_INFO_FETCHING_JWKS.format(url=url))
-        response = httpx.get(url)
-        response.raise_for_status()
-        jwks = response.json().get("keys", [])
-        logger.info(MSG_INFO_JWKS_FETCHED.format(num_keys=len(jwks)))
-        return cast("list[dict[str, Any]]", jwks)
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            jwks = response.json().get("keys", [])
+            logger.info(MSG_INFO_JWKS_FETCHED.format(num_keys=len(jwks)))
+            return cast("list[dict[str, Any]]", jwks)
     except httpx.HTTPError as e:
         raise_http_exception(503, MSG_ERROR_FETCHING_JWKS.format(error=str(e)), e)
 
     return []
-def verify_jwt(token: str) -> dict[str, Any]:
+
+async def verify_jwt(token: str) -> dict[str, Any]:
     """
     Verify a JWT using Auth0's public keys.
 
@@ -77,7 +79,7 @@ def verify_jwt(token: str) -> dict[str, Any]:
                 ValueError("Invalid JWT header"))
 
         # Fetch the JWKS (JSON Web Key Set)
-        jwks = get_jwks()
+        jwks = await get_jwks()
 
         # Find the RSA key corresponding to the JWT header
         rsa_key = {}
@@ -109,8 +111,8 @@ def verify_jwt(token: str) -> dict[str, Any]:
                 token,
                 rsa_key,
                 options=options,
-                algorithms=settings.auth0_algorithm,
-                audience=settings.auth0_audience,
+                algorithms=settings.auth0_algorithms,
+                audience=settings.auth0_api_audience,
                 issuer=settings.auth0_issuer
             ),
         )
