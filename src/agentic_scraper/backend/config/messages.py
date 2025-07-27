@@ -252,3 +252,4 @@ MSG_ERROR_UNEXPECTED_EXCEPTION = "Unexpected error during token validation."
 MSG_INFO_USER_AUTHORIZED = "User successfully authenticated and authorized."
 
 
+MSG_ERROR_PRELOADING_JWKS = "Error occurred while preloading JWKS from Auth0: {error}"

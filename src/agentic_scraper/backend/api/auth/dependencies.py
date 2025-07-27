@@ -63,14 +63,14 @@ def raise_internal_error(e: Exception) -> None:
     Args:
         e (Exception): The exception encountered during the JWT verification process.
     """
-    logger.exception(MSG_ERROR_INTERNAL_SERVER.format(error=str(e)))
+    logger.exception(MSG_ERROR_INTERNAL_SERVER.format(error=str(e)), exc_info=e)
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="Internal server error during token validation",
         headers={"WWW-Authenticate": "Bearer"},
     ) from e
 
-def get_current_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
     required_scopes: list[str] | None = None
 ) -> dict[str, Any]:
@@ -96,28 +96,37 @@ def get_current_user(
     if required_scopes is None:
         required_scopes = []  # Default to empty list if not provided
 
-    token = credentials.credentials  # Extract the token from the credentials object
+    # Extract the token from the credentials object
+    token = credentials.credentials
 
     try:
         # Directly return the result of JWT token verification
-        payload = verify_jwt(token)
+        payload = await verify_jwt(token)
 
         # If required_scopes is not empty, check if the scope claim contains necessary scopes
         if required_scopes:
             user_scopes = payload.get("scope", [])
             if not any(scope in user_scopes for scope in required_scopes):
-                raise_forbidden(required_scopes)  # Use helper function for the forbidden error
-            return payload  # Return the payload if required scopes are met
-
-        logger.info(MSG_INFO_USER_AUTHORIZED)  # Log for authorization success
+                # Use helper function for the forbidden error
+                raise_forbidden(required_scopes)
+            # Return the payload if required scopes are met
+            return payload
+        # Log for authorization success
+        logger.info(MSG_INFO_USER_AUTHORIZED)
         # Return the payload if no required scopes are provided
         # ruff: noqa: TRY300
         return payload
+
     except JWTError as err:
-        raise_unauthorized(err)  # Use helper function for unauthorized error
-
-    except Exception as e:  # Catching only JWT-specific errors
+        raise_unauthorized(err)
+    # Catching only JWT-specific errors
+    except Exception as e:
         logger.exception(MSG_ERROR_UNEXPECTED_EXCEPTION, exc_info=e)
-        raise_internal_error(e)  # Use helper function for internal server error
+        raise_internal_error(e)
 
-    return {}  # Default return to satisfy mypy
+    # Fallback return in case of no valid flow
+    # (e.g., if the function is left without return or error handling)
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Unexpected error"
+    )

@@ -32,7 +32,7 @@ app.add_middleware(
         "http://localhost:8501",
         "http://127.0.0.1:8000",
         "https://bb348695cff1.ngrok-free.app/",
-        "http://127.0.0.1:8085",  
+        "http://127.0.0.1:8085",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -69,5 +69,6 @@ async def root() -> dict[str, str]:
 
 
 # Include API routers
+
 app.include_router(user_router, prefix=f"/{api_version}/user", tags=["User"])
 app.include_router(scrape_router, prefix=f"/{api_version}/scrape", tags=["Scrape"])

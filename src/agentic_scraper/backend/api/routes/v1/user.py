@@ -2,7 +2,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.models import AuthUser
 from agentic_scraper.backend.api.schemas.user import (
@@ -14,7 +13,7 @@ from agentic_scraper.backend.api.user_store import load_user_credentials, save_u
 from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.core.settings import get_settings
 
-router = APIRouter(prefix=f"/api/{api_version}")  # Dynamic versioning
+router = APIRouter()
 settings = get_settings()
 logger = get_logger()
 
