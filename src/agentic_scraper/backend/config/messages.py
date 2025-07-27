@@ -62,6 +62,21 @@ MSG_ERROR_JWT_VERIFICATION = "JWT verification failed: {error}"
 MSG_ERROR_JWT_UNEXPECTED = "Unexpected error while processing JWT: {error}"
 MSG_INFO_RETRYING = "Retrying... (Attempt {attempt}/{retry_limit})"
 
+# auth/scope_helpers.py
+MSG_DEBUG_MISSING_SCOPES = (
+    "User is missing the following required scopes: {missing_scopes}. "
+    "User's current scopes: {user_scopes}."
+)
+MSG_DEBUG_CURRENT_ISSUER = "Current issuer is: {issuer}"
+MSG_INFO_DECODED_TOKEN = "Decoded token: {decoded_token}"
+
+# auth/log_helpers.py
+MSG_WARNING_USER_FAILED_AUTHORIZATION = "User {user_id} failed to authorize."
+
+# routes/user.py
+MSG_WARNING_NO_CREDENTIALS_FOUND = "No OpenAI credentials found for user {user_id}"
+
+
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------
@@ -251,6 +266,10 @@ MSG_ERROR_INVALID_AUTH0_ALGORITHMS = "Invalid auth0_algorithms {algo}. Optionas 
 MSG_ERROR_EMPTY_AUTH0_ALGORITHMS = "auth0_algorithms must not be empty"
 MSG_ERROR_UNEXPECTED_EXCEPTION = "Unexpected error during token validation."
 MSG_INFO_USER_AUTHORIZED = "User successfully authenticated and authorized."
+MSG_ERROR_USER_SCOPES_TYPE = (
+    "Expected 'user_scopes' to be a list of strings, "
+    "got {type(user_scopes)}"
+)
 
 
 MSG_ERROR_PRELOADING_JWKS = "Error occurred while preloading JWKS from Auth0: {error}"

@@ -10,10 +10,13 @@ from agentic_scraper.backend.api.openapi import custom_openapi
 from agentic_scraper.backend.api.routes.v1.scrape import router as scrape_router
 from agentic_scraper.backend.api.routes.v1.user import router as user_router
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
+from agentic_scraper.backend.core.settings import get_settings, log_settings
 
 # Setup logging
 setup_logging()
 logger = get_logger()
+settings = get_settings()
+log_settings(settings)
 
 # Create FastAPI app instance with lifespan context
 app = FastAPI(

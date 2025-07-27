@@ -1,27 +1,27 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
-from agentic_scraper.backend.api.models import AuthUser
+from agentic_scraper.backend.api.auth.scope_helpers import check_required_scopes
+from agentic_scraper.backend.api.models import AuthUser, RequiredScopes
 from agentic_scraper.backend.api.schemas.user import (
     UserCredentialsIn,
     UserCredentialsOut,
     UserProfile,
 )
 from agentic_scraper.backend.api.user_store import load_user_credentials, save_user_credentials
-from agentic_scraper.backend.core.logger_setup import get_logger
-from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.backend.config.messages import MSG_WARNING_NO_CREDENTIALS_FOUND
 
 router = APIRouter()
-settings = get_settings()
-logger = get_logger()
+logger = logging.getLogger(__name__)
 
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
 
 # Versioned route
 @router.get("/me", tags=["User"])
-def get_me(user: CurrentUser) -> UserProfile:
+async def get_me(user: CurrentUser) -> UserProfile:
     """
     Retrieve the current user's profile.
 
@@ -35,8 +35,14 @@ def get_me(user: CurrentUser) -> UserProfile:
         UserProfile: A model containing the user's profile information.
 
     Raises:
-        HTTPException: If the user is not authenticated or the user profile cannot be retrieved.
+        HTTPException: If the user is not authenticated or does not have the required scope.
     """
+    # Define the required scope for this route as a set
+    required_scopes = {RequiredScopes.READ_USER_PROFILE}
+
+    # Ensure the user has the required scope
+    check_required_scopes(user, required_scopes)
+
     return UserProfile(
         sub=user["sub"],
         email=user.get("email"),
@@ -44,12 +50,8 @@ def get_me(user: CurrentUser) -> UserProfile:
     )
 
 
-@router.post(
-        "/openai-credentials",
-        status_code=status.HTTP_201_CREATED,
-        tags=["User"]
-    )
-def post_credentials(
+@router.post("/openai-credentials", status_code=status.HTTP_201_CREATED, tags=["User"])
+async def post_credentials(
     creds: UserCredentialsIn,
     user: CurrentUser,
 ) -> UserCredentialsOut:
@@ -69,6 +71,12 @@ def post_credentials(
     Raises:
         HTTPException: If there is an error with the data format, database, or any unforeseen error.
     """
+    # Define the required scope for this route as a set
+    required_scopes = {RequiredScopes.CREATE_OPENAI_CREDENTIALS}
+
+    # Ensure the user has the required scope
+    check_required_scopes(user, required_scopes)
+
     try:
         # Try to save user credentials
         save_user_credentials(
@@ -99,7 +107,7 @@ def post_credentials(
 
 
 @router.get("/openai-credentials", tags=["User"])
-def get_credentials(user: CurrentUser) -> UserCredentialsOut:
+async def get_credentials(user: CurrentUser) -> UserCredentialsOut:
     """
     Retrieve the user's saved OpenAI credentials.
 
@@ -119,6 +127,7 @@ def get_credentials(user: CurrentUser) -> UserCredentialsOut:
 
     # If no credentials are found, raise 404
     if not creds:
+        logger.warning(MSG_WARNING_NO_CREDENTIALS_FOUND.format(user_id=user["sub"]))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No credentials stored for this user."
         )
@@ -127,7 +136,7 @@ def get_credentials(user: CurrentUser) -> UserCredentialsOut:
 
     try:
         # Validate and parse the data into the UserCredentialsOut model
-        user_credentials = UserCredentialsOut.parse_obj(model_data)
+        user_credentials = UserCredentialsOut.model_validate(model_data)
     except TypeError as e:  # Catch TypeError for issues with data conversion
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

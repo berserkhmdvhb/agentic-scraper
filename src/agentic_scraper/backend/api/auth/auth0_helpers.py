@@ -10,12 +10,14 @@ from jose import jwt
 from jose.exceptions import ExpiredSignatureError, JWTError
 
 from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_CURRENT_ISSUER,
     MSG_ERROR_FETCHING_JWKS,
     MSG_ERROR_INVALID_JWT_HEADER,
     MSG_ERROR_JWT_EXPIRED,
     MSG_ERROR_JWT_UNEXPECTED,
     MSG_ERROR_JWT_VERIFICATION,
     MSG_ERROR_NO_RSA_KEY,
+    MSG_INFO_DECODED_TOKEN,
     MSG_INFO_DECODING_JWT,
     MSG_INFO_FETCHING_JWKS,
     MSG_INFO_JWKS_FETCHED,
@@ -32,7 +34,7 @@ RETRY_LIMIT = 2  # Constant for retry limit
 
 def raise_http_exception(status_code: int, detail: str, error: Exception) -> None:
     """Helper function to raise an HTTP exception with detailed logging."""
-    logger.exception(detail)  # Log the exception details
+    logger.exception(detail)
     raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -51,8 +53,8 @@ class JWKSCache:
             if time_diff < self.cache_ttl:
                 return self.jwks_cache  # Return cached JWKS if TTL has not expired
 
-        url = f"{settings.auth0_issuer}/.well-known/jwks.json"
-
+        url = f"{settings.auth0_issuer}.well-known/jwks.json"
+        logger.debug(MSG_DEBUG_CURRENT_ISSUER.format(issuer=url))
         attempt = 0
         while attempt <= RETRY_LIMIT:
             try:
@@ -138,17 +140,21 @@ async def verify_jwt(token: str) -> dict[str, Any]:
 
         # Decode the JWT and verify its signature, expiration, and claims
         logger.info(MSG_INFO_DECODING_JWT)
-        return cast(
-            "dict[str, Any]",
-            jwt.decode(
+        decoded_token = jwt.decode(
                 token,
                 rsa_key,
                 options=options,
                 algorithms=settings.auth0_algorithms,
                 audience=settings.auth0_api_audience,
                 issuer=settings.auth0_issuer
-            ),
+            )
+        logger.info(MSG_INFO_DECODED_TOKEN.format(decoded_token=decoded_token))
+        return cast(
+            "dict[str, Any]",
+            decoded_token,
         )
+
+
     except ExpiredSignatureError as e:
         raise_http_exception(401, MSG_ERROR_JWT_EXPIRED.format(error=str(e)), e)
     except JWTError as e:

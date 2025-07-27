@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,14 +7,12 @@ from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.schemas.scrape import ScrapeRequest, ScrapeResponse
 from agentic_scraper.backend.api.user_store import load_user_credentials
 from agentic_scraper.backend.config.messages import MSG_INFO_SCRAPE_REQUEST_RECEIVED
-from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 settings = get_settings()
-logger = get_logger()
-
 
 CurrentUser = Annotated[dict[str, Any], Depends(get_current_user)]
 
