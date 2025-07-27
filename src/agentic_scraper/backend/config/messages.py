@@ -30,6 +30,8 @@ MSG_INFO_SCRAPE_REQUEST_RECEIVED = "Received scrape request for {n} URL(s)"
 MSG_INFO_SHUTDOWN_LOG = "Shutdown complete, cleaning up resources..."
 MSG_INFO_PRELOADING_JWKS = "Preloading JWKS from Auth0..."
 MSG_DEBUG_LIFESPAN_STARTED = "Lifespan started for app: {app}"
+MSG_INFO_JWKS_PRELOAD_SUCCESSFUL = "JWKS preload successful. The app is ready to handle requests."
+
 
 
 # user_store.py
@@ -48,18 +50,17 @@ MSG_ERROR_MISSING_SCOPES = "The token is missing one or more required scopes: {s
 
 
 # auth/auth0_helpers.py
-# auth0_helpers.py messages
 
-MSG_INFO_FETCHING_JWKS = "Fetching JWKS from {url}"
-MSG_INFO_JWKS_FETCHED = "JWKS fetched successfully, {num_keys} keys found."
-MSG_ERROR_FETCHING_JWKS = "Failed to fetch JWKS from Auth0: {error}"
-MSG_ERROR_INVALID_JWT_HEADER = "Unable to extract unverified JWT header."
-MSG_ERROR_NO_RSA_KEY = "No matching RSA key found for kid {kid}"
-MSG_INFO_DECODING_JWT = "Decoding JWT and verifying signature, expiration, and claims..."
-MSG_ERROR_JWT_EXPIRED = "JWT token has expired: {error}"
-MSG_ERROR_JWT_VERIFICATION = "JWT verification error: {error}"
-MSG_ERROR_JWT_UNEXPECTED = "Unexpected error during JWT verification: {error}"
-
+MSG_INFO_FETCHING_JWKS = "Fetching JWKS from {url}..."
+MSG_INFO_JWKS_FETCHED = "{num_keys} keys fetched from JWKS."
+MSG_INFO_DECODING_JWT = "Decoding JWT..."
+MSG_ERROR_FETCHING_JWKS = "Error fetching JWKS: {error}"
+MSG_ERROR_INVALID_JWT_HEADER = "Invalid JWT header"
+MSG_ERROR_NO_RSA_KEY = "No RSA key found matching the JWT header's 'kid': {kid}"
+MSG_ERROR_JWT_EXPIRED = "JWT has expired: {error}"
+MSG_ERROR_JWT_VERIFICATION = "JWT verification failed: {error}"
+MSG_ERROR_JWT_UNEXPECTED = "Unexpected error while processing JWT: {error}"
+MSG_INFO_RETRYING = "Retrying... (Attempt {attempt}/{retry_limit})"
 
 # ---------------------------------------------------------------------
 # core/

@@ -1,5 +1,7 @@
+import asyncio
 import logging
-from functools import lru_cache
+from secrets import randbelow
+from time import time
 from typing import Any, cast
 
 import httpx
@@ -17,6 +19,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_DECODING_JWT,
     MSG_INFO_FETCHING_JWKS,
     MSG_INFO_JWKS_FETCHED,
+    MSG_INFO_RETRYING,
 )
 from agentic_scraper.backend.core.settings import get_settings
 
@@ -25,36 +28,66 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+RETRY_LIMIT = 2  # Constant for retry limit
+
 def raise_http_exception(status_code: int, detail: str, error: Exception) -> None:
     """Helper function to raise an HTTP exception with detailed logging."""
     logger.exception(detail)  # Log the exception details
     raise HTTPException(status_code=status_code, detail=detail) from error
-@lru_cache
-async def get_jwks() -> list[dict[str, Any]]:
-    """
-    Fetch and cache the JSON Web Key Set (JWKS) from Auth0.
 
-    This set contains the public RSA keys used to verify JWT signatures.
 
-    Returns:
-        list[dict[str, Any]]: A list of public keys in JWKS format.
+class JWKSCache:
+    def __init__(self) -> None:
+        self.jwks_cache: list[dict[str, Any]] | None = None
+        self.cache_timestamp: float | None = None
+        self.cache_ttl = 3600  # Set TTL for cache (1 hour)
 
-    Raises:
-        HTTPException: If the JWKS endpoint cannot be reached or returns an error.
-    """
-    url = f"{settings.auth0_issuer}/.well-known/jwks.json"
-    try:
-        logger.info(MSG_INFO_FETCHING_JWKS.format(url=url))
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            jwks = response.json().get("keys", [])
-            logger.info(MSG_INFO_JWKS_FETCHED.format(num_keys=len(jwks)))
-            return cast("list[dict[str, Any]]", jwks)
-    except httpx.HTTPError as e:
-        raise_http_exception(503, MSG_ERROR_FETCHING_JWKS.format(error=str(e)), e)
+    async def get_jwks(self) -> list[dict[str, Any]]:
+        """
+        Fetch and cache the JSON Web Key Set (JWKS) from Auth0 during startup.
+        """
+        if self.jwks_cache is not None and self.cache_timestamp is not None:
+            time_diff = time() - self.cache_timestamp
+            if time_diff < self.cache_ttl:
+                return self.jwks_cache  # Return cached JWKS if TTL has not expired
 
-    return []
+        url = f"{settings.auth0_issuer}/.well-known/jwks.json"
+
+        attempt = 0
+        while attempt <= RETRY_LIMIT:
+            try:
+                logger.info(MSG_INFO_FETCHING_JWKS.format(url=url))
+                async with httpx.AsyncClient(timeout=10) as client:
+                    response = await client.get(url)
+                    response.raise_for_status()
+                    jwks = response.json().get("keys", [])
+                    logger.info(MSG_INFO_JWKS_FETCHED.format(num_keys=len(jwks)))
+                    self.jwks_cache = jwks  # Cache the JWKS keys
+                    self.cache_timestamp = time()
+                    return cast("list[dict[str, Any]]", jwks)
+            except (httpx.HTTPStatusError, httpx.RequestError) as e:
+                logger.exception(MSG_ERROR_FETCHING_JWKS)  # Log without redundant error details
+                if attempt < RETRY_LIMIT:
+                    logger.info(
+                        MSG_INFO_RETRYING.format(
+                            attempt=attempt + 1,
+                            retry_limit=RETRY_LIMIT + 1
+                        )
+                    )
+                    await asyncio.sleep(randbelow(5) + 1)  # Random backoff for retry
+                else:
+                    raise_http_exception(503, MSG_ERROR_FETCHING_JWKS, e)
+            except Exception as e:
+                logger.exception(MSG_ERROR_FETCHING_JWKS)  # Log without redundant error details
+                raise_http_exception(503, MSG_ERROR_FETCHING_JWKS, e)
+
+            attempt += 1  # Increment the attempt counter
+
+        return []  # Return empty list if fetching JWKS fails after retries
+
+
+# Create an instance of JWKSCache
+jwks_cache_instance = JWKSCache()
 
 async def verify_jwt(token: str) -> dict[str, Any]:
     """
@@ -78,8 +111,8 @@ async def verify_jwt(token: str) -> dict[str, Any]:
                 MSG_ERROR_INVALID_JWT_HEADER,
                 ValueError("Invalid JWT header"))
 
-        # Fetch the JWKS (JSON Web Key Set)
-        jwks = await get_jwks()
+        # Fetch the JWKS (JSON Web Key Set) which is preloaded during startup
+        jwks = await jwks_cache_instance.get_jwks()
 
         # Find the RSA key corresponding to the JWT header
         rsa_key = {}
