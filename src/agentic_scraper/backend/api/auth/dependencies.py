@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 auth_scheme = HTTPBearer(auto_error=True)
 
+
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
 ) -> AuthUser | None:
     """
     Extract and verify the current user from a JWT token.
@@ -41,7 +42,7 @@ async def get_current_user(
             "sub": payload["sub"],  # User identifier (subject)
             "email": payload.get("email"),
             "name": payload.get("name"),
-            "scope": payload.get("scope", "")  # Extract scope from the token
+            "scope": payload.get("scope", ""),  # Extract scope from the token
         }
 
     except JWTError as err:

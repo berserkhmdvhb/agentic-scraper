@@ -27,6 +27,7 @@ USER_STORE.parent.mkdir(parents=True, exist_ok=True)
 if not USER_STORE.exists():
     USER_STORE.write_text("{}")
 
+
 def _load_store() -> dict[str, dict[str, str]]:
     """Loads the user store from file."""
     try:
@@ -34,6 +35,7 @@ def _load_store() -> dict[str, dict[str, str]]:
     except json.JSONDecodeError as e:
         logger.exception(MSG_ERROR_LOADING_USER_STORE, exc_info=e)
         return {}
+
 
 def _save_store(store: dict[str, dict[str, str]]) -> None:
     """Saves the user store to file."""
@@ -72,9 +74,7 @@ def save_user_credentials(user_id: str, api_key: str, project_id: str) -> None:
     except Exception as e:
         error_message = MSG_ERROR_INVALID_CREDENTIALS.format(user_id=user_id, error=str(e))
         logger.exception(error_message, exc_info=e)  # Use exception logging
-        raise HTTPException(
-            status_code=400, detail="Error saving credentials"
-        ) from e
+        raise HTTPException(status_code=400, detail="Error saving credentials") from e
 
 
 def load_user_credentials(user_id: str) -> OpenAIConfig | None:

@@ -15,6 +15,7 @@ from agentic_scraper.backend.config.messages import (
 # Initialize logger
 logger = logging.getLogger(__name__)
 
+
 def raise_forbidden(required_scopes: list[str]) -> None:
     """
     Raise a 403 Forbidden HTTPException due to insufficient permissions.
@@ -33,6 +34,7 @@ def raise_forbidden(required_scopes: list[str]) -> None:
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+
 def raise_unauthorized(err: JWTError) -> None:
     """
     Raise a 401 Unauthorized HTTPException due to invalid or expired JWT.
@@ -48,6 +50,7 @@ def raise_unauthorized(err: JWTError) -> None:
         detail="Invalid or expired token",
         headers={"WWW-Authenticate": "Bearer"},
     ) from err
+
 
 def raise_internal_error(e: Exception) -> None:
     """
@@ -66,6 +69,7 @@ def raise_internal_error(e: Exception) -> None:
         headers={"WWW-Authenticate": "Bearer"},
     ) from e
 
+
 def log_raise_info(message: str, **kwargs: dict[str, object]) -> None:
     """
     Log an info-level message.
@@ -75,6 +79,7 @@ def log_raise_info(message: str, **kwargs: dict[str, object]) -> None:
         kwargs: Additional context to include in the log.
     """
     logger.info(message, extra=kwargs)
+
 
 def log_raise_warning(message: str, **kwargs: dict[str, object]) -> None:
     """
@@ -86,6 +91,7 @@ def log_raise_warning(message: str, **kwargs: dict[str, object]) -> None:
     """
     logger.warning(message, extra=kwargs)
 
+
 def log_raise_error(message: str, **kwargs: dict[str, object]) -> None:
     """
     Log an error-level message.
@@ -95,6 +101,7 @@ def log_raise_error(message: str, **kwargs: dict[str, object]) -> None:
         kwargs: Additional context to include in the log.
     """
     logger.error(message, extra=kwargs)
+
 
 def log_raise_user_authorization(user_id: str, *, success: bool) -> None:
     """

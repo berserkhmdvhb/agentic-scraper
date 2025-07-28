@@ -63,6 +63,7 @@ from agentic_scraper.backend.utils.validators import (
 
 logger = logging.getLogger(__name__)
 
+
 class Settings(BaseSettings):
     # General
     project_name: str = PROJECT_NAME

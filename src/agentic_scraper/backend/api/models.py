@@ -13,4 +13,3 @@ class RequiredScopes(Enum):
     CREATE_OPENAI_CREDENTIALS = "create:openai_credentials"
     READ_USER_PROFILE = "read:user_profile"
     DELETE_USER_ACCOUNT = "delete:user_account"
-

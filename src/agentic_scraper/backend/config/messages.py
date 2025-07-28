@@ -33,7 +33,6 @@ MSG_DEBUG_LIFESPAN_STARTED = "Lifespan started for app: {app}"
 MSG_INFO_JWKS_PRELOAD_SUCCESSFUL = "JWKS preload successful. The app is ready to handle requests."
 
 
-
 # user_store.py
 MSG_ERROR_INVALID_CREDENTIALS = "Error saving credentials for user {user_id}: {error}"
 MSG_ERROR_DECRYPTION_FAILED = "Error decrypting credentials for user {user_id}: {error}"
@@ -267,8 +266,7 @@ MSG_ERROR_EMPTY_AUTH0_ALGORITHMS = "auth0_algorithms must not be empty"
 MSG_ERROR_UNEXPECTED_EXCEPTION = "Unexpected error during token validation."
 MSG_INFO_USER_AUTHORIZED = "User successfully authenticated and authorized."
 MSG_ERROR_USER_SCOPES_TYPE = (
-    "Expected 'user_scopes' to be a list of strings, "
-    "got {type(user_scopes)}"
+    "Expected 'user_scopes' to be a list of strings, got {type(user_scopes)}"
 )
 
 

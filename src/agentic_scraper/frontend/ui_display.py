@@ -12,12 +12,7 @@ from agentic_scraper.backend.scraper.models import ScrapedItem
 
 
 def dataframe_to_sqlite_bytes(df: pd.DataFrame, table_name: str = "scraped_data") -> BytesIO:
-    """
-    Convert a DataFrame to a SQLite dump in memory as BytesIO.
-
-    Safely serializes non-primitive types (e.g. lists, HttpUrl, Path)
-    to avoid SQLite binding errors.
-    """
+    """Convert a DataFrame to a SQLite dump in memory as BytesIO."""
     buffer = BytesIO()
     df_serialized = df.copy()
 
@@ -40,16 +35,8 @@ def dataframe_to_sqlite_bytes(df: pd.DataFrame, table_name: str = "scraped_data"
     return buffer
 
 
-def display_results(
-    items: list[ScrapedItem],
-    *,
-    screenshot_enabled: bool,
-) -> None:
-    """
-    Display scraped results in table and/or screenshot form, with export buttons.
-    """
-    st.markdown("### 📊 **Display Results**")
-
+def prepare_dataframe(items: list[ScrapedItem], *, screenshot_enabled: bool) -> pd.DataFrame:
+    """Prepare and serialize the dataframe with relevant data."""
     df_extracted_data = pd.DataFrame(
         [{**item.model_dump(exclude={"url"}), "url": str(item.url)} for item in items]
     )
@@ -58,34 +45,51 @@ def display_results(
         df_extracted_data = df_extracted_data.drop(columns=["screenshot_path"])
 
     if "screenshot_path" in df_extracted_data.columns:
-        df_extracted_data = df_extracted_data[
-            [col for col in df_extracted_data.columns if col != "screenshot_path"]
-            + ["screenshot_path"]
-        ]
+        cols = [col for col in df_extracted_data.columns if col != "screenshot_path"]
+        cols += ["screenshot_path"]
+
+        df_extracted_data = df_extracted_data[cols]
+
+
+def display_data_table(df: pd.DataFrame) -> None:
+    """Display the extracted data table using AgGrid."""
+    gb = GridOptionsBuilder.from_dataframe(df)
+    gb.configure_column("screenshot_path", hide=True)
+    gb.configure_pagination(paginationAutoPageSize=True)
+    gb.configure_default_column(filter=True, sortable=True, resizable=True)
+    grid_options = gb.build()
+
+    AgGrid(
+        df,
+        gridOptions=grid_options,
+        enable_enterprise_modules=False,
+        fit_columns_on_grid_load=True,
+        theme="streamlit",
+    )
+
+
+def display_results(
+    items: list[ScrapedItem],
+    *,
+    screenshot_enabled: bool,
+) -> None:
+    """Display scraped results in table and/or screenshot form, with export buttons."""
+    st.markdown("### 📊 **Display Results**")
+
+    df_extracted_data = prepare_dataframe(items, screenshot_enabled=screenshot_enabled)
 
     st.session_state.results_df = df_extracted_data
 
+    # Display Tabs
     if screenshot_enabled:
         tab1, tab2 = st.tabs(["📋 Extracted Table", "🖼️ Screenshot Details"])
     else:
         (tab1,) = st.tabs(["📋 Table Preview"])
 
     with tab1:
-        display_df = df_extracted_data.drop(columns=["screenshot_path"], errors="ignore")
-        gb = GridOptionsBuilder.from_dataframe(display_df)
-        gb.configure_column("screenshot_path", hide=True)
-        gb.configure_pagination(paginationAutoPageSize=True)
-        gb.configure_default_column(filter=True, sortable=True, resizable=True)
-        grid_options = gb.build()
+        display_data_table(df_extracted_data)
 
-        AgGrid(
-            display_df,
-            gridOptions=grid_options,
-            enable_enterprise_modules=False,
-            fit_columns_on_grid_load=True,
-            theme="streamlit",
-        )
-
+        # Export options
         st.download_button(
             "📅 Download JSON",
             df_extracted_data.to_json(orient="records", indent=2),

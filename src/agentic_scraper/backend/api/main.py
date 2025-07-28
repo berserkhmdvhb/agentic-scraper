@@ -70,7 +70,6 @@ async def root() -> dict[str, str]:
     return {"message": "Welcome to Agentic Scraper API", "docs": "/docs", "version": version}
 
 
-
 # Include API routers
 
 app.include_router(user_router, prefix=f"/{api_version}/user", tags=["User"])

@@ -21,7 +21,6 @@ CurrentUser = Annotated[dict[str, Any], Depends(get_current_user)]
 async def scrape(
     request: ScrapeRequest,
     user: CurrentUser,
-
 ) -> ScrapeResponse:
     logger.info(MSG_INFO_SCRAPE_REQUEST_RECEIVED.format(n=len(request.urls)))
 

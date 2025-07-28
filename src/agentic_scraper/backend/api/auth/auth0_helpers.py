@@ -32,6 +32,7 @@ settings = get_settings()
 
 RETRY_LIMIT = 2  # Constant for retry limit
 
+
 def raise_http_exception(status_code: int, detail: str, error: Exception) -> None:
     """Helper function to raise an HTTP exception with detailed logging."""
     logger.exception(detail)
@@ -71,10 +72,7 @@ class JWKSCache:
                 logger.exception(MSG_ERROR_FETCHING_JWKS)  # Log without redundant error details
                 if attempt < RETRY_LIMIT:
                     logger.info(
-                        MSG_INFO_RETRYING.format(
-                            attempt=attempt + 1,
-                            retry_limit=RETRY_LIMIT + 1
-                        )
+                        MSG_INFO_RETRYING.format(attempt=attempt + 1, retry_limit=RETRY_LIMIT + 1)
                     )
                     await asyncio.sleep(randbelow(5) + 1)  # Random backoff for retry
                 else:
@@ -90,6 +88,7 @@ class JWKSCache:
 
 # Create an instance of JWKSCache
 jwks_cache_instance = JWKSCache()
+
 
 async def verify_jwt(token: str) -> dict[str, Any]:
     """
@@ -109,9 +108,8 @@ async def verify_jwt(token: str) -> dict[str, Any]:
         unverified_header = jwt.get_unverified_header(token)
         if not unverified_header:
             raise_http_exception(
-                401,
-                MSG_ERROR_INVALID_JWT_HEADER,
-                ValueError("Invalid JWT header"))
+                401, MSG_ERROR_INVALID_JWT_HEADER, ValueError("Invalid JWT header")
+            )
 
         # Fetch the JWKS (JSON Web Key Set) which is preloaded during startup
         jwks = await jwks_cache_instance.get_jwks()
@@ -133,7 +131,8 @@ async def verify_jwt(token: str) -> dict[str, Any]:
             raise_http_exception(
                 401,
                 MSG_ERROR_NO_RSA_KEY.format(kid=unverified_header["kid"]),
-                ValueError("No matching RSA key"))
+                ValueError("No matching RSA key"),
+            )
 
         # Define the JWT decode options
         options = {"verify_exp": True}
@@ -141,19 +140,18 @@ async def verify_jwt(token: str) -> dict[str, Any]:
         # Decode the JWT and verify its signature, expiration, and claims
         logger.info(MSG_INFO_DECODING_JWT)
         decoded_token = jwt.decode(
-                token,
-                rsa_key,
-                options=options,
-                algorithms=settings.auth0_algorithms,
-                audience=settings.auth0_api_audience,
-                issuer=settings.auth0_issuer
-            )
+            token,
+            rsa_key,
+            options=options,
+            algorithms=settings.auth0_algorithms,
+            audience=settings.auth0_api_audience,
+            issuer=settings.auth0_issuer,
+        )
         logger.info(MSG_INFO_DECODED_TOKEN.format(decoded_token=decoded_token))
         return cast(
             "dict[str, Any]",
             decoded_token,
         )
-
 
     except ExpiredSignatureError as e:
         raise_http_exception(401, MSG_ERROR_JWT_EXPIRED.format(error=str(e)), e)

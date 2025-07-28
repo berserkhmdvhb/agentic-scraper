@@ -23,7 +23,7 @@ dependencies = [
   "streamlit-aggrid>=1.1.6",
   "streamlit>=1.35.0",
   "tenacity>=8.2.3",
-  "streamlit-auth0-component>=0.1.0"
+  "streamlit-auth0-component>=0.1.0",
 ]
 
 

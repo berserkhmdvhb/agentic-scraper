@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 auth_scheme = HTTPBearer(auto_error=True)
 
+
 # Function to check if user has the required scope using the RequiredScopes Enum
 def check_required_scopes(payload: AuthUser, required_scopes: set[RequiredScopes]) -> None:
     """
@@ -42,17 +43,17 @@ def check_required_scopes(payload: AuthUser, required_scopes: set[RequiredScopes
 
     # Check if all required scopes are in user_scopes
     missing_scopes = [
-        scope.value
-        for scope in required_scopes
-        if scope.value not in user_scopes_set
+        scope.value for scope in required_scopes if scope.value not in user_scopes_set
     ]
 
     if missing_scopes:
         # Log the missing scopes and the user's current scopes
-        logger.debug(MSG_DEBUG_MISSING_SCOPES.format(
-            missing_scopes=" ".join(missing_scopes),
-            user_scopes=" ".join(user_scopes),
-        ))
+        logger.debug(
+            MSG_DEBUG_MISSING_SCOPES.format(
+                missing_scopes=" ".join(missing_scopes),
+                user_scopes=" ".join(user_scopes),
+            )
+        )
 
         # Raise HTTPException if required scopes are missing
         raise_forbidden(required_scopes=missing_scopes)

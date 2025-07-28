@@ -21,6 +21,7 @@ logger = get_logger()
 # Timeout duration for the get_jwks call (in seconds)
 JWKS_TIMEOUT = 10
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """

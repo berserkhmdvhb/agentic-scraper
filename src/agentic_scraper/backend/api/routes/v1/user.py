@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
 
+
 # Versioned route
 @router.get("/me", tags=["User"])
 async def get_me(user: CurrentUser) -> UserProfile:
@@ -141,13 +142,13 @@ async def get_credentials(user: CurrentUser) -> UserCredentialsOut:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error while parsing credentials data.",
-            headers={"X-Error": str(e)}  # Include the original exception for traceability
+            headers={"X-Error": str(e)},  # Include the original exception for traceability
         ) from e
     except Exception as e:  # Catch any unforeseen errors
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Unexpected error while processing credentials.",
-            headers={"X-Error": str(e)}  # Raise the original exception for debugging
+            headers={"X-Error": str(e)},  # Raise the original exception for debugging
         ) from e
 
     return user_credentials
