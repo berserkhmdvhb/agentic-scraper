@@ -10,11 +10,15 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import Settings, get_settings, log_settings
-from agentic_scraper.frontend.ui_auth import login_ui
+from agentic_scraper.frontend.models import PipelineConfig
+from agentic_scraper.frontend.ui_auth import authenticate_user, login_ui
 from agentic_scraper.frontend.ui_display import display_results
-from agentic_scraper.frontend.ui_page_config import configure_page
-from agentic_scraper.frontend.ui_runner import maybe_run_pipeline
-from agentic_scraper.frontend.ui_sidebar import render_input_section, render_sidebar_controls
+from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
+from agentic_scraper.frontend.ui_runner import run_scraper_pipeline
+from agentic_scraper.frontend.ui_runner_helpers import (
+    validate_and_deduplicate_urls,
+)
+from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
 
 # --- WINDOWS ASYNCIO FIX ---
 if sys.platform.startswith("win"):
@@ -72,14 +76,12 @@ def process_pipeline(
         )
         log_settings(effective_settings)
 
-        # Run the extraction pipeline
-        items, skipped = maybe_run_pipeline(
-            raw_input=raw_input or "",
-            controls=controls,
-        )
+        valid_urls, _ = validate_and_deduplicate_urls(raw_input)
+        config = PipelineConfig(**controls)
+        items, skipped = asyncio.run(run_scraper_pipeline(valid_urls, config))
 
         if items:
-            display_results(items, screenshot_enabled=controls["screenshot_enabled"])
+            display_results(items, screenshot_enabled=config.screenshot_enabled)
         elif skipped == 0:
             st.error("No successful extractions.")
     except Exception as e:
@@ -102,11 +104,16 @@ def main() -> None:
     # --- LOGGING SETUP ---
     logger = setup_logging_and_logger()
 
-    # --- SETTINGS AND PAGE CONFIG ---
+    # --- SETTINGS LOAD ---
     settings = get_settings()
+
+    # --- AUTH TOKEN HANDLING (BEFORE ANY RENDERING) ---
+    authenticate_user()
+
+    # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
 
-    # --- AUTHENTICATION ---
+    # --- AUTH GUARD ---
     if not check_authentication():
         return
 

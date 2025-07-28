@@ -34,7 +34,7 @@ app.add_middleware(
         # Allow local Streamlit for testing
         "http://localhost:8501",
         "http://127.0.0.1:8000",
-        "https://bb348695cff1.ngrok-free.app/",
+        "https://6d35bd763370.ngrok-free.app/",
         "http://127.0.0.1:8085",
     ],
     allow_credentials=True,
