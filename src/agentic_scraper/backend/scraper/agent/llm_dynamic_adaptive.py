@@ -18,7 +18,6 @@ from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_FIELD_SCORE_PER_RETRY,
     MSG_DEBUG_LLM_RETRY_ATTEMPT,
-    MSG_DEBUG_MISSING_IMPORTANT_FIELDS,
     MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS,
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
     MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
@@ -119,7 +118,7 @@ async def process_llm_output(
     return item, raw_data.get("page_type", ""), set(raw_data.keys()), raw_data
 
 
-async def extract_adaptive_data(
+async def extract_adaptive_data( # noqa: C901
     text: str,
     url: str,
     *,
@@ -161,10 +160,7 @@ async def extract_adaptive_data(
             settings=settings,
         )
 
-        # Merge useful fields into cumulative result
-        for k, v in raw_data.items():
-            if v is not None and v != "":
-                all_fields[k] = v
+        all_fields.update({k: v for k, v in raw_data.items() if v is not None and v != ""})
 
         if item is not None:
             return item
@@ -173,17 +169,16 @@ async def extract_adaptive_data(
         required = get_required_fields(page_type) or IMPORTANT_FIELDS
         missing = required - observed_fields
 
-        if missing:
-            logger.debug(
-                MSG_DEBUG_MISSING_IMPORTANT_FIELDS.format(fields=", ".join(sorted(missing)))
+        retry_message = (
+            build_retry_prompt(best_fields or {}, missing)
+            if missing
+            else (
+                "Please try to extract any additional useful fields from "
+                "the content that may have been missed earlier. "
+                "Ensure your output includes all relevant fields and metadata "
+                "based on the page type and context. Return only valid JSON."
             )
-            retry_message = build_retry_prompt(best_fields or {}, missing)
-        else:
-            retry_message = (
-                "Please try to extract any additional useful fields from the content that may have been missed earlier. "
-                "Ensure your output includes all relevant fields and metadata based on the page type and context. Return only valid JSON."
-            )
-
+        )
         messages[:] = messages[:1]
         messages.append({"role": "user", "content": retry_message})
 
@@ -200,16 +195,15 @@ async def extract_adaptive_data(
             best_score = score
             best_fields = copy.deepcopy(raw_data)
 
-    # Try validating all accumulated fields first
     if all_fields:
         try:
             item = ScrapedItem.model_validate(all_fields)
-            logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
-            return item
         except ValidationError as ve:
             logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
+        else:
+            logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
+            return item
 
-    # Fallback to best full-scoring attempt
     if best_fields:
         logger.debug(MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS.format(fields=list(best_fields.keys())))
         try:

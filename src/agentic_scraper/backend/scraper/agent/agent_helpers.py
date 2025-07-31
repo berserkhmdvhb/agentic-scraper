@@ -104,20 +104,22 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
     - Domain name (for prompt adaptation)
     - Optional enhancements: <title> and <h1>
     """
-    from bs4 import BeautifulSoup
-    from urllib.parse import urlparse
 
     soup = BeautifulSoup(html, "html.parser")
 
     # Useful meta tags only
-    USEFUL_META_KEYS = {
+    useful_meta_keys = {
         "title", "description", "keywords", "author",
         "og:title", "og:description", "og:site_name", "og:type",
         "article:published_time", "twitter:title", "twitter:description",
     }
     meta_tags = {
-        k: v for tag in soup.find_all("meta")
-        if (k := tag.get("name") or tag.get("property")) in USEFUL_META_KEYS and (v := tag.get("content"))
+        k: v
+        for tag in soup.find_all("meta")
+        if (
+            (k := tag.get("name") or tag.get("property")) in useful_meta_keys
+            and (v := tag.get("content"))
+        )
     }
     meta_summary = "; ".join(f"{k}={v}" for k, v in meta_tags.items())
 

@@ -61,16 +61,17 @@ Extra context:
 
     return f"""
 You are a smart web content extraction agent.
-Your goal is to extract all useful information from the web page below, 
-based on the type of the web page (product, blog, job) and its context. 
-Decide which fields to extract accordingly. 
+Your goal is to extract all useful information from the web page below,
+based on the type of the web page (product, blog, job) and its context.
+Decide which fields to extract accordingly.
 The more relevant information you could extract, the better.
 
 Instructions:
 - Infer the page_type (e.g. product, blog, job).
 - Choose fields based on type.
 - Only extract values present in the page.
-- Prioritize extracting important fields: {", ".join(IMPORTANT_FIELDS)}, but don't hesitate to add more relevant fields.
+- Prioritize extracting important fields:
+{", ".join(IMPORTANT_FIELDS)}, but don't hesitate to add more relevant fields.
 - Return only valid JSON.
 
 Mandatory fields: url, page_type.
