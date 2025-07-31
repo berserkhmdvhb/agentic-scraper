@@ -4,7 +4,7 @@ import os
 from pprint import pprint
 from agentic_scraper.backend.core.settings import Settings
 
-# Simulate .env or environment vars (overrides .env file)
+# Simulate .env or environment vars (overrides .env file contents)
 os.environ["OPENAI_API_KEY"] = "sk-test1234567890abcdef"
 os.environ["OPENAI_PROJECT_ID"] = "test-project"
 os.environ["LLM_MAX_TOKENS"] = "300"

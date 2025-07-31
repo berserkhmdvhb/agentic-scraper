@@ -98,19 +98,38 @@ def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
 def extract_context_hints(html: str, url: str) -> dict[str, str]:
     """
     Extract contextual hints from HTML and URL for LLM prompting:
-    - Meta tags summary
-    - Breadcrumbs
-    - URL segments
+    - Useful meta tags (title, description, etc.)
+    - Breadcrumbs (deduplicated)
+    - URL segments and page type hint
+    - Domain name (for prompt adaptation)
+    - Optional enhancements: <title> and <h1>
     """
+
     soup = BeautifulSoup(html, "html.parser")
 
-    # Meta tags
-    meta_tags = {
-        tag.get("name") or tag.get("property"): tag.get("content", "")
-        for tag in soup.find_all("meta")
-        if tag.get("content")
+    # Useful meta tags only
+    useful_meta_keys = {
+        "title",
+        "description",
+        "keywords",
+        "author",
+        "og:title",
+        "og:description",
+        "og:site_name",
+        "og:type",
+        "article:published_time",
+        "twitter:title",
+        "twitter:description",
     }
-    meta_summary = "; ".join(f"{k}={v}" for k, v in meta_tags.items() if k)
+    meta_tags = {
+        k: v
+        for tag in soup.find_all("meta")
+        if (
+            (k := tag.get("name") or tag.get("property")) in useful_meta_keys
+            and (v := tag.get("content"))
+        )
+    }
+    meta_summary = "; ".join(f"{k}={v}" for k, v in meta_tags.items())
 
     # Breadcrumbs
     breadcrumb_selectors = [
@@ -120,17 +139,39 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
         '[id*="breadcrumbs"]',
     ]
     breadcrumb_texts: list[str] = []
+    seen_breadcrumbs = set()
     for sel in breadcrumb_selectors:
-        breadcrumb_texts.extend(elem.get_text(strip=True) for elem in soup.select(sel))
+        for elem in soup.select(sel):
+            text = elem.get_text(strip=True)
+            if text and text not in seen_breadcrumbs:
+                breadcrumb_texts.append(text)
+                seen_breadcrumbs.add(text)
+
+    # Fallback breadcrumb detection
+    if not breadcrumb_texts:
+        nav_breadcrumb = soup.select_one("nav[aria-label='breadcrumb']")
+        if nav_breadcrumb:
+            breadcrumb_texts.append(nav_breadcrumb.get_text(strip=True))
 
     breadcrumbs = " > ".join(breadcrumb_texts)
 
-    # URL segments
+    # URL-based hints
     parsed = urlparse(url)
     url_segments = " / ".join(filter(None, parsed.path.split("/")))
+    domain = parsed.netloc.lower()
+    last_segment = parsed.path.rstrip("/").split("/")[-1]
+
+    # Optional extra context
+    page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
+    h1 = soup.find("h1")
+    first_h1 = h1.get_text(strip=True) if h1 else ""
 
     return {
         "meta": meta_summary,
         "breadcrumbs": breadcrumbs,
         "url_segments": url_segments,
+        "context_domain": domain,
+        "page_hint": last_segment,
+        "page_title": page_title,
+        "first_h1": first_h1,
     }
