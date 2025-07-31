@@ -181,9 +181,16 @@ class Settings(BaseSettings):
     auth0_issuer: str = Field(..., validation_alias="AUTH0_ISSUER")
     auth0_client_id: str = Field(..., validation_alias="AUTH0_CLIENT_ID")
     auth0_client_secret: str = Field(..., validation_alias="AUTH0_CLIENT_SECRET")
-    auth0_api_audience: str = Field(..., validation_alias="AUTH0_API_AUDIENCE")
+
     auth0_algorithms: list[str] = Field(default=[DEFAULT_AUTH0_ALGORITHM])
     encryption_secret: str = Field(..., validation_alias="ENCRYPTION_SECRET")
+
+    # Frontend & Backend Domains
+    ## backend
+    backend_domain: str = Field(..., validation_alias="BACKEND_DOMAIN")
+    auth0_api_audience: str = Field(..., validation_alias="AUTH0_API_AUDIENCE")
+    ## frontend
+    frontend_domain: str = Field(..., validation_alias="FRONTEND_DOMAIN")
 
     # Derived
     @property

@@ -9,6 +9,7 @@ from agentic_scraper.backend.api.lifecycle import lifespan  # Directly use lifes
 from agentic_scraper.backend.api.openapi import custom_openapi
 from agentic_scraper.backend.api.routes.v1.scrape import router as scrape_router
 from agentic_scraper.backend.api.routes.v1.user import router as user_router
+from agentic_scraper.backend.api.routes.v1.oauth_redirect import router as oauth_redirect_router
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import get_settings, log_settings
 
@@ -74,3 +75,4 @@ async def root() -> dict[str, str]:
 
 app.include_router(user_router, prefix=f"/{api_version}/user", tags=["User"])
 app.include_router(scrape_router, prefix=f"/{api_version}/scrape", tags=["Scrape"])
+app.include_router(oauth_redirect_router)

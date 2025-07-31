@@ -12,12 +12,11 @@ from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import Settings, get_settings, log_settings
 from agentic_scraper.frontend.models import PipelineConfig
 from agentic_scraper.frontend.ui_auth import authenticate_user, login_ui
+from agentic_scraper.frontend.ui_auth_redirect import render_auth_redirect_handler
 from agentic_scraper.frontend.ui_display import display_results
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
 from agentic_scraper.frontend.ui_runner import run_scraper_pipeline
-from agentic_scraper.frontend.ui_runner_helpers import (
-    validate_and_deduplicate_urls,
-)
+from agentic_scraper.frontend.ui_runner_helpers import validate_and_deduplicate_urls
 from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
 
 # --- WINDOWS ASYNCIO FIX ---
@@ -25,28 +24,16 @@ if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
-# Setup logging and return logger instance
 def setup_logging_and_logger() -> get_logger:
     setup_logging(reset=True)
     return get_logger()
 
 
-# Configure page and render sidebar + input sections
 def configure_app_page(settings: Settings) -> tuple:
     configure_page()
     return render_sidebar_controls(settings), render_input_section()
 
 
-# Check user authentication and ensure jwt_token is present in session state
-def check_authentication() -> bool:
-    login_ui()
-    if "jwt_token" not in st.session_state:
-        st.warning("⚠️ Please log in to continue.", icon="⚠️")
-        return False
-    return True
-
-
-# Handle run extraction button logic and state changes
 def handle_run_button(input_ready: str) -> None:
     if not st.session_state["is_running"]:
         run_button = st.button("🚀 Run Extraction", type="primary")
@@ -60,7 +47,6 @@ def handle_run_button(input_ready: str) -> None:
         st.button("🚀 Run Extraction", disabled=True)
 
 
-# Process the extraction pipeline
 def process_pipeline(
     raw_input: str, controls: dict, settings: Settings, logger: logging.Logger
 ) -> None:
@@ -91,7 +77,6 @@ def process_pipeline(
         st.session_state["is_running"] = False
 
 
-# Reset application state when reset button is clicked
 def reset_app_state(logger: logging.Logger) -> None:
     if st.sidebar.button("🔄 Reset"):
         logger.info(MSG_INFO_APP_RESET_TRIGGERED)
@@ -99,23 +84,32 @@ def reset_app_state(logger: logging.Logger) -> None:
         st.rerun()
 
 
-# Main function to manage the app workflow
 def main() -> None:
+    # --- AUTH REDIRECT HANDLER ---
+    route_param = st.query_params.get("route")
+    if route_param == "auth_redirect":
+        render_auth_redirect_handler()
+        st.stop()
+
     # --- LOGGING SETUP ---
     logger = setup_logging_and_logger()
 
     # --- SETTINGS LOAD ---
     settings = get_settings()
 
-    # --- AUTH TOKEN HANDLING (BEFORE ANY RENDERING) ---
+    # --- AUTH TOKEN HANDLING ---
     authenticate_user()
 
     # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
+    agent_mode = controls.agent_mode
 
-    # --- AUTH GUARD ---
-    if not check_authentication():
-        return
+    # --- LOGIN UI ---
+    login_ui(agent_mode)
+
+    # --- OPTIONAL REMINDER ---
+    if agent_mode.startswith("llm_") and "openai_credentials" not in st.session_state:
+        st.info("👉 Submit your OpenAI API credentials in the sidebar before running extraction.")
 
     # --- SESSION STATE INIT ---
     if "is_running" not in st.session_state:
