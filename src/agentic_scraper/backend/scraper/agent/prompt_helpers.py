@@ -1,4 +1,6 @@
+import json
 import logging
+from typing import Any
 
 from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS, MAX_TEXT_FOR_FEWSHOT
 from agentic_scraper.backend.config.messages import MSG_DEBUG_CONTEXTUAL_HINTS_USED
@@ -59,15 +61,16 @@ Extra context:
 
     return f"""
 You are a smart web content extraction agent.
-
-Your goal is to extract structured metadata from the web page below
-for use in a structured dataset or search engine.
+Your goal is to extract all useful information from the web page below, 
+based on the type of the web page (product, blog, job) and its context. 
+Decide which fields to extract accordingly. 
+The more relevant information you could extract, the better.
 
 Instructions:
 - Infer the page_type (e.g. product, blog, job).
 - Choose fields based on type.
 - Only extract values present in the page.
-- Prioritize extracting important fields: {", ".join(IMPORTANT_FIELDS)}.
+- Prioritize extracting important fields: {", ".join(IMPORTANT_FIELDS)}, but don't hesitate to add more relevant fields.
 - Return only valid JSON.
 
 Mandatory fields: url, page_type.
@@ -80,3 +83,27 @@ Page URL: {url}
 Page Content:
 {text[:4000]}
 """.strip()
+
+
+
+def build_retry_prompt(
+    best_fields: dict[str, Any],
+    missing_fields: set[str],
+) -> str:
+    """
+    Build a focused retry prompt using previously extracted data and missing field hints.
+
+    Args:
+        best_fields (dict[str, Any]): Partial extracted fields from prior attempts.
+        missing_fields (set[str]): Fields that were missing.
+
+    Returns:
+        str: Retry prompt to send to the LLM.
+    """
+    return (
+        "We previously extracted the following fields:\n"
+        f"{json.dumps(best_fields, indent=2)}\n\n"
+        f"The following important fields were missing: {', '.join(sorted(missing_fields))}.\n"
+        "Please re-analyze the page content and extract ONLY the missing fields if available.\n"
+        "Return a valid JSON object with just those fields."
+    )
