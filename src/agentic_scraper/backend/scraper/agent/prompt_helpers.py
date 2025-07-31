@@ -86,7 +86,6 @@ Page Content:
 """.strip()
 
 
-
 def build_retry_prompt(
     best_fields: dict[str, Any],
     missing_fields: set[str],

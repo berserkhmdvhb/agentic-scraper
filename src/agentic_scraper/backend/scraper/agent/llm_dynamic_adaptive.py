@@ -118,7 +118,7 @@ async def process_llm_output(
     return item, raw_data.get("page_type", ""), set(raw_data.keys()), raw_data
 
 
-async def extract_adaptive_data( # noqa: C901
+async def extract_adaptive_data(  # noqa: C901
     text: str,
     url: str,
     *,

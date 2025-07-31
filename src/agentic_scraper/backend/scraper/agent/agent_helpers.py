@@ -109,9 +109,17 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
 
     # Useful meta tags only
     useful_meta_keys = {
-        "title", "description", "keywords", "author",
-        "og:title", "og:description", "og:site_name", "og:type",
-        "article:published_time", "twitter:title", "twitter:description",
+        "title",
+        "description",
+        "keywords",
+        "author",
+        "og:title",
+        "og:description",
+        "og:site_name",
+        "og:type",
+        "article:published_time",
+        "twitter:title",
+        "twitter:description",
     }
     meta_tags = {
         k: v
