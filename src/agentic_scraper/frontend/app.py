@@ -85,12 +85,6 @@ def reset_app_state(logger: logging.Logger) -> None:
 
 
 def main() -> None:
-    # --- AUTH REDIRECT HANDLER ---
-    route_param = st.query_params.get("route")
-    if route_param == "auth_redirect":
-        render_auth_redirect_handler()
-        st.stop()
-
     # --- LOGGING SETUP ---
     logger = setup_logging_and_logger()
 

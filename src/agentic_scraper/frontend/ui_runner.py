@@ -85,6 +85,23 @@ async def run_scraper_pipeline(
         st.warning(MSG_INFO_NO_VALID_URLS)
         return [], 0
 
+    # ✅ Ensure OpenAI credentials are available before scraping
+    if "openai_credentials" not in st.session_state:
+        try:
+            response = httpx.get(
+                f"{settings.backend_domain}/api/v1/user/openai-credentials",
+                headers={"Authorization": f"Bearer {st.session_state['jwt_token']}"},
+                timeout=10,
+            )
+            if response.status_code == 200:
+                st.session_state["openai_credentials"] = response.json()
+            else:
+                st.error("⚠️ You must provide OpenAI credentials before running the scraper.")
+                return [], 0
+        except Exception as e:
+            st.error(f"Failed to load OpenAI credentials: {e}")
+            return [], 0
+
     # Prepare inputs
     inputs, fetch_errors, skipped = await fetch_and_prepare_inputs(
         urls=urls, fetch_concurrency=config.fetch_concurrency, settings=settings
@@ -101,11 +118,10 @@ async def run_scraper_pipeline(
     # Trigger the API call to start scraping
     items, skipped = await start_scraping(urls, config)
 
-    # You may want to further process the API response here if needed
-    # For example, display the returned results (scraped items) in a user-friendly way
+    # Optionally display the returned results
     if items:
         st.markdown("### 🎉 Scraping Complete!")
         for item in items:
-            st.write(item)  # You can customize how to display the items
+            st.write(item)
 
     return items, skipped
