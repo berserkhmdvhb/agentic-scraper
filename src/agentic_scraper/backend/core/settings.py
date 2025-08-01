@@ -191,6 +191,8 @@ class Settings(BaseSettings):
     auth0_api_audience: str = Field(..., validation_alias="AUTH0_API_AUDIENCE")
     ## frontend
     frontend_domain: str = Field(..., validation_alias="FRONTEND_DOMAIN")
+    ## redirect URI for Auth0
+    auth0_redirect_uri: str = Field(..., validation_alias="AUTH0_REDIRECT_URI")
 
     # Derived
     @property

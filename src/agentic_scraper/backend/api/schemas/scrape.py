@@ -1,8 +1,7 @@
 from typing import Annotated, Any
-
 from pydantic import BaseModel, Field, HttpUrl
-
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.models import ScrapedItem, OpenAIConfig
+from agentic_scraper.backend.config.types import AgentMode, OpenAIModel
 
 UrlsType = Annotated[
     list[HttpUrl],
@@ -16,6 +15,15 @@ UrlsType = Annotated[
 
 class ScrapeRequest(BaseModel):
     urls: UrlsType
+    openai_credentials: OpenAIConfig
+    fetch_concurrency: int
+    llm_concurrency: int
+    screenshot_enabled: bool
+    verbose: bool
+    openai_model: OpenAIModel
+    agent_mode: AgentMode
+    retry_attempts: int
+    llm_schema_retries: int
 
 
 class ScrapeResponse(BaseModel):

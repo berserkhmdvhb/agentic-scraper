@@ -11,47 +11,46 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_UNEXPECTED_EXCEPTION,
 )
 
-# Initialize logger
 logger = logging.getLogger(__name__)
-
 auth_scheme = HTTPBearer(auto_error=True)
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
-) -> AuthUser | None:
+) -> AuthUser:
     """
     Extract and verify the current user from a JWT token.
 
     Args:
-        credentials (HTTPAuthorizationCredentials): The authorization header parsed by FastAPI.
+        credentials (HTTPAuthorizationCredentials): Bearer token extracted from the Authorization header.
 
     Returns:
-        AuthUser: The decoded JWT payload representing the authenticated user.
-        None: If the token is invalid or expired.
+        AuthUser: Parsed user object from the decoded JWT token.
 
     Raises:
-        HTTPException: If the token is invalid or expired.
+        HTTPException: If the token is invalid, expired, or verification fails.
     """
     token = credentials.credentials
 
     try:
-        # Decode the JWT token and verify its validity
+        logger.debug(f"Verifying JWT token: {token}")  # Remove or redact in production
         payload = await verify_jwt(token)
+
         user_data: AuthUser = {
-            "sub": payload["sub"],  # User identifier (subject)
+            "sub": payload.get("sub"),
             "email": payload.get("email"),
             "name": payload.get("name"),
-            "scope": payload.get("scope", ""),  # Extract scope from the token
+            "scope": payload.get("scope", ""),
         }
 
+        if not user_data["sub"]:
+            raise_unauthorized("Missing 'sub' in token payload")
+        return user_data
+
     except JWTError as err:
-        raise_unauthorized(err)
-        return None  # Ensure returning None after exception
+        logger.warning("JWT verification failed", exc_info=err)
+        raise raise_unauthorized(err)
+
     except Exception as e:
         logger.exception(MSG_ERROR_UNEXPECTED_EXCEPTION, exc_info=e)
-        raise_internal_error(e)
-        return None  # Ensure returning None after exception
-    else:
-        # Return the payload if everything is valid
-        return user_data
+        raise raise_internal_error(e)

@@ -24,7 +24,13 @@ async def scrape(
 ) -> ScrapeResponse:
     logger.info(MSG_INFO_SCRAPE_REQUEST_RECEIVED.format(n=len(request.urls)))
 
-    creds = load_user_credentials(user["sub"])
+    # Prefer credentials from the request body
+    creds = request.openai_credentials
+
+    if not creds:
+        # Fallback to user-store credentials
+        creds = load_user_credentials(user["sub"])
+
     if not creds:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -36,4 +42,6 @@ async def scrape(
         settings=settings,
         openai=creds,
     )
+
     return ScrapeResponse(results=results, stats=stats)
+

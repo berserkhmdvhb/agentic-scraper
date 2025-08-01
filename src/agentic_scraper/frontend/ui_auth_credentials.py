@@ -2,6 +2,7 @@ import streamlit as st
 import httpx
 
 from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper import __api_version__ as api_version
 
 settings = get_settings()
 
@@ -38,16 +39,18 @@ def render_credentials_form():
             try:
                 with st.spinner("Saving credentials..."):
                     response = httpx.post(
-                        f"{settings.backend_domain}/api/v1/user/openai-credentials",
+                        f"{settings.backend_domain}/api/{api_version}/user/openai-credentials",
                         json=data,
                         headers=headers,
                         timeout=10
                     )
-                if response.status_code == 200:
-                    st.success("✅ OpenAI credentials saved successfully!")
-                    st.session_state["openai_saved"] = True
-                else:
-                    st.error(f"Failed to save credentials: {response.text}")
+                    response.raise_for_status()
+
+                st.success("✅ OpenAI credentials saved successfully!")
+                st.session_state["openai_saved"] = True
+
+            except httpx.HTTPStatusError as e:
+                st.error(f"❌ Failed to save credentials: {e.response.text}")
             except Exception as e:
                 st.error("⚠️ An unexpected error occurred while saving credentials.")
                 if settings.is_verbose_mode:

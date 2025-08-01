@@ -1,16 +1,14 @@
-from dataclasses import dataclass
-
 from pydantic import BaseModel
+from agentic_scraper.backend.config.types import OpenAIModel, AgentMode
 
 
-@dataclass
-class PipelineConfig:
+class PipelineConfig(BaseModel):
     fetch_concurrency: int
     llm_concurrency: int
     screenshot_enabled: bool
     verbose: bool
-    openai_model: str
-    agent_mode: str
+    openai_model: OpenAIModel | None
+    agent_mode: AgentMode
     retry_attempts: int
     llm_schema_retries: int
 
@@ -20,7 +18,7 @@ class SidebarConfig(BaseModel):
     fetch_concurrency: int
     llm_concurrency: int
     verbose: bool
-    openai_model: str | None  # None if rule-based agent is used
-    agent_mode: str  # Enum value as string (e.g. "llm-fixed")
+    openai_model: OpenAIModel | None
+    agent_mode: AgentMode
     retry_attempts: int
     llm_schema_retries: int

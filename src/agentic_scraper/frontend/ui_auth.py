@@ -56,7 +56,7 @@ def fetch_user_profile() -> None:
     backend_api = settings.auth0_api_audience.rstrip("/")  # Ensure no trailing slash
     try:
         response = httpx.get(
-            f"{backend_api}/api/v1/user/me",
+            f"{backend_api}/api/{api_version}/user/me",
             headers=headers,
         )
         if response.status_code == 401:
@@ -89,7 +89,7 @@ def fetch_openai_credentials() -> None:
     try:
         with httpx.Client() as client:
             response = client.get(
-                f"{backend_api}/api/v1/user/openai-credentials",
+                f"{backend_api}/api/{api_version}/user/openai-credentials",
                 headers=headers,
             )
             if response.status_code == 401:
@@ -113,40 +113,6 @@ def fetch_openai_credentials() -> None:
         )
         st.session_state["openai_credentials"] = openai_config
         st.success("OpenAI credentials retrieved successfully!")
-
-
-def submit_openai_credentials_ui() -> None:
-    """Render OpenAI credential submission form (only shown if logged in)."""
-    st.markdown("### 🔑 Submit OpenAI Credentials")
-
-    api_key = st.text_input("OpenAI API Key", type="password")
-    project_id = st.text_input("OpenAI Project ID")
-
-    if st.button("Save Credentials"):
-        headers = {"Authorization": f"Bearer {st.session_state['jwt_token']}"}
-        payload = {"api_key": api_key, "project_id": project_id}
-        backend_api = settings.auth0_api_audience.rstrip("/")
-
-        try:
-            with httpx.Client() as client:
-                response = client.post(
-                    f"{backend_api}/api/v1/user/openai-credentials",
-                    json=payload,
-                    headers=headers,
-                )
-            if response.status_code == 401:
-                st.warning("Session expired. Please log in again.")
-                logout_user()
-                return
-            response.raise_for_status()
-            st.success("OpenAI credentials saved successfully!")
-            fetch_openai_credentials()
-        except HTTPStatusError as e:
-            logger.exception("Failed to save OpenAI credentials")
-            st.error(f"Error: {e.response.text}")
-        except RequestError as e:
-            logger.exception("Network error while saving OpenAI credentials")
-            st.error(f"Network error: {e}")
 
 def authenticate_user() -> None:
     """Authenticate user by extracting JWT and populating session state."""
@@ -192,32 +158,31 @@ def login_ui(agent_mode: str) -> None:
         return
 
     if "jwt_token" not in st.session_state:
-        st.markdown("Click below to log in.")
+        with st.sidebar:
+            st.markdown("Click below to log in:")
 
-        frontend = settings.frontend_domain.strip().rstrip("/")
-        if not frontend.startswith("http://") and not frontend.startswith("https://"):
-            frontend = "https://" + frontend
+            frontend = settings.frontend_domain.strip().rstrip("/")
+            if not frontend.startswith("http://") and not frontend.startswith("https://"):
+                frontend = "https://" + frontend
 
-        login_url = (
-            f"https://{settings.auth0_domain}/authorize"
-            f"?client_id={settings.auth0_client_id}"
-            f"&response_type=code"
-            f"&redirect_uri={settings.auth0_redirect_uri}"
-            f"&audience={settings.auth0_api_audience}"
-            f"&scope=openid%20profile%20email%20create:openai_credential%20read:user_profile"
-        )
+            login_url = (
+                f"https://{settings.auth0_domain}/authorize"
+                f"?client_id={settings.auth0_client_id}"
+                f"&response_type=code"
+                f"&redirect_uri={settings.auth0_redirect_uri}"
+                f"&audience={settings.auth0_api_audience}"
+                f"&scope=openid%20profile%20email%20create:openai_credentials%20read:user_profile"
+            )
 
-        if settings.is_verbose_mode:
-            print("Auth0 login URI:", login_url)
+            if settings.is_verbose_mode:
+                print("Auth0 login URI:", login_url)
 
-        st.link_button("🔐 Login with Auth0", login_url)
-
+            st.link_button("🔐 Login with Auth0", login_url)
     else:
-        user_info = st.session_state.get("user_info", {})
-        st.markdown(f"Welcome, **{user_info.get('name', 'User')}**")
-        st.markdown(f"📧 Email: `{user_info.get('email', 'N/A')}`")
+        with st.sidebar:
+            user_info = st.session_state.get("user_info", {})
+            st.markdown(f"Welcome, **{user_info.get('name', 'User')}**")
+            st.markdown(f"📧 Email: `{user_info.get('email', 'N/A')}`")
 
-        if st.button("Logout"):
-            logout_user()
-
-        submit_openai_credentials_ui()
+            if st.button("Logout"):
+                logout_user()

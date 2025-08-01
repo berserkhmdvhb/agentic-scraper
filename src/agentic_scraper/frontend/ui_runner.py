@@ -1,127 +1,114 @@
+import asyncio
 import time
-
 import httpx
 import streamlit as st
 from fastapi import status
 
-from agentic_scraper.backend.config.messages import MSG_INFO_NO_VALID_URLS
+from agentic_scraper.backend.config.messages import (
+    MSG_INFO_NO_VALID_URLS,
+    MSG_ERROR_EXTRACTION_FAILED,
+    MSG_INFO_USING_CACHE,
+)
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.frontend.models import PipelineConfig
 from agentic_scraper.frontend.ui_runner_helpers import (
-    display_error_summaries,
-    display_progress,
-    fetch_and_prepare_inputs,
+    validate_and_deduplicate_urls,
+    render_invalid_url_section,
+    render_valid_url_feedback,
+    summarize_results,
 )
+from agentic_scraper import __api_version__ as api_version
 
 settings = get_settings()
 
 
 async def start_scraping(urls: list[str], config: PipelineConfig) -> tuple[list[ScrapedItem], int]:
     """Make API call to start scraping with the JWT token and OpenAI credentials."""
-
-    # Initialize result variables
-    result = [], 0
-
-    # Check for JWT token
     if "jwt_token" not in st.session_state:
         st.error("User is not authenticated!")
-        return result
+        return [], 0
 
-    # Fetch OpenAI credentials from session state
     openai_credentials = st.session_state.get("openai_credentials")
     if not openai_credentials:
         st.error("OpenAI credentials are missing!")
-        return result
+        return [], 0
 
-    headers = {
-        "Authorization": f"Bearer {st.session_state['jwt_token']}",
-    }
-
-    # Prepare the request body with URLs, OpenAI credentials, and other configuration options
+    headers = {"Authorization": f"Bearer {st.session_state['jwt_token']}"}
     body = {
         "urls": urls,
-        "openai_credentials": openai_credentials,
-        "fetch_concurrency": config.fetch_concurrency,
-        "llm_concurrency": config.llm_concurrency,
-        "openai_model": config.openai_model,
-        "agent_mode": config.agent_mode,
-        "retry_attempts": config.retry_attempts,
-        "llm_schema_retries": config.llm_schema_retries,
-        "screenshot_enabled": config.screenshot_enabled,
-        "verbose": config.verbose,
+        "openai_credentials": openai_credentials.model_dump(),
+        **config.model_dump(),
     }
 
     try:
-        # Make the API request to start scraping
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://your-backend-url/api/v1/scrape/start",  # Your backend scrape endpoint
-                json=body,
-                headers=headers,
-            )
+        with st.spinner("🔍 Scraping in progress..."):
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{settings.backend_domain}/api/{api_version}/scrape/start",
+                    json=body,
+                    headers=headers,
+                    timeout=60,
+                )
 
-            # Handle response
-            if response.status_code == status.HTTP_202_ACCEPTED:
-                st.success("Scraping started!")
-                result = response.json(), 0  # Return the response data if successful
+        response.raise_for_status()
+
+        data = response.json()
+        raw_items = data.get("results", [])
+        skipped = data.get("stats", {}).get("skipped", 0)
+
+        items = []
+        for idx, item in enumerate(raw_items):
+            if isinstance(item, dict):
+                try:
+                    items.append(ScrapedItem(**item))
+                except Exception as e:
+                    st.warning(f"⚠️ Skipped malformed result #{idx + 1}: {e}")
+            elif isinstance(item, ScrapedItem):
+                items.append(item)
             else:
-                st.error(f"Failed to start scraping: {response.text}")
-    except httpx.HTTPStatusError as e:
-        st.error(f"HTTP status error occurred: {e!s}")
+                st.warning(f"⚠️ Skipped unexpected type result #{idx + 1}: {type(item)}")
+
+        return items, skipped
+
     except httpx.RequestError as e:
-        st.error(f"Request error occurred: {e!s}")
-    except RuntimeError as e:
-        st.error(f"A runtime error occurred: {e!s}")
+        st.error(f"Request error: {e}")
+    except httpx.HTTPStatusError as e:
+        st.error(f"HTTP error {e.response.status_code}: {e.response.text}")
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
 
-    return result
+    return [], 0
 
 
-async def run_scraper_pipeline(
-    urls: list[str], config: PipelineConfig
-) -> tuple[list[ScrapedItem], int]:
-    """Run the entire scraper pipeline."""
+def run_scraper_pipeline(raw_input: str, config: PipelineConfig) -> tuple[list[ScrapedItem], int]:
+    """Main entry to validate input, run scraper via API, and display results."""
+    urls, invalid_lines = validate_and_deduplicate_urls(raw_input)
+
+    render_invalid_url_section(invalid_lines)
+
     if not urls:
         st.warning(MSG_INFO_NO_VALID_URLS)
         return [], 0
 
-    # ✅ Ensure OpenAI credentials are available before scraping
-    if "openai_credentials" not in st.session_state:
-        try:
-            response = httpx.get(
-                f"{settings.backend_domain}/api/v1/user/openai-credentials",
-                headers={"Authorization": f"Bearer {st.session_state['jwt_token']}"},
-                timeout=10,
-            )
-            if response.status_code == 200:
-                st.session_state["openai_credentials"] = response.json()
-            else:
-                st.error("⚠️ You must provide OpenAI credentials before running the scraper.")
-                return [], 0
-        except Exception as e:
-            st.error(f"Failed to load OpenAI credentials: {e}")
-            return [], 0
+    render_valid_url_feedback(urls)
 
-    # Prepare inputs
-    inputs, fetch_errors, skipped = await fetch_and_prepare_inputs(
-        urls=urls, fetch_concurrency=config.fetch_concurrency, settings=settings
-    )
+    start = time.perf_counter()
+    key = tuple(sorted(urls))
 
-    # Track progress and display results
-    items, extraction_errors = await display_progress(
-        inputs=inputs, total=len(urls), processed=0, start_time=time.perf_counter()
-    )
+    try:
+        if st.session_state.get("last_input_key") == key:
+            st.info(MSG_INFO_USING_CACHE)
+            return st.session_state["extracted_items"], 0
 
-    # Display error summaries (fetch and extraction errors)
-    display_error_summaries(fetch_errors, extraction_errors)
+        items, skipped = asyncio.run(start_scraping(urls, config))
 
-    # Trigger the API call to start scraping
-    items, skipped = await start_scraping(urls, config)
+        st.session_state["extracted_items"] = items
+        st.session_state["last_input_key"] = key
 
-    # Optionally display the returned results
-    if items:
-        st.markdown("### 🎉 Scraping Complete!")
-        for item in items:
-            st.write(item)
+    except Exception as e:
+        st.error(MSG_ERROR_EXTRACTION_FAILED.format(error=e))
+        return [], 0
 
+    summarize_results(items, skipped, start)
     return items, skipped

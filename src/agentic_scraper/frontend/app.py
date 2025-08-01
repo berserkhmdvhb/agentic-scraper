@@ -11,12 +11,10 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import Settings, get_settings, log_settings
 from agentic_scraper.frontend.models import PipelineConfig
-from agentic_scraper.frontend.ui_auth import authenticate_user, login_ui
-from agentic_scraper.frontend.ui_auth_redirect import render_auth_redirect_handler
+from agentic_scraper.frontend.ui_auth import authenticate_user
 from agentic_scraper.frontend.ui_display import display_results
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
 from agentic_scraper.frontend.ui_runner import run_scraper_pipeline
-from agentic_scraper.frontend.ui_runner_helpers import validate_and_deduplicate_urls
 from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
 
 # --- WINDOWS ASYNCIO FIX ---
@@ -53,18 +51,16 @@ def process_pipeline(
     try:
         effective_settings = settings.model_copy(
             update={
-                "openai_model": controls["openai_model"],
-                "agent_mode": controls["agent_mode"],
-                "retry_attempts": controls["retry_attempts"],
-                "verbose": controls["verbose"],
-                "screenshot_enabled": controls["screenshot_enabled"],
+                "openai_model": controls.openai_model,
+                "agent_mode": controls.agent_mode,
+                "retry_attempts": controls.retry_attempts,
+                "verbose": controls.verbose,
+                "screenshot_enabled": controls.screenshot_enabled,
             }
         )
         log_settings(effective_settings)
-
-        valid_urls, _ = validate_and_deduplicate_urls(raw_input)
-        config = PipelineConfig(**controls)
-        items, skipped = asyncio.run(run_scraper_pipeline(valid_urls, config))
+        config = PipelineConfig(**controls.model_dump())
+        items, skipped = run_scraper_pipeline(raw_input, config)
 
         if items:
             display_results(items, screenshot_enabled=config.screenshot_enabled)
@@ -98,15 +94,12 @@ def main() -> None:
     controls, raw_input = configure_app_page(settings)
     agent_mode = controls.agent_mode
 
-    # --- LOGIN UI ---
-    login_ui(agent_mode)
-
     # --- OPTIONAL REMINDER ---
     if agent_mode.startswith("llm_") and "openai_credentials" not in st.session_state:
         st.info("👉 Submit your OpenAI API credentials in the sidebar before running extraction.")
 
     # --- SESSION STATE INIT ---
-    if "is_running" not in st.session_state:
+    if not st.session_state.get("is_running", False):
         st.session_state["is_running"] = False
     input_ready = (raw_input or "").strip()
 
