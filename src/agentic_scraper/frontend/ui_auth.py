@@ -148,7 +148,6 @@ def logout_user() -> None:
     st.session_state.pop("openai_credentials", None)
 
     st.success("Logged out successfully!")
-    st.experimental_rerun()
 
 
 def login_ui(agent_mode: str) -> None:

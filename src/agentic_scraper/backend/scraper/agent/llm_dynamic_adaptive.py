@@ -127,7 +127,6 @@ async def extract_adaptive_data(
 ) -> ScrapedItem | None:
     if request.context_hints is None:
         request.context_hints = extract_context_hints(request.text, request.url)
-
     prompt = build_prompt(
         text=request.text,
         url=request.url,
