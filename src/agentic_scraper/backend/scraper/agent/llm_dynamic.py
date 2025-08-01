@@ -3,7 +3,12 @@ from typing import TYPE_CHECKING
 
 from openai import APIError, AsyncOpenAI, OpenAIError, RateLimitError
 from pydantic import ValidationError
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
@@ -32,15 +37,14 @@ async def extract_structured_data(
     settings: Settings,
 ) -> ScrapedItem | None:
     """
-    LLM-based extraction with dynamic prompt and per-user API credentials.
+    LLM-based structured data extraction using a dynamic prompt and retry logic.
 
     Args:
-        request (ScrapeRequest): Encapsulated parameters including input text, URL,
-            screenshot flag, and OpenAI credentials.
-        settings (Settings): Runtime configuration.
+        request (ScrapeRequest): Contains page text, URL, OpenAI credentials, and screenshot flag.
+        settings (Settings): Retry, token, and model configuration.
 
     Returns:
-        ScrapedItem | None: Structured result or None on failure.
+        ScrapedItem | None: Validated structured data or None on failure.
     """
     async for attempt in AsyncRetrying(
         stop=stop_after_attempt(settings.retry_attempts),
@@ -63,14 +67,14 @@ async def _extract_impl(
     settings: Settings,
 ) -> ScrapedItem | None:
     """
-    Core LLM extraction logic using a dynamic prompt and user-provided page text.
+    Core LLM extraction logic using a prompt template and OpenAI completion API.
 
     Args:
-        request (ScrapeRequest): Input data including HTML, URL, screenshot toggle, and credentials.
-        settings (Settings): Runtime scraper settings.
+        request (ScrapeRequest): Encapsulated scraping input and credentials.
+        settings (Settings): Application-wide configuration.
 
     Returns:
-        ScrapedItem | None: Validated structured item or None on failure.
+        ScrapedItem | None: Parsed and validated data or None on failure.
     """
     prompt = build_prompt(
         text=request.text,
@@ -91,6 +95,7 @@ async def _extract_impl(
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
         )
+
         content = response.choices[0].message.content
         if not content:
             logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=request.url))

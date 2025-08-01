@@ -38,7 +38,10 @@ from agentic_scraper.backend.scraper.agent.field_utils import (
     normalize_keys,
     score_fields,
 )
-from agentic_scraper.backend.scraper.agent.prompt_helpers import build_prompt
+from agentic_scraper.backend.scraper.agent.prompt_helpers import (
+    build_prompt,
+    build_retry_prompt,
+)
 from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
 
 logger = logging.getLogger(__name__)
@@ -52,22 +55,6 @@ async def run_llm_with_retries(
     settings: Settings,
     url: str,
 ) -> str | None:
-    """
-    Calls the OpenAI Chat Completion API with retry logic and rate limit handling.
-
-    This function wraps an OpenAI call using tenacity to automatically retry
-    on transient `OpenAIError` exceptions. If a rate limit is detected with a delay,
-    it pauses accordingly before retrying.
-
-    Args:
-        client (AsyncOpenAI): An authenticated OpenAI async client.
-        messages (list[ChatCompletionMessageParam]): Chat history to send to the model.
-        settings (Settings): Retry configuration (attempts, backoff).
-        url (str): URL for context, used in logging.
-
-    Returns:
-        str | None: The raw text content returned by the model, or None on failure.
-    """
     async for attempt in AsyncRetrying(
         stop=stop_after_attempt(settings.retry_attempts),
         wait=wait_random_exponential(
@@ -109,29 +96,6 @@ async def process_llm_output(
     take_screenshot: bool,
     settings: Settings,
 ) -> tuple[ScrapedItem | None, str, set[str], dict[str, Any]]:
-    """
-    Parses, normalizes, and validates the raw LLM response into a structured ScrapedItem.
-
-    This function handles:
-    - JSON parsing
-    - Field normalization
-    - Screenshot capture (if enabled)
-    - Pydantic schema validation
-    - Logging of structured data
-
-    Args:
-        content (str): Raw JSON string returned by the LLM.
-        url (str): The source URL of the content.
-        take_screenshot (bool): Whether to capture a screenshot if validation succeeds.
-        settings (Settings): Application settings for logging, screenshot, and model validation.
-
-    Returns:
-        tuple:
-            - ScrapedItem | None: Validated item or None on failure.
-            - str: Inferred or extracted page type.
-            - set[str]: Observed field names in the JSON object.
-            - dict[str, Any]: The raw parsed JSON data.
-    """
     raw_data = parse_llm_response(content, url, settings)
     if raw_data is None:
         return None, "", set(), {}
@@ -152,7 +116,8 @@ async def process_llm_output(
 
     logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
     log_structured_data(item.model_dump(mode="json"), settings=settings)
-    return item, raw_data.get("page_type", ""), set(raw_data.keys()), raw_data
+    non_empty_fields = {k for k, v in raw_data.items() if v not in [None, ""]}
+    return item, raw_data.get("page_type", ""), non_empty_fields, raw_data
 
 
 async def extract_adaptive_data(
@@ -160,28 +125,17 @@ async def extract_adaptive_data(
     *,
     settings: Settings,
 ) -> ScrapedItem | None:
-    """
-    Extract structured data from text using an adaptive LLM loop with retries.
-
-    Args:
-        request (ScrapeRequest):
-            Includes text, URL, optional screenshot and context hints, and OpenAI credentials.
-        settings (Settings): Project settings for retries, temperature, etc.
-
-    Returns:
-        ScrapedItem | None: Validated structured item, or None on failure.
-    """
     if request.context_hints is None:
-        context_hints = request.context_hints or extract_context_hints(request.text, request.url)
+        request.context_hints = extract_context_hints(request.text, request.url)
 
     prompt = build_prompt(
         text=request.text,
         url=request.url,
         prompt_style="enhanced",
-        context_hints=context_hints,
+        context_hints=request.context_hints,
     )
     messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
-
+    logger.debug(f"📝 Initial LLM prompt for {request.url}:\n{prompt}")
     client = AsyncOpenAI(
         api_key=request.openai.api_key,
         project=request.openai.project_id,
@@ -189,6 +143,7 @@ async def extract_adaptive_data(
 
     best_score = 0
     best_fields: dict[str, Any] | None = None
+    all_fields: dict[str, Any] = {}
 
     for attempt_num in range(1, settings.llm_schema_retries + 1):
         logger.debug(
@@ -198,6 +153,7 @@ async def extract_adaptive_data(
                 url=request.url,
             )
         )
+
         content = await run_llm_with_retries(client, messages, settings, request.url)
         if content is None:
             return None
@@ -209,28 +165,29 @@ async def extract_adaptive_data(
             settings=settings,
         )
 
+        all_fields.update({k: v for k, v in raw_data.items() if v is not None and v != ""})
+
         if item is not None:
             return item
 
-        page_type = page_type or context_hints.get("page_type", "")
+        page_type = page_type or request.context_hints.get("page_type", "")
         required = get_required_fields(page_type) or IMPORTANT_FIELDS
         missing = required - observed_fields
 
-        if missing:
-            logger.debug(
-                MSG_DEBUG_MISSING_IMPORTANT_FIELDS.format(fields=", ".join(sorted(missing)))
+        retry_message = (
+            build_retry_prompt(best_fields or {}, missing)
+            if missing
+            else (
+                "Please try to extract any additional useful fields from "
+                "the content that may have been missed earlier. "
+                "Ensure your output includes all relevant fields and metadata "
+                "based on the page type and context. Return only valid JSON."
             )
-            messages[:] = messages[:1]
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        f"Some important fields were missing: {', '.join(sorted(missing))}. "
-                        "Please re-analyze the content and "
-                        "extract the missing fields if they are present."
-                    ),
-                }
-            )
+        )
+
+        messages[:] = messages[:1]
+        messages.append({"role": "user", "content": retry_message})
+        logger.debug(f"🔁 Retry prompt for {request.url} (attempt {attempt_num}):\n{retry_message}")
 
         score = score_fields(observed_fields)
         logger.debug(
@@ -245,6 +202,17 @@ async def extract_adaptive_data(
             best_score = score
             best_fields = copy.deepcopy(raw_data)
 
+    # Try validating all_fields (merged across retries)
+    if all_fields:
+        try:
+            item = ScrapedItem.model_validate(all_fields)
+        except ValidationError as ve:
+            logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=request.url, exc=ve))
+        else:
+            logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=request.url))
+            return item
+
+    # Fallback to best_fields if available
     if best_fields:
         logger.debug(MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS.format(fields=list(best_fields.keys())))
         try:

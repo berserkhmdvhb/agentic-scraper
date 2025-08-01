@@ -23,7 +23,7 @@ def get_jwt_token_from_url() -> str | None:
         if isinstance(jwt_token, str) and len(jwt_token.split(".")) == 3:
             st.session_state["jwt_token"] = jwt_token
             logger.debug(f"🔑 Extracted token from URL: {jwt_token}")
-            st.write(f"🔑 Token from URL: {jwt_token}")
+            #st.write(f"🔑 Token from URL: {jwt_token}")
             st.query_params.clear()
             return jwt_token
         else:
@@ -131,9 +131,9 @@ def authenticate_user() -> None:
         fetch_openai_credentials()
         st.success("Logged in successfully!")
 
-        if settings.is_verbose_mode:
-            st.markdown("#### 🔍 Debug: JWT Token")
-            st.code(jwt_token, language="text")
+        #if settings.is_verbose_mode:
+        #    st.markdown("#### 🔍 Debug: JWT Token")
+        #    st.code(jwt_token, language="text")
     else:
         message = "JWT token missing from URL or session."
         logger.warning(message)

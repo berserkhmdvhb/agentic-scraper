@@ -7,6 +7,7 @@ from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.schemas.scrape import ScrapeRequest, ScrapeResponse
 from agentic_scraper.backend.api.user_store import load_user_credentials
 from agentic_scraper.backend.config.messages import MSG_INFO_SCRAPE_REQUEST_RECEIVED
+from agentic_scraper.backend.config.constants import SCRAPER_CONFIG_FIELDS
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
@@ -36,10 +37,12 @@ async def scrape(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="OpenAI credentials not found for the authenticated user.",
         )
-
+    config_values = request.model_dump(include=set(SCRAPER_CONFIG_FIELDS))
+    merged_settings = settings.model_copy(update=config_values)
+    logger.debug(f"🔧 Backend: config values merged with settings: {config_values}")
     results, stats = await scrape_with_stats(
         [str(url) for url in request.urls],
-        settings=settings,
+        settings=merged_settings,
         openai=creds,
     )
 

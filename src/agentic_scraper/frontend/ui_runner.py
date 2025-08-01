@@ -9,6 +9,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_EXTRACTION_FAILED,
     MSG_INFO_USING_CACHE,
 )
+from agentic_scraper.backend.config.constants import SCRAPER_CONFIG_FIELDS
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.frontend.models import PipelineConfig
@@ -35,12 +36,13 @@ async def start_scraping(urls: list[str], config: PipelineConfig) -> tuple[list[
         return [], 0
 
     headers = {"Authorization": f"Bearer {st.session_state['jwt_token']}"}
+    config_values = config.model_dump(include=set(SCRAPER_CONFIG_FIELDS))
     body = {
         "urls": urls,
         "openai_credentials": openai_credentials.model_dump(),
-        **config.model_dump(),
+        **config_values,
     }
-
+    print(f"🔧 Frontend: config values of user: {config_values}")
     try:
         with st.spinner("🔍 Scraping in progress..."):
             async with httpx.AsyncClient() as client:

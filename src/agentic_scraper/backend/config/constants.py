@@ -6,6 +6,16 @@ from agentic_scraper.backend.config.types import (
     LogLevel,
     OpenAIModel,
 )
+SCRAPER_CONFIG_FIELDS = [
+    "fetch_concurrency",
+    "llm_concurrency",
+    "screenshot_enabled",
+    "verbose",
+    "openai_model",
+    "agent_mode",
+    "retry_attempts",
+    "llm_schema_retries",
+]
 
 # ---------------------------------------------------------------------
 # frontend/
@@ -145,11 +155,10 @@ REGEX_PARAGRAPH_SPLIT_PATTERN = r"\n\s*\n"
 DESCRIPTION_MIN_LENGTH = 80
 DESCRIPTION_MAX_LENGTH = 500
 MAX_TEXT_FOR_FEWSHOT = 2000
-IMPORTANT_FIELDS = {"title", "job_title", "price", "company", "summary"}
+IMPORTANT_FIELDS = {"title", "job_title", "price", "company", "summary", "description"}
 FIELD_SYNONYMS: dict[str, str] = {
     "cost": "price",
     "amount": "price",
     "heading": "title",
-    "description": "summary",
     "posted_by": "author",
 }
