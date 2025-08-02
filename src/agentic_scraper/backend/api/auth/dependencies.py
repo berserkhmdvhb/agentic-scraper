@@ -38,8 +38,8 @@ async def get_current_user(
 
         user_data: AuthUser = {
             "sub": payload.get("sub"),
-            "email": payload.get("email"),
-            "name": payload.get("name"),
+            "email": payload.get("https://agentic.scraper/email", payload.get("email")),
+            "name": payload.get("https://agentic.scraper/name", payload.get("name")),
             "scope": payload.get("scope", ""),
         }
 

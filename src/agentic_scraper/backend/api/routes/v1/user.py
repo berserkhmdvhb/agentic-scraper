@@ -13,7 +13,6 @@ from agentic_scraper.backend.api.schemas.user import (
     UserProfile,
 )
 from agentic_scraper.backend.api.user_store import load_user_credentials, save_user_credentials
-from agentic_scraper.backend.api.auth.userinfo_helpers import get_user_profile
 from agentic_scraper.backend.config.messages import MSG_WARNING_NO_CREDENTIALS_FOUND
 
 router = APIRouter()
@@ -32,13 +31,7 @@ async def get_me(
     Retrieve the current user's profile, using /userinfo fallback if name/email is missing.
     """
     check_required_scopes(user, {RequiredScopes.READ_USER_PROFILE})
-
-    if not user.get("name") or not user.get("email"):
-        pass
-        #profile = await get_user_profile(credentials.credentials)
-        #user["name"] = profile.get("name", user.get("name"))
-        #user["email"] = profile.get("email", user.get("email"))
-
+    
     return UserProfile(
         sub=user["sub"],
         email=user.get("email"),
