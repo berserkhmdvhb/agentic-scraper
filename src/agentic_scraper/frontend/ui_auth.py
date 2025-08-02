@@ -130,14 +130,9 @@ def authenticate_user() -> None:
         fetch_user_profile()
         fetch_openai_credentials()
         st.success("Logged in successfully!")
-
-        #if settings.is_verbose_mode:
-        #    st.markdown("#### 🔍 Debug: JWT Token")
-        #    st.code(jwt_token, language="text")
     else:
-        message = "JWT token missing from URL or session."
-        logger.warning(message)
-        st.error("Login failed!")
+        logger.info("No JWT token found; user not logged in yet.")
+        # Don't show an error here — let the login button guide the user
 
 
 
@@ -176,7 +171,26 @@ def login_ui(agent_mode: str) -> None:
             if settings.is_verbose_mode:
                 print("Auth0 login URI:", login_url)
 
-            st.link_button("🔐 Login with Auth0", login_url)
+            st.markdown(
+                f"""
+                <a href="{login_url}" target="_self">
+                    <button style="
+                        width: 100%;
+                        padding: 0.5rem 1rem;
+                        border-radius: 0.5rem;
+                        background-color: #EF476F;
+                        color: white;
+                        font-weight: bold;
+                        border: none;
+                        cursor: pointer;
+                    ">
+                        🔐 Login with Auth0
+                    </button>
+                </a>
+                """,
+                unsafe_allow_html=True,
+            )
+
     else:
         with st.sidebar:
             user_info = st.session_state.get("user_info", {})
