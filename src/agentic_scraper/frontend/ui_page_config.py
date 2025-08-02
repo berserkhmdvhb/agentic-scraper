@@ -6,9 +6,7 @@ import streamlit as st
 
 from agentic_scraper.backend.config.constants import SESSION_KEYS, VALID_MODEL_OPTIONS
 from agentic_scraper.backend.core.logger_setup import setup_logging
-from agentic_scraper.backend.core.settings import get_environment, get_log_dir
 
-from agentic_scraper.frontend.ui_auth import login_ui
 
 
 # Windows asyncio compatibility
@@ -23,8 +21,6 @@ def configure_page() -> None:
     st.set_page_config(page_title="Agentic Scraper", layout="wide")
     st.image("https://raw.githubusercontent.com/berserkhmdvhb/agentic-scraper/main/logo.png", width=300)
     st.markdown("Extract structured data from any list of URLs using LLM-powered parsing.")
-    st.sidebar.markdown(f"**Environment:** `{get_environment()}`")
-    st.sidebar.markdown(f"**Log Path:** `{get_log_dir() / 'agentic_scraper.log'}`")
 
 def render_input_section() -> str | None:
     input_method = st.radio("Input method:", ["Paste URLs", "Upload .txt file"], horizontal=True)

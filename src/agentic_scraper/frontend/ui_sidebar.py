@@ -6,17 +6,29 @@ from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.frontend.models import SidebarConfig
 from agentic_scraper.frontend.ui_auth import login_ui
 from agentic_scraper.frontend.ui_auth_credentials import render_credentials_form
+from agentic_scraper.backend.core.settings import get_environment, get_log_dir
+
 
 def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     """Render sidebar controls for login, OpenAI credentials, and agent settings."""
 
     with st.sidebar:
-        # --- Authentication Section ---
-        st.markdown("## 🔐 Authentication")
+        st.markdown(f"**Environment:** `{get_environment()}`")
+        st.markdown(f"**Log Path:** `{get_log_dir() / 'agentic_scraper.log'}`")
 
+        # --- Authentication ---
+        st.markdown("## 🔐 Authentication")
+        login_ui(settings.agent_mode.value)
+
+        if "jwt_token" in st.session_state:
+            render_credentials_form()
+            st.markdown("---")
+
+        # --- Agent Mode ---
+        st.markdown("## 🧠 Agent Mode")
         agent_mode_values = [m.value for m in AgentMode]
         selected_agent_mode_str = st.selectbox(
-            "🧠 Agent Mode",
+            "Select Agent Mode",
             options=agent_mode_values,
             index=agent_mode_values.index(settings.agent_mode.value),
             key="agent_mode_select",
@@ -29,12 +41,6 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
             ),
         )
         selected_agent_mode = AgentMode(selected_agent_mode_str)
-
-        login_ui(selected_agent_mode.value)
-
-        if "jwt_token" in st.session_state:
-            render_credentials_form()
-            st.markdown("---")
 
         # --- LLM Settings ---
         selected_model = None
@@ -57,59 +63,61 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         # --- Performance Settings ---
         st.markdown("## ⚙️ Performance Settings")
 
+        # Subsection: Concurrency
+        st.markdown("### 🔁 Concurrency")
 
+        is_llm_agent = selected_agent_mode != AgentMode.RULE_BASED
+        if is_llm_agent:
+            split = st.checkbox(
+                "🔧 Separate fetch and LLM controls",
+                help=(
+                    "Enable this to control fetch and LLM concurrency separately.\n\n"
+                    "Useful if:\n"
+                    "• You want to fetch many pages but limit OpenAI load.\n"
+                    "• You're tuning for different I/O vs compute bottlenecks."
+                ),
+            )
+        else:
+            split = False
 
-        with st.expander("🔁 Concurrency Settings", expanded=False):
-            is_llm_agent = selected_agent_mode != AgentMode.RULE_BASED
+        if split:
+            fetch_concurrency = st.slider(
+                "🌐 Fetch Concurrency",
+                min_value=1,
+                max_value=20,
+                value=settings.max_concurrent_requests,
+                help="Max number of web pages fetched in parallel.",
+            )
+            llm_concurrency = st.slider(
+                "🤖 LLM Concurrency",
+                min_value=1,
+                max_value=20,
+                value=settings.max_concurrent_requests,
+                help="Max number of pages sent to the AI model concurrently.",
+            )
+        else:
+            label = "🔁 Combined Concurrency" if is_llm_agent else "🌐 Fetch Concurrency"
+            help_text = (
+                "Controls how many tasks run in parallel.\n\n"
+                "1. 🌐 Fetching: Limits how many web pages are fetched at the same time.\n"
+                "2. 🤖 LLM: Limits how many pages are processed by the AI model at once.\n\n"
+                "⚠️ High values may improve speed,\n"
+                "   but could hit rate limits or cause instability."
+                if is_llm_agent
+                else "Controls how many web pages are fetched in parallel."
+            )
+            concurrency = st.slider(
+                label,
+                min_value=1,
+                max_value=20,
+                value=settings.max_concurrent_requests,
+                help=help_text,
+            )
+            fetch_concurrency = concurrency
+            llm_concurrency = concurrency if is_llm_agent else 0
 
-            if is_llm_agent:
-                split = st.checkbox(
-                    "🔧 Separate fetch and LLM controls",
-                    help=(
-                        "Enable this to control fetch and LLM concurrency separately.\n\n"
-                        "Useful if:\n"
-                        "• You want to fetch many pages but limit OpenAI load.\n"
-                        "• You're tuning for different I/O vs compute bottlenecks."
-                    ),
-                )
-            else:
-                split = False
-
-            if split:
-                fetch_concurrency = st.slider(
-                    "🌐 Fetch Concurrency",
-                    min_value=1,
-                    max_value=20,
-                    value=settings.max_concurrent_requests,
-                    help="Max number of web pages fetched in parallel.",
-                )
-                llm_concurrency = st.slider(
-                    "🤖 LLM Concurrency",
-                    min_value=1,
-                    max_value=20,
-                    value=settings.max_concurrent_requests,
-                    help="Max number of pages sent to the AI model concurrently.",
-                )
-            else:
-                label = "🔁 Combined Concurrency" if is_llm_agent else "🌐 Fetch Concurrency"
-                help_text = (
-                    "Controls how many tasks run in parallel.\n\n"
-                    "1. 🌐 Fetching: Limits how many web pages are fetched at the same time.\n"
-                    "2. 🤖 LLM: Limits how many pages are processed by the AI model at once.\n\n"
-                    "⚠️ High values may improve speed,\n"
-                    "   but could hit rate limits or cause instability."
-                    if is_llm_agent
-                    else "Controls how many web pages are fetched in parallel."
-                )
-                concurrency = st.slider(
-                    label,
-                    min_value=1,
-                    max_value=20,
-                    value=settings.max_concurrent_requests,
-                    help=help_text,
-                )
-                fetch_concurrency = concurrency
-                llm_concurrency = concurrency if is_llm_agent else 0
+        # Subsection: Verbosity
+        st.markdown("### 📢 Verbosity")
 
         verbose = st.checkbox(
             "🐞 Verbose error tracebacks",
@@ -121,8 +129,11 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
             ),
         )
 
+        # Subsection: Retry Strategy
+        st.markdown("### ♻️ Retry Strategy")
+
         retry_attempts = st.slider(
-            "♻️ Retry Attempts",
+            "Retry Attempts",
             min_value=0,
             max_value=5,
             value=settings.retry_attempts,
@@ -130,7 +141,6 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         )
 
         llm_schema_placeholder = st.empty()
-
         if selected_agent_mode == AgentMode.LLM_DYNAMIC_ADAPTIVE:
             with llm_schema_placeholder:
                 llm_schema_retries = st.slider(
@@ -151,6 +161,12 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
                 SESSION_KEYS["llm_schema_retries"], settings.llm_schema_retries
             )
 
+        # --- Reset Section (Optional) ---
+        #st.markdown("---")
+        #if st.button("🔄 Reset", key="reset_button_sidebar"):
+        #    st.session_state.clear()
+        #    st.experimental_rerun()
+
     # --- Store in session state ---
     st.session_state[SESSION_KEYS["screenshot_enabled"]] = screenshot_enabled
     st.session_state[SESSION_KEYS["fetch_concurrency"]] = fetch_concurrency
@@ -159,7 +175,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     st.session_state[SESSION_KEYS["openai_model"]] = selected_model
     st.session_state[SESSION_KEYS["agent_mode"]] = selected_agent_mode.value
     st.session_state[SESSION_KEYS["retry_attempts"]] = retry_attempts
-    
+
     return SidebarConfig(
         screenshot_enabled=screenshot_enabled,
         fetch_concurrency=fetch_concurrency,
