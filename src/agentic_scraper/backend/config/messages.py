@@ -1,6 +1,6 @@
 # ─── Frontend ───
 
-# frontend/app.py
+# app.py
 MSG_INFO_FETCHING_URLS = "Fetching and processing {n} URLs"
 MSG_INFO_EXTRACTION_COMPLETE = "Completed extraction for {n} URLs"
 MSG_WARNING_EXTRACTION_NONE = "Pipeline ended without extracting any items"
@@ -16,6 +16,23 @@ MSG_SUCCESS_EXTRACTION_DONE = "✅ Extraction done!"
 MSG_ERROR_EXTRACTION_FAILED = "❌ LLM extraction failed: {error}"
 MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR = "Unexpected error during extraction pipeline"
 MSG_INFO_APP_RESET_TRIGGERED = "User triggered app reset via sidebar."
+
+# ui_auth.py
+
+# [FRONTEND] [AUTH]
+MSG_INFO_JWT_STORED = "[FRONTEND] [AUTH] JWT token stored in session. Length: {length}"
+MSG_INFO_NO_JWT_FOUND = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
+MSG_WARNING_MALFORMED_JWT = "[FRONTEND] [AUTH] Suspected malformed JWT (segments = {segments})"
+MSG_WARNING_NO_TOKEN_FOUND = "[FRONTEND] [AUTH] No token found in URL or session"
+
+MSG_ERROR_FETCH_USER_PROFILE = "[FRONTEND] [AUTH] Failed to fetch user profile: {error}"
+MSG_ERROR_FETCH_CREDENTIALS = "[FRONTEND] [AUTH] Failed to fetch OpenAI credentials: {error}"
+MSG_ERROR_NETWORK_USER_PROFILE = "[FRONTEND] [AUTH] Network error while fetching user profile: {error}"
+MSG_ERROR_NETWORK_CREDENTIALS = "[FRONTEND] [AUTH] Network error while fetching credentials: {error}"
+
+MSG_INFO_PROFILE_FETCHED = "[FRONTEND] [AUTH] User profile fetched successfully"
+MSG_INFO_CREDENTIALS_FETCHED = "[FRONTEND] [AUTH] OpenAI credentials fetched and stored"
+
 
 # ─── Backend ───
 
