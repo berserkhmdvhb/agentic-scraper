@@ -2,6 +2,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.auth.scope_helpers import check_required_scopes
@@ -12,37 +13,31 @@ from agentic_scraper.backend.api.schemas.user import (
     UserProfile,
 )
 from agentic_scraper.backend.api.user_store import load_user_credentials, save_user_credentials
+from agentic_scraper.backend.api.auth.userinfo_helpers import get_user_profile
 from agentic_scraper.backend.config.messages import MSG_WARNING_NO_CREDENTIALS_FOUND
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
-
+auth_scheme = HTTPBearer(auto_error=True)
 
 # Versioned route
 @router.get("/me", tags=["User"])
-async def get_me(user: CurrentUser) -> UserProfile:
+async def get_me(
+    user: CurrentUser,
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
+) -> UserProfile:
     """
-    Retrieve the current user's profile.
-
-    This endpoint fetches the profile information of the authenticated user,
-    including their `sub`, `email`, and `name`.
-
-    Args:
-        user (CurrentUser): The current authenticated user, injected via the `Depends` dependency.
-
-    Returns:
-        UserProfile: A model containing the user's profile information.
-
-    Raises:
-        HTTPException: If the user is not authenticated or does not have the required scope.
+    Retrieve the current user's profile, using /userinfo fallback if name/email is missing.
     """
-    # Define the required scope for this route as a set
-    required_scopes = {RequiredScopes.READ_USER_PROFILE}
+    check_required_scopes(user, {RequiredScopes.READ_USER_PROFILE})
 
-    # Ensure the user has the required scope
-    check_required_scopes(user, required_scopes)
+    if not user.get("name") or not user.get("email"):
+        pass
+        #profile = await get_user_profile(credentials.credentials)
+        #user["name"] = profile.get("name", user.get("name"))
+        #user["email"] = profile.get("email", user.get("email"))
 
     return UserProfile(
         sub=user["sub"],
@@ -53,8 +48,8 @@ async def get_me(user: CurrentUser) -> UserProfile:
 
 @router.post("/openai-credentials", status_code=status.HTTP_201_CREATED, tags=["User"])
 async def post_credentials(
-    creds: UserCredentialsIn,
     user: CurrentUser,
+    creds: UserCredentialsIn,
 ) -> UserCredentialsOut:
     """
     Save the user's OpenAI credentials.

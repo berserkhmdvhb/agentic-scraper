@@ -15,7 +15,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     with st.sidebar:
         st.markdown(f"**Environment:** `{get_environment()}`")
         st.markdown(f"**Log Path:** `{get_log_dir() / 'agentic_scraper.log'}`")
-
+        st.markdown("---")
         # --- Authentication ---
         st.markdown("## 🔐 Authentication")
         login_ui(settings.agent_mode.value)
@@ -23,7 +23,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         if "jwt_token" in st.session_state:
             render_credentials_form()
             st.markdown("---")
-
+            
         # --- Agent Mode ---
         st.markdown("## 🧠 Agent Mode")
         agent_mode_values = [m.value for m in AgentMode]
@@ -59,7 +59,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         screenshot_enabled = st.checkbox(
             "📸 Enable Screenshot", value=settings.screenshot_enabled
         )
-
+        st.markdown("---")
         # --- Performance Settings ---
         st.markdown("## ⚙️ Performance Settings")
 
@@ -161,12 +161,8 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
                 SESSION_KEYS["llm_schema_retries"], settings.llm_schema_retries
             )
 
-        # --- Reset Section (Optional) ---
-        #st.markdown("---")
-        #if st.button("🔄 Reset", key="reset_button_sidebar"):
-        #    st.session_state.clear()
-        #    st.experimental_rerun()
-
+        
+        st.markdown("---")
     # --- Store in session state ---
     st.session_state[SESSION_KEYS["screenshot_enabled"]] = screenshot_enabled
     st.session_state[SESSION_KEYS["fetch_concurrency"]] = fetch_concurrency
