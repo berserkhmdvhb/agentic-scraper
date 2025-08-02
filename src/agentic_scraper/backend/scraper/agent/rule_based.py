@@ -10,7 +10,13 @@ from agentic_scraper.backend.config.constants import (
     REGEX_PRICE_PATTERN,
 )
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED,
+    MSG_DEBUG_RULE_BASED_START,
+    MSG_DEBUG_RULE_BASED_TITLE,
+    MSG_DEBUG_RULE_BASED_DESCRIPTION,
+    MSG_DEBUG_RULE_BASED_PRICE,
+    MSG_DEBUG_RULE_BASED_VALIDATION_SUCCESS,
+    MSG_DEBUG_RULE_BASED_VALIDATION_FAILED_FIELDS,
+    MSG_ERROR_RULE_BASED_EXTRACTION_FAILED,
 )
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
@@ -59,10 +65,10 @@ async def extract_structured_data(
     price = guess_price(request.text)
     screenshot_path: str | None = None
 
-    logger.debug(f"[RULE_BASED] Attempting extraction for URL: {request.url}")
-    logger.debug(f"[RULE_BASED] Title guessed: {title}")
-    logger.debug(f"[RULE_BASED] Description guessed: {description}")
-    logger.debug(f"[RULE_BASED] Price guessed: {price}")
+    logger.debug(MSG_DEBUG_RULE_BASED_START.format(url=request.url))
+    logger.debug(MSG_DEBUG_RULE_BASED_TITLE.format(title=title))
+    logger.debug(MSG_DEBUG_RULE_BASED_DESCRIPTION.format(description=description))
+    logger.debug(MSG_DEBUG_RULE_BASED_PRICE.format(price=price))
 
     if request.take_screenshot:
         screenshot_path = await capture_optional_screenshot(request.url, settings)
@@ -89,13 +95,17 @@ async def extract_structured_data(
             date_published=None,
             screenshot_path=screenshot_path,
         )
-        logger.debug(f"[RULE_BASED] ✅ Validation succeeded. Returning ScrapedItem.")
+        logger.debug(MSG_DEBUG_RULE_BASED_VALIDATION_SUCCESS)
         return item
 
     except ValidationError as exc:
-        logger.error(MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED.format(url=request.url, error=exc))
+        logger.error(MSG_ERROR_RULE_BASED_EXTRACTION_FAILED.format(url=request.url, error=exc))
         logger.debug(
-            "[RULE_BASED] Validation failed for fields: title=%r, description=%r, price=%r, url=%r",
-            title, description, price, request.url
+            MSG_DEBUG_RULE_BASED_VALIDATION_FAILED_FIELDS.format(
+                title=title,
+                description=description,
+                price=price,
+                url=request.url,
+            )
         )
         return None

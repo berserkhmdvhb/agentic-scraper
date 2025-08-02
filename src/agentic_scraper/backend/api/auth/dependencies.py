@@ -9,6 +9,8 @@ from agentic_scraper.backend.api.models import AuthUser
 from agentic_scraper.backend.api.utils.log_helpers import raise_internal_error, raise_unauthorized
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_UNEXPECTED_EXCEPTION,
+    MSG_DEBUG_VERIFYING_JWT_TOKEN,
+    MSG_WARNING_JWT_VERIFICATION_FAILED,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,7 +35,7 @@ async def get_current_user(
     token = credentials.credentials
 
     try:
-        logger.debug(f"Verifying JWT token: {token}")  # Remove or redact in production
+        logger.debug(MSG_DEBUG_VERIFYING_JWT_TOKEN.format(token=token))  # Remove or redact in production
         payload = await verify_jwt(token)
 
         user_data: AuthUser = {
@@ -48,7 +50,7 @@ async def get_current_user(
         return user_data
 
     except JWTError as err:
-        logger.warning("JWT verification failed", exc_info=err)
+        logger.warning(MSG_WARNING_JWT_VERIFICATION_FAILED, exc_info=err)
         raise raise_unauthorized(err)
 
     except Exception as e:

@@ -8,6 +8,16 @@ from agentic_scraper.backend.config.aliases import (
     ScrapeInput,
 )
 from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_WORKER_PICKED_URL,
+    MSG_DEBUG_WORKER_CREATED_REQUEST,
+    MSG_DEBUG_WORKER_GOT_ITEM,
+    MSG_DEBUG_WORKER_ITEM_APPENDED,
+    MSG_DEBUG_WORKER_NO_ITEM,
+    MSG_DEBUG_WORKER_CANCELLED,
+    MSG_DEBUG_POOL_ENQUEUED_URL,
+    MSG_DEBUG_POOL_SPAWNED_WORKERS,
+    MSG_DEBUG_POOL_CANCELLING_WORKERS,
+    MSG_DEBUG_POOL_DONE,
     MSG_DEBUG_WORKER_PROGRESS,
     MSG_ERROR_WORKER_FAILED,
     MSG_INFO_WORKER_POOL_START,
@@ -49,7 +59,7 @@ async def worker(
     try:
         while True:
             url, text = await queue.get()
-            logger.debug(f"[WORKER {worker_id}] Picked up URL: {url}")
+            logger.debug(MSG_DEBUG_WORKER_PICKED_URL.format(worker_id=worker_id, url=url))
             try:
                 request_kwargs = {
                     "text": text,
@@ -60,18 +70,18 @@ async def worker(
                     request_kwargs["openai"] = context.openai
 
                 request = ScrapeRequest(**request_kwargs)
-                logger.debug(f"[WORKER {worker_id}] Created ScrapeRequest for {url}")
+                logger.debug(MSG_DEBUG_WORKER_CREATED_REQUEST.format(worker_id=worker_id, url=url))
 
                 item = await extract_structured_data(request, settings=context.settings)
-                logger.debug(f"[WORKER {worker_id}] extract_structured_data returned: {item}")
+                logger.debug(MSG_DEBUG_WORKER_GOT_ITEM.format(worker_id=worker_id, item=item))
 
                 if item is not None:
                     results.append(item)
-                    logger.debug(f"[WORKER {worker_id}] ✅ Item appended for URL: {url}")
+                    logger.debug(MSG_DEBUG_WORKER_ITEM_APPENDED.format(worker_id=worker_id, url=url))
                     if context.on_item_processed:
                         context.on_item_processed(item)
                 else:
-                    logger.debug(f"[WORKER {worker_id}] ⚠️ No item returned for URL: {url}")
+                    logger.debug(MSG_DEBUG_WORKER_NO_ITEM.format(worker_id=worker_id, url=url))
 
             except Exception as e:
                 if context.settings.is_verbose_mode:
@@ -91,7 +101,7 @@ async def worker(
                     )
                 queue.task_done()
     except asyncio.CancelledError:
-        logger.debug(f"[WORKER {worker_id}] Cancelled during shutdown.")
+        logger.debug(MSG_DEBUG_WORKER_CANCELLED.format(worker_id=worker_id))
         pass
 
 
@@ -108,8 +118,9 @@ async def run_worker_pool(
         logger.info(MSG_INFO_WORKER_POOL_START.format(enabled=config.take_screenshot))
 
     for input_item in inputs:
+        url = input_item[0]
         await queue.put(input_item)
-        logger.debug(f"[POOL] Enqueued URL: {input_item[0]}")
+        logger.debug(MSG_DEBUG_POOL_ENQUEUED_URL.format(url=url))
 
     context = _WorkerContext(
         settings=settings,
@@ -131,13 +142,13 @@ async def run_worker_pool(
         for i in range(config.concurrency)
     ]
 
-    logger.debug(f"[POOL] Spawned {len(workers)} workers.")
+    logger.debug(MSG_DEBUG_POOL_SPAWNED_WORKERS.format(count=len(workers)))
     await queue.join()
-    logger.debug("[POOL] All tasks completed. Cancelling workers...")
+    logger.debug(MSG_DEBUG_POOL_CANCELLING_WORKERS)
 
     for w in workers:
         w.cancel()
     await asyncio.gather(*workers, return_exceptions=True)
 
-    logger.debug(f"[POOL] Worker pool finished. Total results: {len(results)}")
+    logger.debug(MSG_DEBUG_POOL_DONE.format(count=len(results)))
     return results

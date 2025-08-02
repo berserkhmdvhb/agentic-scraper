@@ -3,7 +3,18 @@ import time
 import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
+
 from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.backend.config.messages import (
+    MSG_WARNING_AUTH_CALLBACK_MISSING_CODE,
+    MSG_DEBUG_AUTH_CALLBACK_CODE_RECEIVED,
+    MSG_ERROR_AUTH_TOKEN_EXCHANGE_FAILED,
+    MSG_ERROR_AUTH_RESPONSE_MISSING_TOKEN,
+    MSG_DEBUG_AUTH_TOKEN_RECEIVED,
+    MSG_DEBUG_AUTH_REDIRECT_URL,
+    MSG_EXCEPTION_AUTH_CALLBACK_FAILURE,
+    MSG_INFO_AUTH_CALLBACK_DURATION,
+)
 
 router = APIRouter()
 settings = get_settings()
@@ -16,10 +27,10 @@ async def auth_callback(request: Request):
 
     code = request.query_params.get("code")
     if not code:
-        logger.warning("❌ Missing 'code' in query params")
+        logger.warning(MSG_WARNING_AUTH_CALLBACK_MISSING_CODE)
         return RedirectResponse(f"{settings.frontend_domain}/?error=missing_code")
 
-    logger.debug(f"🔁 Auth0 code received in callback: {code}")
+    logger.debug(MSG_DEBUG_AUTH_CALLBACK_CODE_RECEIVED.format(code=code))
 
     token_url = f"https://{settings.auth0_domain}/oauth/token"
     payload = {
@@ -35,25 +46,26 @@ async def auth_callback(request: Request):
             res = await client.post(token_url, json=payload)
 
             if res.status_code != 200:
-                logger.error(
-                    f"❌ Auth0 token exchange failed. Status: {res.status_code}, Body: {res.text}"
-                )
+                logger.error(MSG_ERROR_AUTH_TOKEN_EXCHANGE_FAILED.format(
+                    status=res.status_code,
+                    body=res.text
+                ))
                 return RedirectResponse(f"{settings.frontend_domain}/?error=token_exchange_failed")
 
             token = res.json().get("access_token")
 
         if not token:
-            logger.error("❌ Auth0 response missing access_token")
+            logger.error(MSG_ERROR_AUTH_RESPONSE_MISSING_TOKEN)
             return RedirectResponse(f"{settings.frontend_domain}/?error=missing_token")
 
-        logger.debug(f"✅ Access token received: {token[:10]}... [truncated]")
+        logger.debug(MSG_DEBUG_AUTH_TOKEN_RECEIVED.format(token_preview=token[:10]))
         redirect_url = f"{settings.frontend_domain}/?token={token}"
-        logger.debug(f"🔁 Redirecting to frontend with token in URL: {redirect_url}")
+        logger.debug(MSG_DEBUG_AUTH_REDIRECT_URL.format(redirect_url=redirect_url))
         return RedirectResponse(redirect_url)
 
     except Exception as e:
-        logger.exception("❌ Token exchange failed during Auth0 callback")
+        logger.exception(MSG_EXCEPTION_AUTH_CALLBACK_FAILURE)
         return RedirectResponse(f"{settings.frontend_domain}/?error=token_exchange_failed")
     finally:
         duration = time.perf_counter() - start
-        logger.info(f"✅ Auth0 callback completed in {duration:.2f}s")
+        logger.info(MSG_INFO_AUTH_CALLBACK_DURATION.format(duration=duration))

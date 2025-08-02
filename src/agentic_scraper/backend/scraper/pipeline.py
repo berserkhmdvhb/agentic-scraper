@@ -3,6 +3,12 @@ import logging
 from typing import TYPE_CHECKING
 
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
+from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_SCRAPE_STATS_START,
+    MSG_INFO_FETCH_COMPLETE,
+    MSG_INFO_VALID_SCRAPE_INPUTS,
+    MSG_INFO_SCRAPE_STATS_COMPLETE,
+)
 from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all
@@ -15,6 +21,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 async def scrape_urls(
     urls: list[str],
     settings: Settings,
@@ -26,11 +33,16 @@ async def scrape_urls(
         concurrency=settings.fetch_concurrency,
     )
 
+    logger.info(MSG_INFO_FETCH_COMPLETE.format(count=len(html_by_url)))
+
     scrape_inputs: list[ScrapeInput] = [
         (url, extract_main_text(html))
         for url, html in html_by_url.items()
         if not html.startswith(FETCH_ERROR_PREFIX)
     ]
+
+    num_skipped = len(urls) - len(scrape_inputs)
+    logger.info(MSG_INFO_VALID_SCRAPE_INPUTS.format(valid=len(scrape_inputs), skipped=num_skipped))
 
     is_llm_mode = settings.agent_mode in {
         AgentMode.LLM_FIXED,
@@ -50,17 +62,29 @@ async def scrape_urls(
         config=pool_config,
     )
 
+
 async def scrape_with_stats(
     urls: list[str],
     settings: Settings,
     openai: OpenAIConfig | None = None,
 ) -> tuple[list[ScrapedItem], dict[str, float | int]]:
-    logger.debug(f"[PIPELINE] Starting scrape_with_stats: agent_mode={settings.agent_mode}, openai_config_provided={openai is not None}")
+    logger.debug(MSG_DEBUG_SCRAPE_STATS_START.format(
+        agent_mode=settings.agent_mode,
+        has_openai=openai is not None
+    ))
+
     start = time.perf_counter()
 
     results = await scrape_urls(urls, settings=settings, openai=openai)
 
     duration = round(time.perf_counter() - start, 2)
+
+    logger.info(MSG_INFO_SCRAPE_STATS_COMPLETE.format(
+        total=len(urls),
+        success=len(results),
+        failed=len(urls) - len(results),
+        duration=duration
+    ))
 
     stats = {
         "num_urls": len(urls),

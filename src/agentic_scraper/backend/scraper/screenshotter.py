@@ -9,6 +9,7 @@ from playwright.async_api import async_playwright
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_SCREENSHOT_FAILED,
     MSG_INFO_SCREENSHOT_SAVED,
+    MSG_ERROR_INVALID_SCREENSHOT_URL,
 )
 from agentic_scraper.backend.utils.validators import is_valid_url, validate_path
 
@@ -46,7 +47,7 @@ async def capture_screenshot(url: str, output_dir: Path) -> str | None:
         str | None: Filesystem path to the saved screenshot, or None if capture failed.
     """
     if not is_valid_url(url):
-        logger.error("Invalid URL passed to capture_screenshot: %s", url)
+        logger.error(MSG_ERROR_INVALID_SCREENSHOT_URL.format(url=url))
         return None
 
     output_path = validate_path(str(output_dir))

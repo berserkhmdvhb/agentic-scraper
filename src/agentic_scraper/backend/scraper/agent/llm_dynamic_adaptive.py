@@ -18,7 +18,7 @@ from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_FIELD_SCORE_PER_RETRY,
     MSG_DEBUG_LLM_RETRY_ATTEMPT,
-    MSG_DEBUG_MISSING_IMPORTANT_FIELDS,
+    MSG_DEBUG_LLM_INITIAL_PROMPT,
     MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS,
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
     MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
@@ -134,7 +134,7 @@ async def extract_adaptive_data(
         context_hints=request.context_hints,
     )
     messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
-    logger.debug(f"📝 Initial LLM prompt for {request.url}:\n{prompt}")
+    logger.debug(MSG_DEBUG_LLM_INITIAL_PROMPT.format(url=request.url, prompt=prompt))
     client = AsyncOpenAI(
         api_key=request.openai.api_key,
         project=request.openai.project_id,
@@ -186,7 +186,7 @@ async def extract_adaptive_data(
 
         messages[:] = messages[:1]
         messages.append({"role": "user", "content": retry_message})
-        logger.debug(f"🔁 Retry prompt for {request.url} (attempt {attempt_num}):\n{retry_message}")
+        logger.debug(f"[AGENT] [LLM] Retry prompt for {request.url} (attempt {attempt_num}):\n{retry_message}")
 
         score = score_fields(observed_fields)
         logger.debug(
