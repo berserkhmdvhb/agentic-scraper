@@ -33,6 +33,18 @@ MSG_ERROR_NETWORK_CREDENTIALS = "[FRONTEND] [AUTH] Network error while fetching 
 MSG_INFO_PROFILE_FETCHED = "[FRONTEND] [AUTH] User profile fetched successfully"
 MSG_INFO_CREDENTIALS_FETCHED = "[FRONTEND] [AUTH] OpenAI credentials fetched and stored"
 
+MSG_DEBUG_JWT_FROM_URL = "[FRONTEND] [AUTH] Extracted token from URL: {token}"
+MSG_WARNING_MALFORMED_JWT = "[FRONTEND] [AUTH] Suspected malformed JWT: {token}"
+MSG_WARNING_NO_JWT_FOUND = "[FRONTEND] [AUTH] No token found in URL or session"
+MSG_EXCEPTION_USER_PROFILE = "[FRONTEND] [AUTH] Failed to fetch user profile: {error}"
+MSG_EXCEPTION_USER_PROFILE_NETWORK = "[FRONTEND] [AUTH] Network error while fetching user profile: {error}"
+MSG_INFO_USER_PROFILE_SUCCESS = "[FRONTEND] [AUTH] User profile fetched successfully"
+MSG_INFO_CREDENTIALS_SUCCESS = "[FRONTEND] [AUTH] OpenAI credentials fetched and stored"
+MSG_EXCEPTION_OPENAI_CREDENTIALS = "[FRONTEND] [AUTH] Failed to fetch OpenAI credentials: {error}"
+MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK = "[FRONTEND] [AUTH] Network error while fetching OpenAI credentials: {error}"
+MSG_INFO_TOKEN_SESSION_LENGTH = "[FRONTEND] [AUTH] JWT token stored in session. Length: {length}"
+MSG_INFO_NO_TOKEN_YET = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
+
 
 # ─── Backend ───
 
