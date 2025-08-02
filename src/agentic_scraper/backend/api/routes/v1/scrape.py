@@ -17,7 +17,6 @@ settings = get_settings()
 
 CurrentUser = Annotated[dict[str, Any], Depends(get_current_user)]
 
-
 @router.post("/start", status_code=status.HTTP_202_ACCEPTED, tags=["Scrape"])
 async def scrape(
     request: ScrapeRequest,
@@ -25,25 +24,29 @@ async def scrape(
 ) -> ScrapeResponse:
     logger.info(MSG_INFO_SCRAPE_REQUEST_RECEIVED.format(n=len(request.urls)))
 
-    # Prefer credentials from the request body
-    creds = request.openai_credentials
+    creds = None
+    if request.agent_mode != "rule_based":
+        # Prefer credentials from the request body
+        creds = request.openai_credentials
 
-    if not creds:
-        # Fallback to user-store credentials
-        creds = load_user_credentials(user["sub"])
+        if not creds:
+            # Fallback to user-store credentials
+            creds = load_user_credentials(user["sub"])
 
-    if not creds:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="OpenAI credentials not found for the authenticated user.",
-        )
+        if not creds:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="OpenAI credentials not found for the authenticated user.",
+            )
+
     config_values = request.model_dump(include=set(SCRAPER_CONFIG_FIELDS))
     merged_settings = settings.model_copy(update=config_values)
     logger.debug(f"🔧 Backend: config values merged with settings: {config_values}")
+
     results, stats = await scrape_with_stats(
         [str(url) for url in request.urls],
         settings=merged_settings,
-        openai=creds,
+        openai=creds,  # this can now be None
     )
 
     return ScrapeResponse(results=results, stats=stats)

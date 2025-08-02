@@ -34,6 +34,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_MISSING_API_KEY,
     MSG_ERROR_NOT_A_DIRECTORY,
 )
+from agentic_scraper.backend.config.types import AgentMode
 
 logger = logging.getLogger(__name__)
 
@@ -189,23 +190,20 @@ def ensure_directory(path: Path) -> Path:
         raise ValueError(MSG_ERROR_NOT_A_DIRECTORY % path)
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def validate_agent_mode(mode: str) -> str:
-    """Ensure the agent mode is one of the valid options."""
-    mode = mode.strip().lower()
-    if mode not in VALID_AGENT_MODES:
+def validate_agent_mode(mode: str) -> AgentMode:
+    """Ensure the agent mode is one of the valid enum options and return it as AgentMode."""
+    mode_cleaned = mode.strip().lower()
+    try:
+        return AgentMode(mode_cleaned)
+    except ValueError:
         raise ValueError(
             format_with_valid_options(
                 MSG_ERROR_INVALID_AGENT_MODE,
                 "value",
-                mode,
-                VALID_AGENT_MODES,
+                mode_cleaned,
+                [m.value for m in AgentMode],
             )
         )
-    return mode
-
-
 def validate_openai_api_key(api_key: str | None) -> str:
     """Raise error if API key is missing or invalid."""
     if api_key in (None, "", "<<MISSING>>"):

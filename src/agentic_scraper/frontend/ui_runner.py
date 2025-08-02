@@ -25,23 +25,36 @@ settings = get_settings()
 
 
 async def start_scraping(urls: list[str], config: PipelineConfig) -> tuple[list[ScrapedItem], int]:
-    """Make API call to start scraping with the JWT token and OpenAI credentials."""
+    """Make API call to start scraping with the JWT token and optional OpenAI credentials."""
     if "jwt_token" not in st.session_state:
         st.error("User is not authenticated!")
         return [], 0
 
-    openai_credentials = st.session_state.get("openai_credentials")
-    if not openai_credentials:
-        st.error("OpenAI credentials are missing!")
-        return [], 0
-
     headers = {"Authorization": f"Bearer {st.session_state['jwt_token']}"}
     config_values = config.model_dump(include=set(SCRAPER_CONFIG_FIELDS))
+
     body = {
         "urls": urls,
-        "openai_credentials": openai_credentials.model_dump(),
-        **config_values,
+        "agent_mode": config.agent_mode,
+        "fetch_concurrency": config.fetch_concurrency,
+        "screenshot_enabled": config.screenshot_enabled,
+        "verbose": config.verbose,
+        "retry_attempts": config.retry_attempts,
     }
+
+    if config.agent_mode != "rule_based":
+        openai_credentials = st.session_state.get("openai_credentials")
+        if not openai_credentials:
+            st.error("OpenAI credentials are missing!")
+            return [], 0
+
+        body.update({
+            "openai_credentials": openai_credentials.model_dump(),
+            "openai_model": config.openai_model,
+            "llm_concurrency": config.llm_concurrency,
+            "llm_schema_retries": config.llm_schema_retries,
+        })
+
     print(f"🔧 Frontend: config values of user: {config_values}")
     try:
         with st.spinner("🔍 Scraping in progress..."):

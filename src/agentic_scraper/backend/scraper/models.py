@@ -54,5 +54,5 @@ class ScrapeRequest(BaseModel):
     text: str
     url: str
     take_screenshot: bool = False
-    openai: OpenAIConfig
+    openai: OpenAIConfig | None = None
     context_hints: dict[str, str] | None = None

@@ -23,18 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 def guess_price(text: str) -> float | None:
-    """
-    Extract the first valid price from the text using regex.
-
-    The regex pattern matches numbers that appear to be prices (e.g. €19.99 or 45,00).
-    Commas are replaced with dots before parsing.
-
-    Args:
-        text (str): Raw page text.
-
-    Returns:
-        float | None: Parsed price or None if not found or invalid.
-    """
     price_match = re.search(REGEX_PRICE_PATTERN, text)
     if price_match:
         try:
@@ -45,15 +33,6 @@ def guess_price(text: str) -> float | None:
 
 
 def guess_title(text: str) -> str | None:
-    """
-    Extract a potential title from the first non-empty line in the text.
-
-    Args:
-        text (str): Raw page text.
-
-    Returns:
-        str | None: Cleaned title or None if not found.
-    """
     for line in text.strip().splitlines():
         clean = line.strip()
         if clean:
@@ -62,17 +41,6 @@ def guess_title(text: str) -> str | None:
 
 
 def guess_description(text: str) -> str | None:
-    """
-    Find the first paragraph of reasonable length to use as a description.
-
-    A valid paragraph must meet the configured min/max character thresholds.
-
-    Args:
-        text (str): Raw page text.
-
-    Returns:
-        str | None: Selected paragraph or None if none match criteria.
-    """
     paragraphs = re.split(REGEX_PARAGRAPH_SPLIT_PATTERN, text)
     for p in paragraphs:
         clean = p.strip()
@@ -86,20 +54,15 @@ async def extract_structured_data(
     *,
     settings: Settings,
 ) -> ScrapedItem | None:
-    """
-    Perform rule-based scraping to extract structured fields from page content.
-
-    Args:
-        request (ScrapeRequest): Includes text, URL, screenshot toggle, etc.
-        settings (Settings): Runtime configuration.
-
-    Returns:
-        ScrapedItem | None: Structured data or None if validation fails.
-    """
     title = guess_title(request.text)
     description = guess_description(request.text)
     price = guess_price(request.text)
     screenshot_path: str | None = None
+
+    logger.debug(f"[RULE_BASED] Attempting extraction for URL: {request.url}")
+    logger.debug(f"[RULE_BASED] Title guessed: {title}")
+    logger.debug(f"[RULE_BASED] Description guessed: {description}")
+    logger.debug(f"[RULE_BASED] Price guessed: {price}")
 
     if request.take_screenshot:
         screenshot_path = await capture_optional_screenshot(request.url, settings)
@@ -117,8 +80,8 @@ async def extract_structured_data(
     )
 
     try:
-        return ScrapedItem(
-            url=HttpUrl(request.url),
+        item = ScrapedItem(
+            url=request.url,
             title=title,
             description=description,
             price=price,
@@ -126,6 +89,13 @@ async def extract_structured_data(
             date_published=None,
             screenshot_path=screenshot_path,
         )
+        logger.debug(f"[RULE_BASED] ✅ Validation succeeded. Returning ScrapedItem.")
+        return item
+
     except ValidationError as exc:
-        logger.warning(MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED.format(url=request.url, error=exc))
+        logger.error(MSG_DEBUG_RULE_BASED_EXTRACTION_FAILED.format(url=request.url, error=exc))
+        logger.debug(
+            "[RULE_BASED] Validation failed for fields: title=%r, description=%r, price=%r, url=%r",
+            title, description, price, request.url
+        )
         return None
