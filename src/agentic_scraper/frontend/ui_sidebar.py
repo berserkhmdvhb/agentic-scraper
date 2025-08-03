@@ -35,7 +35,6 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     st.session_state[SESSION_KEYS["openai_model"]] = selected_model
     st.session_state[SESSION_KEYS["agent_mode"]] = selected_agent_mode.value
     st.session_state[SESSION_KEYS["retry_attempts"]] = retry_attempts
-    st.session_state[SESSION_KEYS["llm_schema_retries"]] = llm_schema_retries
 
     return SidebarConfig(
         screenshot_enabled=st.session_state[SESSION_KEYS["screenshot_enabled"]],
