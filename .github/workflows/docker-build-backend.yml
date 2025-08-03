@@ -37,8 +37,6 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:latest
-          build-args: |
-            BACKEND_DOMAIN=https://api-agenticscraper.onrender.com
 
       - name: 🧱 Build and Push Version Tag (if Git tag)
         if: startsWith(github.ref, 'refs/tags/')

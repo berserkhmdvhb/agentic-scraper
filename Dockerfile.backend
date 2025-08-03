@@ -4,19 +4,22 @@ FROM python:3.11-slim-bullseye
 WORKDIR /app
 ENV PYTHONPATH=/app/src
 
+# Install system dependencies
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-    build-essential \
-    curl \
+    build-essential curl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Copy only what's needed for deps
 COPY pyproject.toml README.md ./
+
+# Copy full source (you use backend + some shared frontend logic)
 COPY src ./src
 
-# For production, remove dev extras
+# Install dependencies (dev mode for now)
 RUN pip install --no-cache-dir ".[dev]"
 
-COPY . /app
+# Expose FastAPI port only (you're using port 10000)
+EXPOSE 10000
 
-EXPOSE 8000
-
+# Start FastAPI server
 CMD ["uvicorn", "agentic_scraper.backend.api.main:app", "--host", "0.0.0.0", "--port", "10000"]

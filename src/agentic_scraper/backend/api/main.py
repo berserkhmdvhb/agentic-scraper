@@ -47,13 +47,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://agenticscraper.onrender.com",
+        settings.frontend_domain,
         "http://localhost:8501",
         "http://127.0.0.1:8000",
-        "https://6d35bd763370.ngrok-free.app",
         "http://127.0.0.1:8085",
-        "https://6ff4e2a81f86.ngrok-free.app",
-        "https://fa8dda17d53a.ngrok-free.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],

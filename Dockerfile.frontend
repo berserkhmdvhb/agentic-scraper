@@ -3,10 +3,6 @@ FROM python:3.11-slim-bullseye
 WORKDIR /app
 ENV PYTHONPATH=/app/src
 
-# Optional: Accept frontend domain as build arg for future use
-ARG FRONTEND_DOMAIN
-ENV FRONTEND_DOMAIN=${FRONTEND_DOMAIN}
-
 # System dependencies
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     build-essential curl \
@@ -18,8 +14,6 @@ COPY src ./src
 RUN pip install --no-cache-dir ".[dev]"
 
 
-COPY . /app
+EXPOSE 8501
 
-EXPOSE 8501 8000
-
-CMD ["streamlit", "run", "src/agentic_scraper/frontend/app.py", "--server.port=8000", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "src/agentic_scraper/frontend/app.py", "--server.port=8501", "--server.address=0.0.0.0"]

@@ -4,9 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: agentic_scraper_backend
-    command: uvicorn agentic_scraper.backend.api.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn agentic_scraper.backend.api.main:app --host 0.0.0.0 --port 10000
     ports:
-      - "8000:8000"
+      - "10000:10000"
     env_file:
       - .env
     volumes:
@@ -17,7 +17,7 @@ services:
     networks:
       - agentic_scraper_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:10000/health"]
       interval: 10s
       timeout: 5s
       retries: 3
