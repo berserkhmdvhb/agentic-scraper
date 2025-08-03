@@ -44,7 +44,6 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     parse_llm_response,
     retrieve_openai_credentials,
     score_and_log_fields,
-    select_best_candidate,
     try_validate_scraped_item,
 )
 from agentic_scraper.backend.scraper.agent.field_utils import (
@@ -243,18 +242,20 @@ async def extract_adaptive_data(
             best_score = score
             best_fields = copy.deepcopy(raw_data)
 
-    if all_fields and best_fields != all_fields:
+    if all_fields:
         item = try_validate_scraped_item(all_fields, request.url, settings)
         if item:
             return item
+
     if best_fields:
         item = try_validate_scraped_item(best_fields, request.url, settings)
         if item:
             return item
+
     logger.warning(
         MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES.format(
             attempts=settings.llm_schema_retries,
             url=request.url,
         )
     )
-    return select_best_candidate(best_fields or all_fields, request.url)
+    return None
