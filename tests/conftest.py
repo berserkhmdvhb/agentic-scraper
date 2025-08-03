@@ -10,7 +10,6 @@ from _pytest.monkeypatch import MonkeyPatch
 
 from agentic_scraper.backend.core import settings as settings_module
 from agentic_scraper.backend.config.constants import (
-    DEFAULT_AGENT_MODE,
     DEFAULT_ENV,
     DEFAULT_DUMP_LLM_JSON_DIR,
     DEFAULT_OPENAI_MODEL,

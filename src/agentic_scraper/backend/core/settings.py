@@ -7,6 +7,7 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
 from agentic_scraper.backend.config.constants import (
+    DEFAULT_AGENT_MODE,
     DEFAULT_AUTH0_ALGORITHM,
     DEFAULT_DEBUG_MODE,
     DEFAULT_DUMP_LLM_JSON_DIR,
@@ -85,7 +86,7 @@ class Settings(BaseSettings):
 
     # Agent behavior
     agent_mode: AgentMode = Field(
-        default=AgentMode.LLM_FIXED,
+        default=DEFAULT_AGENT_MODE,
         validation_alias="AGENT_MODE",
         description=f"Which agent to use: {', '.join(sorted(VALID_AGENT_MODES))}",
     )
