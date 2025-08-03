@@ -1,10 +1,8 @@
-version: "3.9"
-
 services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.backend
     container_name: agentic_scraper_backend
     command: uvicorn agentic_scraper.backend.api.main:app --host 0.0.0.0 --port 8000
     ports:
@@ -12,15 +10,22 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app
+      - .:/app  # ⚠️ Dev only — remove for prod
     environment:
       PYTHONPATH: /app/src
     restart: unless-stopped
+    networks:
+      - agentic_scraper_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.frontend
     container_name: agentic_scraper_frontend
     command: streamlit run src/agentic_scraper/frontend/app.py --server.port 8501 --server.address 0.0.0.0
     ports:
@@ -28,7 +33,20 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app
+      - .:/app  # ⚠️ Dev only — remove for prod
     environment:
       PYTHONPATH: /app/src
     restart: unless-stopped
+    networks:
+      - agentic_scraper_network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  agentic_scraper_network:
+    driver: bridge
