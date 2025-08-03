@@ -1,3 +1,15 @@
+"""
+Display and export scraped results in the Streamlit frontend.
+
+This module handles:
+- Preparing extracted data for display and export
+- Rendering results in a sortable, paginated AgGrid table
+- Offering download options (JSON, CSV, SQLite)
+- Conditionally showing screenshots with metadata
+
+Used within the results tab after a successful scrape.
+"""
+
 import json
 import sqlite3
 from io import BytesIO
@@ -12,7 +24,19 @@ from agentic_scraper.backend.scraper.models import ScrapedItem
 
 
 def dataframe_to_sqlite_bytes(df: pd.DataFrame, table_name: str = "scraped_data") -> BytesIO:
-    """Convert a DataFrame to a SQLite dump in memory as BytesIO."""
+    """
+    Convert a DataFrame into a SQLite memory database and return it as a BytesIO buffer.
+
+    Args:
+        df (pd.DataFrame): Data to export as SQLite.
+        table_name (str): Table name for the exported data.
+
+    Returns:
+        BytesIO: Buffer containing the SQLite dump.
+
+    Raises:
+        sqlite3.InterfaceError, ValueError, TypeError: If serialization or conversion fails.
+    """
     buffer = BytesIO()
     df_serialized = df.copy()
 
@@ -36,7 +60,16 @@ def dataframe_to_sqlite_bytes(df: pd.DataFrame, table_name: str = "scraped_data"
 
 
 def prepare_dataframe(items: list[ScrapedItem], *, screenshot_enabled: bool) -> pd.DataFrame:
-    """Prepare and serialize the dataframe with relevant data."""
+    """
+    Convert scraped items into a cleaned and ordered DataFrame.
+
+    Args:
+        items (list[ScrapedItem]): List of structured extraction results.
+        screenshot_enabled (bool): Whether to retain the screenshot column.
+
+    Returns:
+        pd.DataFrame: DataFrame ready for display and export.
+    """
     df_extracted_data = pd.DataFrame(
         [{**item.model_dump(exclude={"url"}), "url": str(item.url)} for item in items]
     )
@@ -47,13 +80,18 @@ def prepare_dataframe(items: list[ScrapedItem], *, screenshot_enabled: bool) -> 
     if "screenshot_path" in df_extracted_data.columns:
         cols = [col for col in df_extracted_data.columns if col != "screenshot_path"]
         cols += ["screenshot_path"]
-
         df_extracted_data = df_extracted_data[cols]
+
     return df_extracted_data
 
 
 def display_data_table(df: pd.DataFrame) -> None:
-    """Display the extracted data table using AgGrid."""
+    """
+    Render the extracted data using an interactive AgGrid table.
+
+    Args:
+        df (pd.DataFrame): Data to display in the grid.
+    """
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_column("screenshot_path", hide=True)
     gb.configure_pagination(paginationAutoPageSize=True)
@@ -74,14 +112,19 @@ def display_results(
     *,
     screenshot_enabled: bool,
 ) -> None:
-    """Display scraped results in table and/or screenshot form, with export buttons."""
+    """
+    Display extracted data with optional screenshots and download buttons.
+
+    Args:
+        items (list[ScrapedItem]): List of structured extraction results.
+        screenshot_enabled (bool): Whether to show the screenshots tab and retain screenshot column.
+    """
     st.markdown("### 📊 **Display Results**")
 
     df_extracted_data = prepare_dataframe(items, screenshot_enabled=screenshot_enabled)
-
     st.session_state.results_df = df_extracted_data
 
-    # Display Tabs
+    # Create tabs for viewing results
     if screenshot_enabled:
         tab1, tab2 = st.tabs(["📋 Extracted Table", "🖼️ Screenshot Details"])
     else:
@@ -90,7 +133,7 @@ def display_results(
     with tab1:
         display_data_table(df_extracted_data)
 
-        # Export options
+        # Export buttons
         st.download_button(
             "📅 Download JSON",
             df_extracted_data.to_json(orient="records", indent=2),
@@ -110,6 +153,7 @@ def display_results(
         except (sqlite3.InterfaceError, ValueError, TypeError) as e:
             st.error(f"❌ Failed to generate SQLite export: {e}")
             sqlite_bytes = BytesIO()
+
         st.download_button(
             "🗃️ Download SQLite",
             data=sqlite_bytes,

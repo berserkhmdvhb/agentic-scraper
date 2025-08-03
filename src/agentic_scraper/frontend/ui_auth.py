@@ -1,3 +1,13 @@
+"""
+Authentication helpers for the Streamlit frontend.
+
+This module handles:
+- Parsing JWT tokens from query parameters or session state
+- Authenticating users via Auth0 and populating session state
+- Fetching user profile and OpenAI credentials from the backend
+- Rendering login/logout UI controls
+"""
+
 import logging
 
 import httpx
@@ -29,7 +39,12 @@ settings = get_settings()
 
 
 def get_jwt_token_from_url() -> str | None:
-    """Extract JWT token from query params or session state."""
+    """
+    Extract the JWT token from the URL query parameters or session state.
+
+    Returns:
+        str | None: Valid JWT token, if found.
+    """
     token = st.query_params.get("token")
 
     if token:
@@ -52,13 +67,29 @@ def get_jwt_token_from_url() -> str | None:
 
 
 def ensure_https(domain: str) -> str:
+    """
+    Ensure the given domain starts with https:// for secure links.
+
+    Args:
+        domain (str): Auth0 or frontend domain.
+
+    Returns:
+        str: Secure domain URL.
+    """
     if not domain.startswith("http"):
         return "https://" + domain
     return domain
 
 
 def fetch_user_profile() -> None:
-    """Fetch user profile from backend `/me` endpoint and store in session."""
+    """
+    Fetch the user's profile from the backend `/user/me` endpoint.
+
+    Stores user info in session state if successful.
+
+    Raises:
+        Displays error in UI if request fails or session is invalid.
+    """
     if not st.session_state.get("jwt_token"):
         st.error("User is not authenticated!")
         return
@@ -85,7 +116,14 @@ def fetch_user_profile() -> None:
 
 
 def fetch_openai_credentials() -> None:
-    """Fetch OpenAI credentials from backend and store in session."""
+    """
+    Fetch the user's OpenAI credentials from the backend.
+
+    Stores credentials in session state if successful.
+
+    Raises:
+        Displays error in UI if request fails or session is invalid.
+    """
     if "jwt_token" not in st.session_state:
         st.error("User is not authenticated!")
         return
@@ -120,7 +158,12 @@ def fetch_openai_credentials() -> None:
 
 
 def authenticate_user() -> None:
-    """Authenticate user by extracting JWT and populating session state."""
+    """
+    Authenticate the user by extracting the JWT and fetching their profile and credentials.
+
+    Returns:
+        None
+    """
     if "jwt_token" in st.session_state and "user_info" in st.session_state:
         return
 
@@ -139,7 +182,12 @@ def authenticate_user() -> None:
 
 
 def logout_user() -> None:
-    """Clear session state and refresh UI."""
+    """
+    Clear authentication-related session data and refresh UI.
+
+    Returns:
+        None
+    """
     st.session_state.pop("jwt_token", None)
     st.session_state.pop("user_info", None)
     st.session_state.pop("openai_credentials", None)
@@ -147,7 +195,15 @@ def logout_user() -> None:
 
 
 def login_ui(agent_mode: str) -> None:
-    """Render login/logout buttons based on session state."""
+    """
+    Render login or logout UI components based on current session state.
+
+    Args:
+        agent_mode (str): The currently selected agent mode.
+
+    Returns:
+        None
+    """
     requires_auth = agent_mode != "rule_based"
     if not requires_auth:
         return

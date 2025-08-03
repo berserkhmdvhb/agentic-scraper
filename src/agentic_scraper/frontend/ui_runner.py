@@ -1,3 +1,14 @@
+"""
+UI runner for triggering and monitoring scraping via the backend API.
+
+This module validates user input, constructs API requests, and displays real-time
+feedback using Streamlit. It includes:
+
+- Token-authenticated requests to the backend scraping endpoint
+- Integration with session state for caching and deduplication
+- Live error reporting, input validation, and result summarization
+"""
+
 import asyncio
 import logging
 import time
@@ -31,7 +42,10 @@ settings = get_settings()
 
 async def start_scraping(urls: list[str], config: PipelineConfig) -> tuple[list[ScrapedItem], int]:
     """
-    Make API call to start scraping with the JWT token and optional OpenAI credentials.
+    Make an authenticated API call to start scraping.
+
+    Handles backend URL construction, OpenAI config attachment,
+    and full response parsing. Displays errors directly in the UI.
 
     Args:
         urls (list[str]): Validated list of URLs to scrape.
@@ -41,7 +55,7 @@ async def start_scraping(urls: list[str], config: PipelineConfig) -> tuple[list[
         tuple[list[ScrapedItem], int]: List of extracted items and count of skipped URLs.
 
     Raises:
-        None. UI errors are shown via `st.error()`.
+        None. All errors are handled and displayed via Streamlit.
     """
     if "jwt_token" not in st.session_state:
         st.error("User is not authenticated!")
@@ -88,20 +102,21 @@ async def start_scraping(urls: list[str], config: PipelineConfig) -> tuple[list[
 
 def run_scraper_pipeline(raw_input: str, config: PipelineConfig) -> tuple[list[ScrapedItem], int]:
     """
-    Main entry to validate input, run scraper via API, and display results.
+    Validate user input, initiate the scraping API request, and display results.
+
+    Handles deduplication, caching (to avoid duplicate API calls), and exception handling.
 
     Args:
-        raw_input (str): Raw multiline input string from the user.
-        config (PipelineConfig): Scraper configuration selected by user.
+        raw_input (str): Raw multiline string of URLs from the input box.
+        config (PipelineConfig): Scraper configuration selected via sidebar.
 
     Returns:
-        tuple[list[ScrapedItem], int]: Extracted items and count of skipped URLs.
+        tuple[list[ScrapedItem], int]: Extracted items and number of skipped or failed URLs.
 
     Raises:
-        None. UI errors and warnings are displayed directly.
+        None. Errors are caught and shown using Streamlit warnings or error messages.
     """
     urls, invalid_lines = validate_and_deduplicate_urls(raw_input)
-
     render_invalid_url_section(invalid_lines)
 
     if not urls:

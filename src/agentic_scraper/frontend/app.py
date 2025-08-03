@@ -1,3 +1,14 @@
+"""
+Streamlit entry point for the AgenticScraper frontend.
+
+This script:
+- Initializes logging and settings
+- Handles user authentication via Auth0
+- Displays sidebar controls and input panel
+- Allows users to submit URLs for LLM-based or rule-based extraction
+- Runs the scraping pipeline and renders results with optional screenshots
+"""
+
 import asyncio
 import logging
 import sys
@@ -23,16 +34,40 @@ if sys.platform.startswith("win"):
 
 
 def setup_logging_and_logger() -> logging.Logger:
+    """
+    Initialize logging system and return logger.
+
+    Returns:
+        logging.Logger: Configured project logger.
+    """
     setup_logging(reset=True)
     return get_logger()
 
 
 def configure_app_page(settings: Settings) -> tuple[SidebarConfig, str]:
+    """
+    Render the app layout, sidebar controls, and input method section.
+
+    Args:
+        settings (Settings): Global settings for default values.
+
+    Returns:
+        tuple[SidebarConfig, str]: Sidebar config and user input string.
+    """
     configure_page()
     return render_sidebar_controls(settings), render_input_section()
 
 
 def handle_run_button(input_ready: str) -> None:
+    """
+    Render and handle logic for the 'Run Extraction' button.
+
+    Args:
+        input_ready (str): User-provided input (non-empty if ready).
+
+    Returns:
+        None
+    """
     if not st.session_state["is_running"]:
         run_button = st.button("🚀 Run Extraction", type="primary")
         if run_button:
@@ -48,6 +83,18 @@ def handle_run_button(input_ready: str) -> None:
 def process_pipeline(
     raw_input: str, controls: SidebarConfig, settings: Settings, logger: logging.Logger
 ) -> None:
+    """
+    Run the scraper pipeline with the selected configuration and display results.
+
+    Args:
+        raw_input (str): Raw URL input from the user.
+        controls (SidebarConfig): Sidebar settings for the scrape.
+        settings (Settings): Base application settings.
+        logger (logging.Logger): Logger for error tracking.
+
+    Returns:
+        None
+    """
     try:
         effective_settings = settings.model_copy(
             update={
@@ -60,6 +107,7 @@ def process_pipeline(
         )
         log_settings(effective_settings)
         config = PipelineConfig(**controls.model_dump())
+
         items, skipped = run_scraper_pipeline(raw_input, config)
 
         if items:
@@ -74,6 +122,15 @@ def process_pipeline(
 
 
 def reset_app_state(logger: logging.Logger) -> None:
+    """
+    Render a reset button that clears all session state.
+
+    Args:
+        logger (logging.Logger): Logger to track reset event.
+
+    Returns:
+        None
+    """
     if st.sidebar.button("🔄 Reset"):
         logger.info(MSG_INFO_APP_RESET_TRIGGERED)
         st.session_state.clear()
@@ -81,6 +138,12 @@ def reset_app_state(logger: logging.Logger) -> None:
 
 
 def main() -> None:
+    """
+    Main entry point for the Streamlit frontend application.
+
+    Returns:
+        None
+    """
     # --- LOGGING SETUP ---
     logger = setup_logging_and_logger()
 

@@ -17,7 +17,6 @@ from agentic_scraper.backend.core.settings import (
     get_log_format,
 )
 from agentic_scraper.backend.config.constants import (
-    MIN_LLM_SCHEMA_RETRIES,
     PROJECT_NAME,
     DEFAULT_ENV,
     DEFAULT_OPENAI_MODEL,
@@ -40,15 +39,20 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_DUMP_LLM_JSON_DIR,
     DEFAULT_VERBOSE,
     DEFAULT_DEBUG_MODE,
+    MIN_LLM_TEMPERATURE,
 )
 
 def set_required_env(monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    # Minimal required settings for the model to instantiate successfully
     monkeypatch.setenv("AUTH0_DOMAIN", "test.auth0.com")
+    monkeypatch.setenv("AUTH0_ISSUER", "https://test.auth0.com/")
     monkeypatch.setenv("AUTH0_CLIENT_ID", "client-id")
     monkeypatch.setenv("AUTH0_CLIENT_SECRET", "client-secret")
-    monkeypatch.setenv("API_AUDIENCE", "https://api.example.com")
+    monkeypatch.setenv("AUTH0_API_AUDIENCE", "https://api.example.com")
     monkeypatch.setenv("ENCRYPTION_SECRET", "x" * 32)
+    monkeypatch.setenv("BACKEND_DOMAIN", "api.example.com")
+    monkeypatch.setenv("FRONTEND_DOMAIN", "app.example.com")
+    monkeypatch.setenv("AUTH0_REDIRECT_URI", "https://app.example.com/callback")
 
 # ---------- Core Settings Tests ----------
 
@@ -77,18 +81,14 @@ def test_settings_loads_correctly_from_env(settings: Settings) -> None:
     assert settings.llm_schema_retries == DEFAULT_LLM_SCHEMA_RETRIES
 
 
-def test_settings_raises_on_missing_api_key(monkeypatch: MonkeyPatch, reset_settings_cache: Any) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setitem(Settings.model_config, "env_file", None)
+def test_openai_key_is_validated_only_when_provided(settings_factory: Callable[..., Settings]) -> None:
+    # No openai key provided → no validation error
+    s = settings_factory()
+    assert s.openai is None
 
-    with pytest.raises(ValueError):
-        Settings(
-            auth0_domain="x",
-            auth0_client_id="x",
-            auth0_client_secret="x",
-            api_audience="x",
-            encryption_secret="x" * 32,
-        )
+    # Invalid key when provided explicitly should raise via validate_openai_api_key
+    with pytest.raises((ValueError, pydantic.ValidationError)):
+        settings_factory(openai={"api_key": ""})  # empty/invalid key
 
 
 def test_get_settings_is_cached(mock_env: None, reset_settings_cache: Any) -> None:
@@ -96,17 +96,14 @@ def test_get_settings_is_cached(mock_env: None, reset_settings_cache: Any) -> No
     s2 = get_settings()
     assert s1 is s2
 
-
 # ---------- Derived/Helper Method Tests ----------
 
 def test_get_environment(mock_env: None, reset_settings_cache: Any) -> None:
     assert get_environment() == DEFAULT_ENV.upper()
 
-
 def test_get_log_dir(mock_env: None, reset_settings_cache: Any) -> None:
     expected = Path(DEFAULT_LOG_DIR) / DEFAULT_ENV.upper()
     assert get_log_dir() == expected
-
 
 def test_get_log_level_is_debug_in_verbose_mode(monkeypatch: MonkeyPatch, reset_settings_cache: Any) -> None:
     monkeypatch.setenv("ENV", "DEV")
@@ -115,29 +112,24 @@ def test_get_log_level_is_debug_in_verbose_mode(monkeypatch: MonkeyPatch, reset_
 
     assert get_log_level() == logging.DEBUG
 
-
 def test_get_log_level_in_non_verbose_mode(monkeypatch: MonkeyPatch, reset_settings_cache: Any) -> None:
     monkeypatch.setenv("ENV", "PROD")
     monkeypatch.setenv("VERBOSE", "0")
-
     set_required_env(monkeypatch)
-
 
     expected_level = getattr(logging, DEFAULT_LOG_LEVEL.upper(), logging.INFO)
     assert get_log_level() == expected_level
 
-
 def test_get_log_max_bytes(mock_env: None, reset_settings_cache: Any) -> None:
     assert get_log_max_bytes() == DEFAULT_LOG_MAX_BYTES
-
 
 def test_get_log_backup_count(mock_env: None, reset_settings_cache: Any) -> None:
     assert get_log_backup_count() == DEFAULT_LOG_BACKUP_COUNT
 
-
 def test_get_log_format(mock_env: None, reset_settings_cache: Any) -> None:
-    assert get_log_format() == DEFAULT_LOG_FORMAT
-
+    fmt = get_log_format()
+    fmt_value = getattr(fmt, "value", fmt)  # handle enum or raw string
+    assert fmt_value == DEFAULT_LOG_FORMAT
 
 # ---------- Derived Property Behavior ----------
 
@@ -149,7 +141,6 @@ def test_is_verbose_mode_true_if_env_dev(monkeypatch: MonkeyPatch, settings_fact
     s = settings_factory()
     assert s.is_verbose_mode is True
 
-
 def test_is_verbose_mode_true_if_verbose_true(monkeypatch: MonkeyPatch, settings_factory: Any, reset_settings_cache: Any) -> None:
     monkeypatch.setenv("ENV", "PROD")
     monkeypatch.setenv("VERBOSE", "1")
@@ -158,15 +149,13 @@ def test_is_verbose_mode_true_if_verbose_true(monkeypatch: MonkeyPatch, settings
     s = settings_factory()
     assert s.is_verbose_mode is True
 
-
 def test_is_verbose_mode_false_by_default(monkeypatch: MonkeyPatch, settings_factory: Any, reset_settings_cache: Any) -> None:
     monkeypatch.setenv("ENV", "PROD")
     monkeypatch.setenv("VERBOSE", "0")
     set_required_env(monkeypatch)
-    
+
     s = settings_factory()
     assert s.is_verbose_mode is False
-
 
 # ---------- Field Exclusion Logic ----------
 
@@ -175,17 +164,15 @@ def test_excluded_fields_do_not_appear_in_model_dump(settings: Settings) -> None
     assert "fetch_concurrency" not in dumped
     assert "llm_concurrency" not in dumped
 
-
 # ---------- Bounds and Validation ----------
 
 def test_llm_schema_retries_bounds(settings_factory: Callable[..., Settings]) -> None:
-    # Must pass a real int (not a string) to trigger bounds validation
     with pytest.raises(pydantic.ValidationError) as exc_info:
-        settings_factory(llm_schema_retries=-1)
+        settings_factory(LLM_SCHEMA_RETRIES=-1)
+    assert "llm_schema_retries" in str(exc_info.value).lower()
 
-    assert "llm_schema_retries" in str(exc_info.value)
 
 
 def test_llm_temperature_out_of_bounds(settings_factory: Any) -> None:
-    with pytest.raises(ValueError):
-        settings_factory(llm_temperature=999)
+    with pytest.raises(pydantic.ValidationError):
+        settings_factory(LLM_TEMPERATURE=MIN_LLM_TEMPERATURE - 1.0)

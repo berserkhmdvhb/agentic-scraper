@@ -1,3 +1,14 @@
+"""
+Helper functions for the Streamlit scraper runner.
+
+This module handles:
+- Input URL validation and deduplication
+- OpenAI config attachment for API calls
+- Result parsing and error handling
+- UI feedback for valid/invalid inputs
+- Quick result summaries and error reporting
+"""
+
 import time
 from typing import Any
 
@@ -35,15 +46,16 @@ DOMAIN_EMOJIS = {
 
 def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]:
     """
-    Split and validate input URLs, returning valid and invalid ones.
+    Clean and deduplicate user input URLs, separating valid and invalid ones.
 
     Args:
-        raw_input (str): Multiline string of URLs from user input.
+        raw_input (str): Multiline string of raw input from the user.
 
     Returns:
-        tuple[list[str], list[str]]: Valid deduplicated URLs and invalid lines.
+        tuple[list[str], list[str]]:
+            - Valid deduplicated URLs
+            - Invalid lines from the original input
     """
-
     all_lines = [line.strip() for line in raw_input.strip().splitlines() if line.strip()]
     valid_urls = clean_input_urls(raw_input)
     invalid_lines = [line for line in all_lines if line not in valid_urls]
@@ -52,15 +64,14 @@ def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]
 
 def extract_domain_icon(url: str) -> str:
     """
-    Return an emoji for a known domain or a default link icon.
+    Return an emoji icon representing a known domain.
 
     Args:
-        url (str): The URL to check.
+        url (str): The URL to evaluate.
 
     Returns:
-        str: Emoji associated with the domain.
+        str: Emoji icon for the domain, or default "🔗".
     """
-    url = str(url)
     for domain, emoji in DOMAIN_EMOJIS.items():
         if domain in url:
             return emoji
@@ -69,19 +80,17 @@ def extract_domain_icon(url: str) -> str:
 
 def display_error_summaries(fetch_errors: list[str], extraction_errors: list[str]) -> None:
     """
-    Render summaries of fetch and extraction errors.
+    Render fetch and extraction errors in expandable UI sections.
 
     Args:
-        fetch_errors (list[str]): Errors during page loading.
-        extraction_errors (list[str]): Errors from LLM or validation.
-
-    Returns:
-        None
+        fetch_errors (list[str]): List of page-fetching errors.
+        extraction_errors (list[str]): List of LLM/validation extraction failures.
     """
     if fetch_errors:
         with st.expander("🌐 Fetch Errors (could not load page)"):
             for msg in fetch_errors:
                 st.markdown(f"- ❌ `{msg}`")
+
     if extraction_errors:
         with st.expander("🧐 Extraction Errors (LLM or validation failed)"):
             for msg in extraction_errors:
@@ -90,15 +99,12 @@ def display_error_summaries(fetch_errors: list[str], extraction_errors: list[str
 
 def summarize_results(items: list[ScrapedItem], skipped: int, start_time: float) -> None:
     """
-    Display metrics and quick view of successful scraping.
+    Display scraping performance metrics and a quick view of results.
 
     Args:
-        items (list[ScrapedItem]): Extracted items.
-        skipped (int): Number of skipped URLs.
-        start_time (float): Start timestamp.
-
-    Returns:
-        None
+        items (list[ScrapedItem]): Parsed items from backend.
+        skipped (int): Number of skipped or failed URLs.
+        start_time (float): Time at which scraping began.
     """
     elapsed = round(time.perf_counter() - start_time, 2)
 
@@ -121,13 +127,10 @@ def summarize_results(items: list[ScrapedItem], skipped: int, start_time: float)
 
 def render_invalid_url_section(invalid_lines: list[str]) -> None:
     """
-    Show expandable warning for invalid URLs.
+    Show an expandable UI section listing invalid input URLs.
 
     Args:
-        invalid_lines (list[str]): Lines from input that failed validation.
-
-    Returns:
-        None
+        invalid_lines (list[str]): List of lines that failed URL validation.
     """
     if invalid_lines:
         with st.expander("⚠️ Skipped Invalid URLs"):
@@ -137,13 +140,10 @@ def render_invalid_url_section(invalid_lines: list[str]) -> None:
 
 def render_valid_url_feedback(urls: list[str]) -> None:
     """
-    Show success message if valid URLs found.
+    Show feedback in the UI when valid URLs are detected.
 
     Args:
-        urls (list[str]): Validated URLs.
-
-    Returns:
-        None
+        urls (list[str]): List of validated input URLs.
     """
     if not urls:
         st.warning(MSG_INFO_NO_VALID_URLS)
@@ -155,14 +155,14 @@ def render_valid_url_feedback(urls: list[str]) -> None:
 
 def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     """
-    Attach OpenAI credentials and model settings to the request body.
+    Inject OpenAI credentials and LLM parameters into the scrape request body.
 
     Args:
-        config (PipelineConfig): User-selected scraper config.
-        body (dict[str, Any]): Request body to be enriched.
+        config (PipelineConfig): Current pipeline config from sidebar.
+        body (dict[str, Any]): Mutable request payload to enrich.
 
     Returns:
-        bool: True if credentials were attached successfully, False if missing.
+        bool: True if credentials were attached successfully, False otherwise.
     """
     openai_credentials = st.session_state.get("openai_credentials")
     if not openai_credentials:
@@ -182,13 +182,16 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
 
 def parse_scraper_response(data: dict[str, Any]) -> tuple[list[ScrapedItem], int]:
     """
-    Parse the backend response into structured items and count skipped entries.
+    Parse backend JSON response into structured items and skipped count.
 
     Args:
-        data (dict): JSON response from backend.
+        data (dict): JSON data returned by the scraping API.
 
     Returns:
-        tuple[list[ScrapedItem], int]: Parsed items and count of skipped URLs.
+        tuple[list[ScrapedItem], int]: List of successfully parsed items and number skipped.
+
+    Raises:
+        None. Parsing failures are handled with UI warnings and skipped gracefully.
     """
     raw_items = data.get("results", [])
     skipped = data.get("stats", {}).get("skipped", 0)

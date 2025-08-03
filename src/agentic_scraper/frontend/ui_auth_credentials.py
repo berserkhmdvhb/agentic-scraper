@@ -1,3 +1,12 @@
+"""
+Render UI form for submitting OpenAI credentials in the Streamlit frontend.
+
+This module:
+- Allows logged-in users to submit their OpenAI API key and project ID
+- Posts the credentials to the backend for secure storage
+- Provides validation and feedback for form submission
+"""
+
 import httpx
 import streamlit as st
 
@@ -8,8 +17,19 @@ settings = get_settings()
 
 
 def render_credentials_form() -> None:
-    """Render form for user to input OpenAI credentials."""
-    st.markdown("### 🔐 Enter OpenAI Credentials")
+    """
+    Display a form for the user to enter OpenAI API credentials.
+
+    Submits credentials to the backend for encrypted storage. Provides
+    feedback based on success or failure of the HTTP request.
+
+    Returns:
+        None
+
+    Raises:
+        None directly, but displays errors via Streamlit.
+    """
+    st.markdown("### 🔑 Enter OpenAI Credentials")
 
     if "openai_saved" in st.session_state:
         st.success("✅ Credentials already saved.")

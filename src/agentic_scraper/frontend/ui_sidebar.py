@@ -1,3 +1,16 @@
+"""
+Sidebar controls for the Streamlit frontend of AgenticScraper.
+
+This module renders the interactive sidebar UI for:
+- Environment display and login/authentication
+- OpenAI credentials input (conditional on login)
+- Agent mode selection
+- Model selection and screenshot toggle
+- Advanced settings for concurrency, retries, and verbosity
+
+Returns a `SidebarConfig` object with user-selected values to control scraping behavior.
+"""
+
 import streamlit as st
 
 from agentic_scraper.backend.config.constants import SESSION_KEYS, VALID_MODEL_OPTIONS
@@ -25,6 +38,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         fetch_concurrency, llm_concurrency, verbose, retry_attempts, llm_schema_retries = (
             render_advanced_settings(settings, selected_agent_mode)
         )
+
     # Persist all values in session
     st.session_state[SESSION_KEYS["screenshot_enabled"]] = st.session_state.get(
         SESSION_KEYS["screenshot_enabled"], settings.screenshot_enabled
@@ -49,21 +63,33 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
 
 
 def render_env_and_login(settings: Settings) -> None:
-    """Display environment info and authentication/login controls."""
+    """
+    Display environment information, log path, and authentication UI.
+
+    Args:
+        settings (Settings): Global settings to determine current environment and config.
+    """
     st.markdown(f"**Environment:** `{get_environment()}`")
     st.markdown(f"**Log Path:** `{get_log_dir() / 'agentic_scraper.log'}`")
     st.markdown("---")
 
     st.markdown("## 🔐 Authentication")
     login_ui(settings.agent_mode.value)
-    st.markdown("---")
     if "jwt_token" in st.session_state:
         render_credentials_form()
-        st.markdown("---")
 
 
 def render_agent_mode_selector(settings: Settings) -> AgentMode:
-    """Render agent mode selector dropdown and return chosen AgentMode."""
+    """
+    Render the dropdown for selecting agent mode.
+
+    Args:
+        settings (Settings): Settings used to determine the default selected mode.
+
+    Returns:
+        AgentMode: The selected agent mode (enum value).
+    """
+    st.markdown("---")
     st.markdown("## 🧠 Agent Mode")
     agent_mode_values = [m.value for m in AgentMode]
     selected_str = st.selectbox(
@@ -84,7 +110,16 @@ def render_agent_mode_selector(settings: Settings) -> AgentMode:
 
 
 def render_llm_controls(settings: Settings, agent_mode: AgentMode) -> str | None:
-    """Render OpenAI model selector and screenshot toggle, if applicable."""
+    """
+    Render the model selection and screenshot toggle controls.
+
+    Args:
+        settings (Settings): Settings to determine default model and toggle state.
+        agent_mode (AgentMode): Currently selected agent mode.
+
+    Returns:
+        str | None: The selected OpenAI model, or None if not applicable.
+    """
     selected_model = None
     if agent_mode != AgentMode.RULE_BASED:
         st.markdown("## 🤖 LLM Settings")
@@ -110,14 +145,25 @@ def render_advanced_settings(
     settings: Settings, agent_mode: AgentMode
 ) -> tuple[int, int, bool, int, int]:
     """
-    Render advanced settings for performance and reliability tuning:
-    - Fetch & LLM concurrency
+    Render advanced performance and reliability settings.
+
+    Includes:
+    - Concurrency (fetch and/or LLM)
     - Retry attempts
-    - Schema retries (if adaptive agent)
+    - LLM schema retries (if using adaptive agent)
     - Verbosity toggle
 
+    Args:
+        settings (Settings): App-wide settings providing defaults.
+        agent_mode (AgentMode): The current scraping mode selected.
+
     Returns:
-        Tuple of (fetch_concurrency, llm_concurrency, verbose, retry_attempts, llm_schema_retries)
+        tuple[int, int, bool, int, int]: A tuple of:
+            - fetch_concurrency
+            - llm_concurrency
+            - verbose
+            - retry_attempts
+            - llm_schema_retries
     """
     fetch_conc = llm_conc = settings.max_concurrent_requests
     verbose = settings.verbose
