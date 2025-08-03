@@ -7,7 +7,7 @@ from agentic_scraper.backend.core.settings import get_settings
 settings = get_settings()
 
 
-def render_credentials_form():
+def render_credentials_form() -> None:
     """Render form for user to input OpenAI credentials."""
     st.markdown("### 🔐 Enter OpenAI Credentials")
 
@@ -47,7 +47,7 @@ def render_credentials_form():
 
             except httpx.HTTPStatusError as e:
                 st.error(f"❌ Failed to save credentials: {e.response.text}")
-            except Exception as e:
-                st.error("⚠️ An unexpected error occurred while saving credentials.")
+            except httpx.RequestError as e:
+                st.error("⚠️ A network error occurred while saving credentials.")
                 if settings.is_verbose_mode:
                     st.exception(e)

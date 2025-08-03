@@ -1,3 +1,16 @@
+"""
+Fixed-schema LLM extraction agent using a system prompt.
+
+This agent sends HTML content to OpenAI using a predefined system prompt that requests
+a consistent set of fields (title, description, price, author, date_published). It performs
+a single pass with retry logic and optional screenshot capture.
+
+Use this agent when the output schema is known in advance and doesn't require dynamic adaptation.
+
+Primary entrypoint:
+    - extract_structured_data(request, settings)
+"""
+
 import logging
 from typing import TYPE_CHECKING
 
@@ -25,6 +38,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["extract_structured_data"]
+
 
 async def extract_structured_data(
     request: ScrapeRequest,
@@ -38,12 +53,15 @@ async def extract_structured_data(
     parses the JSON result, optionally captures a screenshot, and validates the structured data.
 
     Args:
-        request (ScrapeRequest): Encapsulated request parameters including text, url,
+        request (ScrapeRequest): Encapsulated request parameters including text, URL,
             screenshot preference, and OpenAI credentials.
         settings (Settings): Runtime settings including retry limits, model choice, etc.
 
     Returns:
         ScrapedItem | None: A structured, validated result object, or None if extraction failed.
+
+    Raises:
+        None: OpenAI-related errors are caught and logged internally.
     """
     async for attempt in AsyncRetrying(
         stop=stop_after_attempt(settings.retry_attempts),
@@ -60,7 +78,6 @@ async def extract_structured_data(
                 request=request,
                 settings=settings,
             )
-
     return None
 
 
@@ -70,14 +87,21 @@ async def _extract_impl(
     settings: Settings,
 ) -> ScrapedItem | None:
     """
-    Run OpenAI + optional screenshot capture with retry behavior driven by Settings.
+    Core extraction implementation using fixed system prompt and schema validation.
+
+    Sends a prompt to the OpenAI API, parses the response, validates it against
+    the ScrapedItem schema, and optionally attaches a screenshot path.
 
     Args:
-        request (ScrapeRequest): Input data including HTML, URL, screenshot toggle, and credentials.
-        settings (Settings): Global runtime settings.
+        request (ScrapeRequest):
+            Input data including cleaned text, URL, screenshot toggle, and credentials.
+        settings (Settings): Global runtime settings for LLM interaction.
 
     Returns:
-        ScrapedItem | None: Parsed result or None on failure.
+        ScrapedItem | None: Validated structured item, or None on error.
+
+    Raises:
+        None: All exceptions are handled internally and result in None.
     """
     messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": MSG_SYSTEM_PROMPT},

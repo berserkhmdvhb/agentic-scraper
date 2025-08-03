@@ -131,3 +131,28 @@ def build_retry_prompt(
         "Please re-analyze the page content and extract ONLY the missing fields if available.\n"
         "Return a valid JSON object with just those fields."
     )
+
+
+def build_retry_or_fallback_prompt(
+    best_fields: dict[str, Any] | None,
+    missing_fields: set[str],
+) -> str:
+    """
+    Builds either a focused retry prompt or a general fallback prompt depending on missing fields.
+
+    Args:
+        best_fields (dict[str, Any] | None): Previously extracted field values.
+        missing_fields (set[str]): Fields the LLM failed to extract.
+
+    Returns:
+        str: Retry or fallback prompt for another LLM attempt.
+    """
+    if missing_fields:
+        return build_retry_prompt(best_fields or {}, missing_fields)
+
+    return (
+        "Please try to extract any additional useful fields from the content "
+        "that may have been missed earlier. Ensure your output includes all "
+        "relevant fields and metadata based on the page type and context. "
+        "Return only valid JSON."
+    )

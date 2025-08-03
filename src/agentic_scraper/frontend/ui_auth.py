@@ -2,9 +2,11 @@ import logging
 
 import httpx
 import streamlit as st
+from fastapi import status
 from httpx import HTTPStatusError, RequestError
 
 from agentic_scraper import __api_version__ as api_version
+from agentic_scraper.backend.config.constants import EXPECTED_JWT_PARTS
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_JWT_FROM_URL,
     MSG_EXCEPTION_OPENAI_CREDENTIALS,
@@ -32,7 +34,7 @@ def get_jwt_token_from_url() -> str | None:
 
     if token:
         jwt_token = token[0] if isinstance(token, list) else token
-        if isinstance(jwt_token, str) and len(jwt_token.split(".")) == 3:
+        if isinstance(jwt_token, str) and len(jwt_token.split(".")) == EXPECTED_JWT_PARTS:
             st.session_state["jwt_token"] = jwt_token
             logger.debug(MSG_DEBUG_JWT_FROM_URL.format(token=jwt_token))
             st.query_params.clear()
@@ -65,7 +67,7 @@ def fetch_user_profile() -> None:
     backend_api = settings.auth0_api_audience.rstrip("/")
     try:
         response = httpx.get(f"{backend_api}/api/{api_version}/user/me", headers=headers)
-        if response.status_code == 401:
+        if response.status_code == status.HTTP_401_UNAUTHORIZED:
             st.warning("Session expired. Please log in again.")
             logout_user()
             return
@@ -74,7 +76,7 @@ def fetch_user_profile() -> None:
         logger.exception(MSG_EXCEPTION_USER_PROFILE.format(error=e.response.text))
         st.error(f"Failed to fetch user profile: {e.response.text}")
     except RequestError as e:
-        logger.exception(MSG_EXCEPTION_USER_PROFILE_NETWORK.format(error=e))
+        logger.exception(MSG_EXCEPTION_USER_PROFILE_NETWORK)
         st.error(f"Network error while fetching user profile: {e}")
     else:
         logger.info(MSG_INFO_USER_PROFILE_SUCCESS)
@@ -96,7 +98,7 @@ def fetch_openai_credentials() -> None:
                 f"{backend_api}/api/{api_version}/user/openai-credentials",
                 headers=headers,
             )
-            if response.status_code == 401:
+            if response.status_code == status.HTTP_401_UNAUTHORIZED:
                 st.warning("Session expired. Please log in again.")
                 logout_user()
                 return
@@ -105,7 +107,7 @@ def fetch_openai_credentials() -> None:
         logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS.format(error=e.response.text))
         st.error(f"Failed to fetch OpenAI credentials: {e.response.text}")
     except RequestError as e:
-        logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK.format(error=e))
+        logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK)
         st.error(f"Network error while fetching OpenAI credentials: {e}")
     else:
         data = response.json()
@@ -124,7 +126,7 @@ def authenticate_user() -> None:
 
     jwt_token = get_jwt_token_from_url()
     if jwt_token:
-        if len(jwt_token.split(".")) != 3:
+        if len(jwt_token.split(".")) != EXPECTED_JWT_PARTS:
             logger.warning(MSG_WARNING_MALFORMED_JWT.format(token=jwt_token))
             st.warning("⚠️ Token format appears invalid. Login may fail.")
 

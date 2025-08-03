@@ -1,3 +1,17 @@
+"""
+Shared utility functions for LLM-based scraping agents in AgenticScraper.
+
+This module provides reusable helpers to support adaptive and static scraping agents.
+It includes functionality for:
+- Parsing and validating LLM JSON output
+- Structured error logging (OpenAI, decoding, validation)
+- Screenshot capture for debugging
+- Extraction of contextual hints from HTML
+- Scoring and selecting retry candidates for adaptive extraction
+
+Used primarily by llm_dynamic.py, llm_dynamic_adaptive.py, and related agents.
+"""
+
 import json
 import logging
 from datetime import datetime, timezone
@@ -8,30 +22,63 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from openai import APIError, OpenAIError, RateLimitError
 from playwright.async_api import Error as PlaywrightError
+from pydantic import ValidationError
 
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_API_EXCEPTION,
+    MSG_DEBUG_FIELD_SCORE_PER_RETRY,
     MSG_DEBUG_LLM_JSON_DUMP_SAVED,
     MSG_DEBUG_PARSED_STRUCTURED_DATA,
     MSG_ERROR_API,
     MSG_ERROR_API_LOG_WITH_URL,
     MSG_ERROR_JSON_DECODING_FAILED_WITH_URL,
     MSG_ERROR_LLM_JSON_DECODE_LOG,
+    MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
     MSG_ERROR_OPENAI_UNEXPECTED,
     MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL,
     MSG_ERROR_RATE_LIMIT_DETAIL,
     MSG_ERROR_RATE_LIMIT_LOG_WITH_URL,
     MSG_ERROR_SCREENSHOT_FAILED_WITH_URL,
+    MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL,
 )
 from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.backend.scraper.agent.field_utils import score_fields
+from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "capture_optional_screenshot",
+    "extract_context_hints",
+    "handle_openai_exception",
+    "log_structured_data",
+    "parse_llm_response",
+    "score_and_log_fields",
+    "select_best_candidate",
+    "try_validate_scraped_item",
+]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Low-level helpers: JSON parsing, screenshot, exception handling
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, Any] | None:
     """
     Safely parse LLM JSON content. Logs errors and returns None on failure.
+
+    Args:
+        content (str): JSON string returned by the LLM.
+        url (str): The source URL being processed.
+        settings (Settings): Runtime config controlling verbosity and error logging.
+
+    Returns:
+        dict[str, Any] | None: Parsed dictionary if successful, else None.
+
+    Raises:
+        None
     """
     try:
         return cast("dict[str, Any]", json.loads(content))
@@ -44,7 +91,17 @@ def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, 
 
 async def capture_optional_screenshot(url: str, settings: Settings) -> str | None:
     """
-    Try to capture a screenshot. Logs any failure and returns None.
+    Attempt to capture a screenshot of the URL. Logs errors and returns None on failure.
+
+    Args:
+        url (str): The URL to screenshot.
+        settings (Settings): Runtime config including screenshot path.
+
+    Returns:
+        str | None: Path to saved screenshot if successful, otherwise None.
+
+    Raises:
+        None
     """
     try:
         return await capture_screenshot(url, output_dir=Path(settings.screenshot_dir))
@@ -55,7 +112,18 @@ async def capture_optional_screenshot(url: str, settings: Settings) -> str | Non
 
 def handle_openai_exception(e: OpenAIError, url: str, settings: Settings) -> None:
     """
-    Log structured errors from OpenAI exceptions with optional verbose detail.
+    Log and handle OpenAI-related errors with verbosity-aware logging.
+
+    Args:
+        e (OpenAIError): The OpenAI exception raised.
+        url (str): The URL that triggered the exception.
+        settings (Settings): Runtime config for verbosity.
+
+    Returns:
+        None
+
+    Raises:
+        None
     """
     if isinstance(e, RateLimitError):
         logger.warning(MSG_ERROR_RATE_LIMIT_LOG_WITH_URL.format(url=url))
@@ -72,18 +140,34 @@ def handle_openai_exception(e: OpenAIError, url: str, settings: Settings) -> Non
             logger.debug(MSG_ERROR_OPENAI_UNEXPECTED.format(error=e))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Logging and debugging utilities
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
+    """
+    Log a summary of structured LLM-extracted data, and optionally dump full JSON.
+
+    Args:
+        data (dict[str, Any]): Validated structured data from the LLM.
+        settings (Settings): Runtime config (controls verbose mode and JSON dump).
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
     if not settings.is_verbose_mode:
         return
 
-    # Log summary only
     summary = {
         k: f"str({len(v)})" if isinstance(v, str) else "None" if v is None else type(v).__name__
         for k, v in data.items()
     }
     logger.debug(MSG_DEBUG_PARSED_STRUCTURED_DATA.format(data=summary))
 
-    # Optionally dump full JSON to a file (guarded by a setting)
     if settings.dump_llm_json_dir:
         dump_dir = Path(settings.dump_llm_json_dir)
         dump_dir.mkdir(parents=True, exist_ok=True)
@@ -95,19 +179,27 @@ def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
         logger.debug(MSG_DEBUG_LLM_JSON_DUMP_SAVED.format(path=str(dump_path)))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# LLM prompt context extraction
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 def extract_context_hints(html: str, url: str) -> dict[str, str]:
     """
-    Extract contextual hints from HTML and URL for LLM prompting:
-    - Useful meta tags (title, description, etc.)
-    - Breadcrumbs (deduplicated)
-    - URL segments and page type hint
-    - Domain name (for prompt adaptation)
-    - Optional enhancements: <title> and <h1>
-    """
+    Extract contextual hints from the HTML and URL for better LLM prompt construction.
 
+    Args:
+        html (str): Raw HTML content of the page.
+        url (str): Source URL of the page.
+
+    Returns:
+        dict[str, str]: Dictionary of contextual elements (meta tags, breadcrumbs, segments, etc.).
+
+    Raises:
+        None
+    """
     soup = BeautifulSoup(html, "html.parser")
 
-    # Useful meta tags only
     useful_meta_keys = {
         "title",
         "description",
@@ -131,7 +223,6 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
     }
     meta_summary = "; ".join(f"{k}={v}" for k, v in meta_tags.items())
 
-    # Breadcrumbs
     breadcrumb_selectors = [
         '[class*="breadcrumb"]',
         '[id*="breadcrumb"]',
@@ -147,21 +238,17 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
                 breadcrumb_texts.append(text)
                 seen_breadcrumbs.add(text)
 
-    # Fallback breadcrumb detection
     if not breadcrumb_texts:
-        nav_breadcrumb = soup.select_one("nav[aria-label='breadcrumb']")
+        nav_breadcrumb = soup.select_one("nav[aria-label='breadcrumb']")  # fallback
         if nav_breadcrumb:
             breadcrumb_texts.append(nav_breadcrumb.get_text(strip=True))
 
     breadcrumbs = " > ".join(breadcrumb_texts)
-
-    # URL-based hints
     parsed = urlparse(url)
     url_segments = " / ".join(filter(None, parsed.path.split("/")))
     domain = parsed.netloc.lower()
     last_segment = parsed.path.rstrip("/").split("/")[-1]
 
-    # Optional extra context
     page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
     h1 = soup.find("h1")
     first_h1 = h1.get_text(strip=True) if h1 else ""
@@ -175,3 +262,87 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
         "page_title": page_title,
         "first_h1": first_h1,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Data validation and retry scoring
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def try_validate_scraped_item(
+    data: dict[str, Any], url: str, settings: Settings
+) -> ScrapedItem | None:
+    """
+    Attempt to validate the scraped data against the ScrapedItem schema.
+
+    Args:
+        data (dict[str, Any]): Raw JSON-like dict from LLM output.
+        url (str): The URL where the data came from.
+        settings (Settings): Runtime config used for logging.
+
+    Returns:
+        ScrapedItem | None: Validated item or None if validation failed.
+
+    Raises:
+        None
+    """
+    try:
+        item = ScrapedItem.model_validate(data)
+    except ValidationError as ve:
+        logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
+        return None
+
+    logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
+    log_structured_data(item.model_dump(mode="json"), settings)
+    return item
+
+
+def score_and_log_fields(fields: set[str], attempt: int, url: str) -> int:
+    """
+    Compute a numeric score based on extracted fields and log it.
+
+    Args:
+        fields (set[str]): Set of field names extracted by the LLM.
+        attempt (int): Retry attempt index.
+        url (str): Source URL.
+
+    Returns:
+        int: Computed score (higher means better coverage).
+
+    Raises:
+        None
+    """
+    score = score_fields(fields)
+    logger.debug(
+        MSG_DEBUG_FIELD_SCORE_PER_RETRY.format(
+            url=url,
+            attempt=attempt,
+            score=score,
+            fields=sorted(fields),
+        )
+    )
+    return score
+
+
+def select_best_candidate(candidate_data: dict[str, Any], url: str) -> ScrapedItem | None:
+    """
+    Final validation of the best-scoring retry candidate.
+
+    Args:
+        candidate_data (dict[str, Any]): Fields from best retry attempt.
+        url (str): URL for logging context.
+
+    Returns:
+        ScrapedItem | None: Valid item if validation succeeds, else None.
+
+    Raises:
+        None
+    """
+    try:
+        item = ScrapedItem.model_validate(candidate_data)
+    except ValidationError as ve:
+        logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
+        return None
+
+    logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
+    return item

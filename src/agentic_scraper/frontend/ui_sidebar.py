@@ -9,61 +9,127 @@ from agentic_scraper.frontend.ui_auth_credentials import render_credentials_form
 
 
 def render_sidebar_controls(settings: Settings) -> SidebarConfig:
-    """Render sidebar controls for login, OpenAI credentials, and agent settings."""
+    """
+    Render sidebar controls for login, OpenAI credentials, agent mode, performance, and retries.
 
+    Args:
+        settings (Settings): Global settings used to populate default control values.
+
+    Returns:
+        SidebarConfig: Parsed sidebar configuration to drive scraper behavior.
+    """
     with st.sidebar:
-        st.markdown(f"**Environment:** `{get_environment()}`")
-        st.markdown(f"**Log Path:** `{get_log_dir() / 'agentic_scraper.log'}`")
-        st.markdown("---")
-        # --- Authentication ---
-        st.markdown("## 🔐 Authentication")
-        login_ui(settings.agent_mode.value)
-
-        if "jwt_token" in st.session_state:
-            render_credentials_form()
-            st.markdown("---")
-
-        # --- Agent Mode ---
-        st.markdown("## 🧠 Agent Mode")
-        agent_mode_values = [m.value for m in AgentMode]
-        selected_agent_mode_str = st.selectbox(
-            "Select Agent Mode",
-            options=agent_mode_values,
-            index=agent_mode_values.index(settings.agent_mode.value),
-            key="agent_mode_select",
-            help=(
-                "Choose how the agent extracts structured data:\n\n"
-                "- `llm-fixed`: Extracts a fixed set of fields (title, description, price, etc.)\n"
-                "- `llm-dynamic`: Dynamically infers useful fields per page\n"
-                "- `llm-dynamic-adaptive`: Smarter retrying + field prioritization\n"
-                "- `rule-based`: Simple regex-based extraction (no LLM needed)"
-            ),
+        render_env_and_login(settings)
+        selected_agent_mode = render_agent_mode_selector(settings)
+        selected_model = render_llm_controls(settings, selected_agent_mode)
+        fetch_concurrency, llm_concurrency, verbose, retry_attempts, llm_schema_retries = (
+            render_advanced_settings(settings, selected_agent_mode)
         )
-        selected_agent_mode = AgentMode(selected_agent_mode_str)
+    # Persist all values in session
+    st.session_state[SESSION_KEYS["screenshot_enabled"]] = st.session_state.get(
+        SESSION_KEYS["screenshot_enabled"], settings.screenshot_enabled
+    )
+    st.session_state[SESSION_KEYS["fetch_concurrency"]] = fetch_concurrency
+    st.session_state[SESSION_KEYS["llm_concurrency"]] = llm_concurrency
+    st.session_state[SESSION_KEYS["verbose"]] = verbose
+    st.session_state[SESSION_KEYS["openai_model"]] = selected_model
+    st.session_state[SESSION_KEYS["agent_mode"]] = selected_agent_mode.value
+    st.session_state[SESSION_KEYS["retry_attempts"]] = retry_attempts
+    st.session_state[SESSION_KEYS["llm_schema_retries"]] = llm_schema_retries
 
-        # --- LLM Settings ---
-        selected_model = None
-        if selected_agent_mode != AgentMode.RULE_BASED:
-            st.markdown("## 🤖 LLM Settings")
-            model_keys = list(VALID_MODEL_OPTIONS.keys())
-            selected_model = st.selectbox(
-                "OpenAI Model",
-                options=model_keys,
-                index=model_keys.index(settings.openai_model.value),
-                format_func=lambda key: VALID_MODEL_OPTIONS[key],
-                key="openai_model_select",
-                help="Choose which OpenAI model to use for LLM-powered parsing.",
-            )
+    return SidebarConfig(
+        screenshot_enabled=st.session_state[SESSION_KEYS["screenshot_enabled"]],
+        fetch_concurrency=fetch_concurrency,
+        llm_concurrency=llm_concurrency,
+        verbose=verbose,
+        openai_model=selected_model,
+        agent_mode=selected_agent_mode.value,
+        retry_attempts=retry_attempts,
+        llm_schema_retries=llm_schema_retries,
+    )
 
-        screenshot_enabled = st.checkbox("📸 Enable Screenshot", value=settings.screenshot_enabled)
+
+def render_env_and_login(settings: Settings) -> None:
+    """Display environment info and authentication/login controls."""
+    st.markdown(f"**Environment:** `{get_environment()}`")
+    st.markdown(f"**Log Path:** `{get_log_dir() / 'agentic_scraper.log'}`")
+    st.markdown("---")
+
+    st.markdown("## 🔐 Authentication")
+    login_ui(settings.agent_mode.value)
+    st.markdown("---")
+    if "jwt_token" in st.session_state:
+        render_credentials_form()
         st.markdown("---")
-        # --- Performance Settings ---
-        st.markdown("## ⚙️ Performance Settings")
 
-        # Subsection: Concurrency
+
+def render_agent_mode_selector(settings: Settings) -> AgentMode:
+    """Render agent mode selector dropdown and return chosen AgentMode."""
+    st.markdown("## 🧠 Agent Mode")
+    agent_mode_values = [m.value for m in AgentMode]
+    selected_str = st.selectbox(
+        "Select Agent Mode",
+        options=agent_mode_values,
+        index=agent_mode_values.index(settings.agent_mode.value),
+        key="agent_mode_select",
+        help=(
+            "Choose how the agent extracts structured data:\n\n"
+            "- llm-fixed: Extracts a fixed set of fields (title, description, price, etc.)\n"
+            "- llm-dynamic: Dynamically infers useful fields per page\n"
+            "- llm-dynamic-adaptive: Smarter retrying + field prioritization\n"
+            "- rule-based: Simple regex-based extraction (no LLM needed)"
+        ),
+    )
+
+    return AgentMode(selected_str)
+
+
+def render_llm_controls(settings: Settings, agent_mode: AgentMode) -> str | None:
+    """Render OpenAI model selector and screenshot toggle, if applicable."""
+    selected_model = None
+    if agent_mode != AgentMode.RULE_BASED:
+        st.markdown("## 🤖 LLM Settings")
+        model_keys = list(VALID_MODEL_OPTIONS.keys())
+        selected_model = st.selectbox(
+            "OpenAI Model",
+            options=model_keys,
+            index=model_keys.index(settings.openai_model.value),
+            format_func=lambda k: VALID_MODEL_OPTIONS[k],
+            key="openai_model_select",
+            help="Choose which OpenAI model to use for LLM-powered parsing.",
+        )
+
+    st.session_state[SESSION_KEYS["screenshot_enabled"]] = st.checkbox(
+        "📸 Enable Screenshot",
+        value=settings.screenshot_enabled,
+    )
+    st.markdown("---")
+    return selected_model
+
+
+def render_advanced_settings(
+    settings: Settings, agent_mode: AgentMode
+) -> tuple[int, int, bool, int, int]:
+    """
+    Render advanced settings for performance and reliability tuning:
+    - Fetch & LLM concurrency
+    - Retry attempts
+    - Schema retries (if adaptive agent)
+    - Verbosity toggle
+
+    Returns:
+        Tuple of (fetch_concurrency, llm_concurrency, verbose, retry_attempts, llm_schema_retries)
+    """
+    fetch_conc = llm_conc = settings.max_concurrent_requests
+    verbose = settings.verbose
+    retry_attempts = settings.retry_attempts
+    llm_schema_retries = settings.llm_schema_retries
+
+    is_llm_agent = agent_mode != AgentMode.RULE_BASED
+
+    with st.expander("⚙️ Performance Settings (Advanced)", expanded=False):
         st.markdown("### 🔁 Concurrency")
 
-        is_llm_agent = selected_agent_mode != AgentMode.RULE_BASED
         if is_llm_agent:
             split = st.checkbox(
                 "🔧 Separate fetch and LLM controls",
@@ -78,20 +144,8 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
             split = False
 
         if split:
-            fetch_concurrency = st.slider(
-                "🌐 Fetch Concurrency",
-                min_value=1,
-                max_value=20,
-                value=settings.max_concurrent_requests,
-                help="Max number of web pages fetched in parallel.",
-            )
-            llm_concurrency = st.slider(
-                "🤖 LLM Concurrency",
-                min_value=1,
-                max_value=20,
-                value=settings.max_concurrent_requests,
-                help="Max number of pages sent to the AI model concurrently.",
-            )
+            fetch_conc = st.slider("🌐 Fetch Concurrency", 1, 20, settings.max_concurrent_requests)
+            llm_conc = st.slider("🤖 LLM Concurrency", 1, 20, settings.max_concurrent_requests)
         else:
             label = "🔁 Combined Concurrency" if is_llm_agent else "🌐 Fetch Concurrency"
             help_text = (
@@ -103,19 +157,32 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
                 if is_llm_agent
                 else "Controls how many web pages are fetched in parallel."
             )
-            concurrency = st.slider(
-                label,
-                min_value=1,
-                max_value=20,
-                value=settings.max_concurrent_requests,
-                help=help_text,
-            )
-            fetch_concurrency = concurrency
-            llm_concurrency = concurrency if is_llm_agent else 0
+            concurrency = st.slider(label, 1, 20, settings.max_concurrent_requests, help=help_text)
+            fetch_conc = concurrency
+            llm_conc = concurrency if is_llm_agent else 0
 
-        # Subsection: Verbosity
+        st.markdown("### ♻️ Retry Strategy")
+        retry_attempts = st.slider("Retry Attempts", 0, 5, settings.retry_attempts)
+
+        placeholder = st.empty()
+        if agent_mode == AgentMode.LLM_DYNAMIC_ADAPTIVE:
+            with placeholder:
+                llm_schema_retries = st.slider(
+                    "🧠 LLM Schema Retries",
+                    0,
+                    5,
+                    settings.llm_schema_retries,
+                    key=SESSION_KEYS["llm_schema_retries"],
+                    help=(
+                        "How many times to retry LLM extraction if required fields are missing.\n\n"
+                        "🔁 Useful when the AI omits key data (e.g. price, title).\n"
+                        "⚠️ Higher values increase latency and token cost."
+                    ),
+                )
+        else:
+            placeholder.empty()
+
         st.markdown("### 📢 Verbosity")
-
         verbose = st.checkbox(
             "🐞 Verbose error tracebacks",
             value=settings.verbose,
@@ -126,55 +193,4 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
             ),
         )
 
-        # Subsection: Retry Strategy
-        st.markdown("### ♻️ Retry Strategy")
-
-        retry_attempts = st.slider(
-            "Retry Attempts",
-            min_value=0,
-            max_value=5,
-            value=settings.retry_attempts,
-            help="How many times to retry failed fetches or LLM calls. Useful for unstable connections or rate-limited sites.",
-        )
-
-        llm_schema_placeholder = st.empty()
-        if selected_agent_mode == AgentMode.LLM_DYNAMIC_ADAPTIVE:
-            with llm_schema_placeholder:
-                llm_schema_retries = st.slider(
-                    "🧠 LLM Schema Retries",
-                    min_value=0,
-                    max_value=5,
-                    value=settings.llm_schema_retries,
-                    key=SESSION_KEYS["llm_schema_retries"],
-                    help=(
-                        "How many times to retry LLM extraction if required fields are missing.\n\n"
-                        "🔁 Useful when the AI omits key data (e.g. price, title).\n"
-                        "⚠️ Higher values increase latency and token cost."
-                    ),
-                )
-        else:
-            llm_schema_placeholder.empty()
-            llm_schema_retries = st.session_state.get(
-                SESSION_KEYS["llm_schema_retries"], settings.llm_schema_retries
-            )
-
-        st.markdown("---")
-    # --- Store in session state ---
-    st.session_state[SESSION_KEYS["screenshot_enabled"]] = screenshot_enabled
-    st.session_state[SESSION_KEYS["fetch_concurrency"]] = fetch_concurrency
-    st.session_state[SESSION_KEYS["llm_concurrency"]] = llm_concurrency
-    st.session_state[SESSION_KEYS["verbose"]] = verbose
-    st.session_state[SESSION_KEYS["openai_model"]] = selected_model
-    st.session_state[SESSION_KEYS["agent_mode"]] = selected_agent_mode.value
-    st.session_state[SESSION_KEYS["retry_attempts"]] = retry_attempts
-
-    return SidebarConfig(
-        screenshot_enabled=screenshot_enabled,
-        fetch_concurrency=fetch_concurrency,
-        llm_concurrency=llm_concurrency,
-        verbose=verbose,
-        openai_model=selected_model,
-        agent_mode=selected_agent_mode.value,
-        retry_attempts=retry_attempts,
-        llm_schema_retries=llm_schema_retries,
-    )
+    return fetch_conc, llm_conc, verbose, retry_attempts, llm_schema_retries

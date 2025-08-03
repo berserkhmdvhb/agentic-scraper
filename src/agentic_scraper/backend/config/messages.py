@@ -39,18 +39,19 @@ MSG_DEBUG_JWT_FROM_URL = "[FRONTEND] [AUTH] Extracted token from URL: {token}"
 MSG_WARNING_MALFORMED_JWT = "[FRONTEND] [AUTH] Suspected malformed JWT: {token}"
 MSG_WARNING_NO_JWT_FOUND = "[FRONTEND] [AUTH] No token found in URL or session"
 MSG_EXCEPTION_USER_PROFILE = "[FRONTEND] [AUTH] Failed to fetch user profile: {error}"
-MSG_EXCEPTION_USER_PROFILE_NETWORK = (
-    "[FRONTEND] [AUTH] Network error while fetching user profile: {error}"
-)
+MSG_EXCEPTION_USER_PROFILE_NETWORK = "[FRONTEND] [AUTH] Network error while fetching user profile"
 MSG_INFO_USER_PROFILE_SUCCESS = "[FRONTEND] [AUTH] User profile fetched successfully"
 MSG_INFO_CREDENTIALS_SUCCESS = "[FRONTEND] [AUTH] OpenAI credentials fetched and stored"
 MSG_EXCEPTION_OPENAI_CREDENTIALS = "[FRONTEND] [AUTH] Failed to fetch OpenAI credentials: {error}"
 MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK = (
-    "[FRONTEND] [AUTH] Network error while fetching OpenAI credentials: {error}"
+    "[FRONTEND] [AUTH] Network error while fetching OpenAI credentials"
 )
 MSG_INFO_TOKEN_SESSION_LENGTH = "[FRONTEND] [AUTH] JWT token stored in session. Length: {length}"
 MSG_INFO_NO_TOKEN_YET = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
 MSG_INFO_AUTH0_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 login URI: {uri}"
+
+# ui_runner.py
+MSG_DEBUG_SCRAPE_CONFIG_MERGED = "[FRONTEND] [PIPELINE] config values before calling API: {config}"
 
 # ─── Backend ───
 
@@ -256,8 +257,8 @@ MSG_INFO_VALID_SCRAPE_INPUTS = (
 )
 
 MSG_INFO_SCRAPE_STATS_COMPLETE = (
-    "[PIPELINE] Scraping completed: {total} total, ",
-    "{success} success, {failed} failed in {duration}s",
+    "[PIPELINE] Scraping completed: {total} total, "
+    "{success} success, {failed} failed in {duration}s"
 )
 
 
@@ -268,8 +269,7 @@ MSG_INFO_SCRAPE_STATS_COMPLETE = (
 # --init--.py
 
 MSG_DEBUG_AGENT_DISPATCH_START = (
-    "[AGENT] Dispatching extract_structured_data ",
-    "with agent_mode={mode}",
+    "[AGENT] Dispatching extract_structured_data ,with agent_mode={mode}"
 )
 MSG_DEBUG_AGENT_SELECTED = "[AGENT] Using {mode} extraction agent"
 

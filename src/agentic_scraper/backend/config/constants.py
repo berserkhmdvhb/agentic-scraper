@@ -124,6 +124,8 @@ DEFAULT_LOG_DIR = "logs"
 MIN_ENCRYPTION_SECRET_LENGTH = 32
 DEFAULT_AUTH0_ALGORITHM: str = Auth0Algs.RS256.value
 VALID_AUTH0_ALGORITHMS: set[str] = {alg.value for alg in Auth0Algs}
+# JWT format: header.payload.signature
+EXPECTED_JWT_PARTS = 3
 
 # logger_setup.py
 LOGGER_NAME = "agentic_scraper"

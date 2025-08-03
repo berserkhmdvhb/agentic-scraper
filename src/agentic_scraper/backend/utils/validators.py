@@ -204,7 +204,7 @@ def validate_agent_mode(mode: str) -> AgentMode:
                 mode_cleaned,
                 [m.value for m in AgentMode],
             )
-        )
+        ) from None
 
 
 def validate_openai_api_key(api_key: str | None) -> str:
