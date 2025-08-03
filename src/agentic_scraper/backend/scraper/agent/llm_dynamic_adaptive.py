@@ -34,6 +34,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_LLM_INITIAL_PROMPT,
     MSG_DEBUG_LLM_RETRY_ATTEMPT,
     MSG_DEBUG_LLM_RETRY_PROMPT,
+    MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES,
 )
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
@@ -220,10 +221,7 @@ async def extract_adaptive_data(
             return item
 
         page_type = (
-            page_type
-            or raw_data.get("page_type")
-            or request.context_hints.get("page_type")  # safely returns None if not present
-            or ""
+            page_type or raw_data.get("page_type") or request.context_hints.get("page_type") or ""
         )
         required = get_required_fields(page_type) or IMPORTANT_FIELDS
         missing = required - observed_fields
@@ -245,4 +243,18 @@ async def extract_adaptive_data(
             best_score = score
             best_fields = copy.deepcopy(raw_data)
 
+    if all_fields and best_fields != all_fields:
+        item = try_validate_scraped_item(all_fields, request.url, settings)
+        if item:
+            return item
+    if best_fields:
+        item = try_validate_scraped_item(best_fields, request.url, settings)
+        if item:
+            return item
+    logger.warning(
+        MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES.format(
+            attempts=settings.llm_schema_retries,
+            url=request.url,
+        )
+    )
     return select_best_candidate(best_fields or all_fields, request.url)
