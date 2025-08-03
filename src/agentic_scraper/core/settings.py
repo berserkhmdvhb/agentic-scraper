@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
-from agentic_scraper.backend.config.constants import (
+from agentic_scraper.config.constants import (
     DEFAULT_AGENT_MODE,
     DEFAULT_AUTH0_ALGORITHM,
     DEFAULT_DEBUG_MODE,
@@ -44,19 +44,19 @@ from agentic_scraper.backend.config.constants import (
     PROJECT_NAME,
     VALID_AGENT_MODES,
 )
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES,
 )
-from agentic_scraper.backend.config.types import (
+from agentic_scraper.config.models import OpenAIConfig
+from agentic_scraper.config.types import (
     AgentMode,
     Environment,
     LogFormat,
     LogLevel,
     OpenAIModel,
 )
-from agentic_scraper.backend.core.settings_helpers import validated_settings
-from agentic_scraper.backend.scraper.models import OpenAIConfig
-from agentic_scraper.backend.utils.validators import (
+from agentic_scraper.core.settings_helpers import validated_settings
+from agentic_scraper.utils.validators import (
     validate_backoff_range,
     validate_log_rotation_config,
     validate_openai_api_key,

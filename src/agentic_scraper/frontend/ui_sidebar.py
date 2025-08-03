@@ -13,9 +13,9 @@ Returns a `SidebarConfig` object with user-selected values to control scraping b
 
 import streamlit as st
 
-from agentic_scraper.backend.config.constants import SESSION_KEYS, VALID_MODEL_OPTIONS
-from agentic_scraper.backend.config.types import AgentMode
-from agentic_scraper.backend.core.settings import Settings, get_environment, get_log_dir
+from agentic_scraper.config.constants import SESSION_KEYS, VALID_MODEL_OPTIONS
+from agentic_scraper.config.types import AgentMode
+from agentic_scraper.core.settings import Settings, get_environment, get_log_dir
 from agentic_scraper.frontend.models import SidebarConfig
 from agentic_scraper.frontend.ui_auth import login_ui
 from agentic_scraper.frontend.ui_auth_credentials import render_credentials_form

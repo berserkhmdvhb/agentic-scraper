@@ -23,19 +23,19 @@ from tenacity import (
     wait_fixed,
 )
 
-from agentic_scraper.backend.config.constants import (
+from agentic_scraper.config.constants import (
     DEFAULT_HEADERS,
     FETCH_ERROR_PREFIX,
     FETCH_RETRY_DELAY_SECONDS,
 )
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_RETRYING_URL,
     MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION,
     MSG_ERROR_UNREACHABLE_FETCH_URL,
     MSG_INFO_FETCH_SUCCESS,
     MSG_WARNING_FETCH_FAILED,
 )
-from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 

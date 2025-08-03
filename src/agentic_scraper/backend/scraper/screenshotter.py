@@ -19,12 +19,12 @@ from urllib.parse import urlparse
 
 from playwright.async_api import async_playwright
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_ERROR_INVALID_SCREENSHOT_URL,
     MSG_ERROR_SCREENSHOT_FAILED,
     MSG_INFO_SCREENSHOT_SAVED,
 )
-from agentic_scraper.backend.utils.validators import is_valid_url, validate_path
+from agentic_scraper.utils.validators import is_valid_url, validate_path
 
 logger = logging.getLogger(__name__)
 

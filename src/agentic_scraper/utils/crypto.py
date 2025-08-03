@@ -1,6 +1,6 @@
 from cryptography.fernet import Fernet
 
-from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.core.settings import get_settings
 
 settings = get_settings()
 

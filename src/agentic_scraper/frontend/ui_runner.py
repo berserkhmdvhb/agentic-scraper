@@ -17,15 +17,15 @@ import httpx
 import streamlit as st
 
 from agentic_scraper import __api_version__ as api_version
-from agentic_scraper.backend.config.constants import SCRAPER_CONFIG_FIELDS
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.constants import SCRAPER_CONFIG_FIELDS
+from agentic_scraper.config.messages import (
     MSG_DEBUG_SCRAPE_CONFIG_MERGED,
     MSG_ERROR_EXTRACTION_FAILED,
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_USING_CACHE,
 )
-from agentic_scraper.backend.core.settings import get_settings
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.config.models import ScrapedItem
+from agentic_scraper.core.settings import get_settings
 from agentic_scraper.frontend.models import PipelineConfig
 from agentic_scraper.frontend.ui_runner_helpers import (
     attach_openai_config,

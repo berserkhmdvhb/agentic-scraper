@@ -2,12 +2,12 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_SETTING_OVERRIDDEN,
     MSG_DEBUG_SETTING_SKIPPED,
     MSG_WARNING_SETTING_INVALID,
 )
-from agentic_scraper.backend.utils.validators import (
+from agentic_scraper.utils.validators import (
     validate_agent_mode,
     validate_api_audience,
     validate_auth0_algorithms,

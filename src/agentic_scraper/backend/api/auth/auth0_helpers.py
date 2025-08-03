@@ -20,7 +20,7 @@ from fastapi import HTTPException
 from jose import jwt
 from jose.exceptions import ExpiredSignatureError, JWTError
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_CURRENT_ISSUER,
     MSG_ERROR_FETCHING_JWKS,
     MSG_ERROR_INVALID_JWT_HEADER,
@@ -34,7 +34,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_JWKS_FETCHED,
     MSG_INFO_RETRYING,
 )
-from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

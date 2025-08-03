@@ -28,7 +28,7 @@ from agentic_scraper.backend.api.schemas.user import (
     UserProfile,
 )
 from agentic_scraper.backend.api.user_store import load_user_credentials, save_user_credentials
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_INFO_CREDENTIALS_LOADED,
     MSG_INFO_CREDENTIALS_SAVED,
     MSG_WARNING_NO_CREDENTIALS_FOUND,

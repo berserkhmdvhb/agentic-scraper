@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
-from agentic_scraper.backend.config.constants import (
+from agentic_scraper.config.constants import (
     FETCH_ERROR_PREFIX,
     MIN_ENCRYPTION_SECRET_LENGTH,
     VALID_AUTH0_ALGORITHMS,
@@ -11,7 +11,7 @@ from agentic_scraper.backend.config.constants import (
     VALID_LOG_LEVELS,
     VALID_OPENAI_MODELS,
 )
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_SKIPPED_INVALID_URL,
     MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX,
     MSG_ERROR_EMPTY_AUTH0_ALGORITHMS,
@@ -33,7 +33,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_MISSING_API_KEY,
     MSG_ERROR_NOT_A_DIRECTORY,
 )
-from agentic_scraper.backend.config.types import AgentMode
+from agentic_scraper.config.types import AgentMode
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from fastapi.security import HTTPBearer
 
 from agentic_scraper.backend.api.models import AuthUser, RequiredScopes
 from agentic_scraper.backend.api.utils.log_helpers import raise_forbidden
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_MISSING_SCOPES,
     MSG_ERROR_USER_SCOPES_TYPE,
 )

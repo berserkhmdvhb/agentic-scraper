@@ -24,7 +24,9 @@ from openai import APIError, OpenAIError, RateLimitError
 from playwright.async_api import Error as PlaywrightError
 from pydantic import ValidationError
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.backend.scraper.agent.field_utils import score_fields
+from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
+from agentic_scraper.config.messages import (
     MSG_DEBUG_API_EXCEPTION,
     MSG_DEBUG_FIELD_SCORE_PER_RETRY,
     MSG_DEBUG_LLM_JSON_DUMP_SAVED,
@@ -44,10 +46,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_SCREENSHOT_FAILED_WITH_URL,
     MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL,
 )
-from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.agent.field_utils import score_fields
-from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
-from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
+from agentic_scraper.config.models import OpenAIConfig, ScrapedItem
+from agentic_scraper.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 

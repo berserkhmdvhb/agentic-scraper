@@ -14,7 +14,7 @@ import logging
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_PARSED_AUTHOR,
     MSG_DEBUG_PARSED_META_DESCRIPTION,
     MSG_DEBUG_PARSED_TITLE,
@@ -22,7 +22,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_NO_META_DESCRIPTION,
     MSG_INFO_NO_TITLE,
 )
-from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 

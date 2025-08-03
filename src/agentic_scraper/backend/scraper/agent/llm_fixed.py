@@ -18,13 +18,6 @@ from openai import APIError, AsyncOpenAI, OpenAIError, RateLimitError
 from pydantic import ValidationError
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from agentic_scraper.backend.config.messages import (
-    MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
-    MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
-    MSG_INFO_EXTRACTION_SUCCESS_WITH_URL,
-    MSG_SYSTEM_PROMPT,
-)
-from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
     capture_optional_screenshot,
     handle_openai_exception,
@@ -32,7 +25,14 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     parse_llm_response,
     retrieve_openai_credentials,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.config.messages import (
+    MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
+    MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
+    MSG_INFO_EXTRACTION_SUCCESS_WITH_URL,
+    MSG_SYSTEM_PROMPT,
+)
+from agentic_scraper.config.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.core.settings import Settings
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam

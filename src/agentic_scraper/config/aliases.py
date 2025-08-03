@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import TypeAlias
 
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.config.models import ScrapedItem
 
 ScrapeInput: TypeAlias = tuple[str, str]
 OnSuccessCallback: TypeAlias = Callable[[ScrapedItem], None]

@@ -17,16 +17,16 @@ from typing import cast
 
 from fastapi import HTTPException
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_ERROR_DECRYPTION_FAILED,
     MSG_ERROR_INVALID_CREDENTIALS,
     MSG_ERROR_LOADING_USER_STORE,
     MSG_ERROR_SAVING_USER_STORE,
     MSG_WARNING_CREDENTIALS_NOT_FOUND,
 )
-from agentic_scraper.backend.core.logger_setup import get_logger
-from agentic_scraper.backend.scraper.models import OpenAIConfig
-from agentic_scraper.backend.utils.crypto import decrypt, encrypt
+from agentic_scraper.config.models import OpenAIConfig
+from agentic_scraper.core.logger_setup import get_logger
+from agentic_scraper.utils.crypto import decrypt, encrypt
 
 logger = get_logger()
 

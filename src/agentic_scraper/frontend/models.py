@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from agentic_scraper.backend.config.types import AgentMode, OpenAIModel
+from agentic_scraper.config.types import AgentMode, OpenAIModel
 
 
 class PipelineConfig(BaseModel):

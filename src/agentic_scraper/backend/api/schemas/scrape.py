@@ -2,9 +2,9 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
-from agentic_scraper.backend.config.messages import MSG_ERROR_MISSING_FIELDS_FOR_AGENT
-from agentic_scraper.backend.config.types import AgentMode, OpenAIModel
-from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
+from agentic_scraper.config.messages import MSG_ERROR_MISSING_FIELDS_FOR_AGENT
+from agentic_scraper.config.models import OpenAIConfig, ScrapedItem
+from agentic_scraper.config.types import AgentMode, OpenAIModel
 
 UrlsType = Annotated[
     list[HttpUrl],

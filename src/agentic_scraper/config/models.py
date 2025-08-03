@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
-from agentic_scraper.backend.utils.validators import (
+from agentic_scraper.utils.validators import (
     clean_price,
     validate_optional_str,
 )

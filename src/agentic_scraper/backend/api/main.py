@@ -23,8 +23,8 @@ from agentic_scraper.backend.api.openapi import custom_openapi
 from agentic_scraper.backend.api.routes.v1.auth import router as auth_router
 from agentic_scraper.backend.api.routes.v1.scrape import router as scrape_router
 from agentic_scraper.backend.api.routes.v1.user import router as user_router
-from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
-from agentic_scraper.backend.core.settings import get_settings, log_settings
+from agentic_scraper.core.logger_setup import get_logger, setup_logging
+from agentic_scraper.core.settings import get_settings, log_settings
 
 # Constants
 API_PREFIX = "/api"
@@ -46,15 +46,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://agenticscraper.onrender.com",
-        "http://localhost:8501",
-        "http://127.0.0.1:8000",
-        "https://6d35bd763370.ngrok-free.app",
-        "http://127.0.0.1:8085",
-        "https://6ff4e2a81f86.ngrok-free.app",
-        "https://fa8dda17d53a.ngrok-free.app",
-    ],
+    allow_origins=[settings.frontend_domain],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

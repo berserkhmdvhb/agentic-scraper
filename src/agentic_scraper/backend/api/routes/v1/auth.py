@@ -23,7 +23,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 from starlette.status import HTTP_200_OK
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_AUTH_CALLBACK_CODE_RECEIVED,
     MSG_DEBUG_AUTH_REDIRECT_URL,
     MSG_DEBUG_AUTH_TOKEN_RECEIVED,
@@ -33,7 +33,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_AUTH_CALLBACK_DURATION,
     MSG_WARNING_AUTH_CALLBACK_MISSING_CODE,
 )
-from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.core.settings import get_settings
 
 __all__ = ["auth_callback"]
 

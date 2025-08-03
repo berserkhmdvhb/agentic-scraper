@@ -16,8 +16,8 @@ from fastapi import status
 from httpx import HTTPStatusError, RequestError
 
 from agentic_scraper import __api_version__ as api_version
-from agentic_scraper.backend.config.constants import EXPECTED_JWT_PARTS
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.constants import EXPECTED_JWT_PARTS
+from agentic_scraper.config.messages import (
     MSG_DEBUG_JWT_FROM_URL,
     MSG_EXCEPTION_OPENAI_CREDENTIALS,
     MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK,
@@ -31,8 +31,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_MALFORMED_JWT,
     MSG_WARNING_NO_JWT_FOUND,
 )
-from agentic_scraper.backend.core.settings import get_settings
-from agentic_scraper.backend.scraper.models import OpenAIConfig
+from agentic_scraper.config.models import OpenAIConfig
+from agentic_scraper.core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

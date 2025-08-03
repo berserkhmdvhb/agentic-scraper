@@ -1,14 +1,14 @@
 import logging
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_AGENT_DISPATCH_START,
     MSG_DEBUG_AGENT_SELECTED,
     MSG_ERROR_UNHANDLED_AGENT_MODE,
 )
-from agentic_scraper.backend.config.types import AgentMode
-from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
-from agentic_scraper.backend.utils.validators import validate_agent_mode
+from agentic_scraper.config.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.config.types import AgentMode
+from agentic_scraper.core.settings import Settings
+from agentic_scraper.utils.validators import validate_agent_mode
 
 from .llm_dynamic import extract_structured_data as extract_dynamic
 from .llm_dynamic_adaptive import extract_adaptive_data as extract_dynamic_adaptive

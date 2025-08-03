@@ -20,7 +20,7 @@ import streamlit as st
 from pydantic import HttpUrl
 from st_aggrid import AgGrid, GridOptionsBuilder
 
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.config.models import ScrapedItem
 
 
 def dataframe_to_sqlite_bytes(df: pd.DataFrame, table_name: str = "scraped_data") -> BytesIO:

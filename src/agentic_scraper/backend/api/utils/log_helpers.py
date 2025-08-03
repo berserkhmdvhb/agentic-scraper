@@ -4,7 +4,7 @@ from typing import NoReturn
 from fastapi import HTTPException, status
 from jose import JWTError
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_ERROR_INTERNAL_SERVER,
     MSG_ERROR_INVALID_TOKEN,
     MSG_ERROR_MISSING_SCOPES,

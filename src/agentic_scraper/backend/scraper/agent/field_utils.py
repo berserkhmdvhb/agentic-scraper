@@ -1,6 +1,6 @@
 from typing import Any
 
-from agentic_scraper.backend.config.constants import FIELD_SYNONYMS
+from agentic_scraper.config.constants import FIELD_SYNONYMS
 
 # Mapping of page types to the canonical fields expected for extraction.
 PAGE_TYPE_TO_FIELDS: dict[str, set[str]] = {

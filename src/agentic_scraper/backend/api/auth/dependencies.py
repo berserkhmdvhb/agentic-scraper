@@ -32,8 +32,8 @@ from agentic_scraper.backend.api.utils.log_helpers import (
     raise_internal_error,
     raise_unauthorized,
 )
-from agentic_scraper.backend.config.constants import CLAIM_EMAIL, CLAIM_NAME
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.constants import CLAIM_EMAIL, CLAIM_NAME
+from agentic_scraper.config.messages import (
     MSG_DEBUG_VERIFYING_JWT_TOKEN,
     MSG_ERROR_UNEXPECTED_EXCEPTION,
     MSG_WARNING_JWT_VERIFICATION_FAILED,

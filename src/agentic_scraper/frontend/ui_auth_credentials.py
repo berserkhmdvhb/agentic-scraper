@@ -11,7 +11,7 @@ import httpx
 import streamlit as st
 
 from agentic_scraper import __api_version__ as api_version
-from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.core.settings import get_settings
 
 settings = get_settings()
 

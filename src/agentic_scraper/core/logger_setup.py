@@ -1,13 +1,13 @@
 import logging
 from logging.handlers import RotatingFileHandler
 
-from agentic_scraper.backend.config.constants import LOGGER_NAME
-from agentic_scraper.backend.core.logger_helpers import (
+from agentic_scraper.config.constants import LOGGER_NAME
+from agentic_scraper.core.logger_helpers import (
     EnvironmentFilter,
     JSONFormatter,
     SafeFormatter,
 )
-from agentic_scraper.backend.core.settings import (
+from agentic_scraper.core.settings import (
     get_log_backup_count,
     get_log_dir,
     get_log_format,

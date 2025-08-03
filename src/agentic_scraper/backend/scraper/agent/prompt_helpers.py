@@ -2,8 +2,8 @@ import json
 import logging
 from typing import Any
 
-from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS, MAX_TEXT_FOR_FEWSHOT
-from agentic_scraper.backend.config.messages import MSG_DEBUG_CONTEXTUAL_HINTS_USED
+from agentic_scraper.config.constants import IMPORTANT_FIELDS, MAX_TEXT_FOR_FEWSHOT
+from agentic_scraper.config.messages import MSG_DEBUG_CONTEXTUAL_HINTS_USED
 
 logger = logging.getLogger(__name__)
 

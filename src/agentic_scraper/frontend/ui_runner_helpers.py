@@ -15,13 +15,13 @@ from typing import Any
 import streamlit as st
 from pydantic import ValidationError
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_VALID_URLS_FOUND,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem
-from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
+from agentic_scraper.config.models import ScrapedItem
 from agentic_scraper.frontend.models import PipelineConfig
+from agentic_scraper.utils.validators import clean_input_urls, deduplicate_urls
 
 __all__ = [
     "attach_openai_config",

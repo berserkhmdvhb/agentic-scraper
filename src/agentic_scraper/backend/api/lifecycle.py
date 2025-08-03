@@ -16,14 +16,14 @@ from fastapi import FastAPI, HTTPException
 from httpx import TimeoutException
 
 from agentic_scraper.backend.api.auth.auth0_helpers import jwks_cache_instance
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_LIFESPAN_STARTED,
     MSG_ERROR_PRELOADING_JWKS,
     MSG_INFO_JWKS_PRELOAD_SUCCESSFUL,
     MSG_INFO_PRELOADING_JWKS,
     MSG_INFO_SHUTDOWN_LOG,
 )
-from agentic_scraper.backend.core.logger_setup import get_logger
+from agentic_scraper.core.logger_setup import get_logger
 
 logger = get_logger()
 

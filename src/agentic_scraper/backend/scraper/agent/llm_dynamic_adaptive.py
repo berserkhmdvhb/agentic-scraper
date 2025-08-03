@@ -29,13 +29,6 @@ from tenacity import (
     wait_random_exponential,
 )
 
-from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS
-from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_LLM_INITIAL_PROMPT,
-    MSG_DEBUG_LLM_RETRY_ATTEMPT,
-    MSG_DEBUG_LLM_RETRY_PROMPT,
-)
-from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
     capture_optional_screenshot,
     extract_context_hints,
@@ -54,7 +47,14 @@ from agentic_scraper.backend.scraper.agent.prompt_helpers import (
     build_prompt,
     build_retry_or_fallback_prompt,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.config.constants import IMPORTANT_FIELDS
+from agentic_scraper.config.messages import (
+    MSG_DEBUG_LLM_INITIAL_PROMPT,
+    MSG_DEBUG_LLM_RETRY_ATTEMPT,
+    MSG_DEBUG_LLM_RETRY_PROMPT,
+)
+from agentic_scraper.config.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 

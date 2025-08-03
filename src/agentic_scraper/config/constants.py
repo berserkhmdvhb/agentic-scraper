@@ -1,4 +1,4 @@
-from agentic_scraper.backend.config.types import (
+from agentic_scraper.config.types import (
     AgentMode,
     Auth0Algs,
     Environment,

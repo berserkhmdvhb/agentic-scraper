@@ -18,12 +18,13 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
-from agentic_scraper.backend.config.aliases import (
+from agentic_scraper.backend.scraper.agent import extract_structured_data
+from agentic_scraper.config.aliases import (
     OnErrorCallback,
     OnSuccessCallback,
     ScrapeInput,
 )
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_POOL_CANCELLING_WORKERS,
     MSG_DEBUG_POOL_DONE,
     MSG_DEBUG_POOL_ENQUEUED_URL,
@@ -39,9 +40,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_WORKER_POOL_START,
     MSG_WARNING_WORKER_FAILED_SHORT,
 )
-from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.agent import extract_structured_data
-from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem, ScrapeRequest
+from agentic_scraper.config.models import OpenAIConfig, ScrapedItem, ScrapeRequest
+from agentic_scraper.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ import time
 from logging import Filter, Formatter, LogRecord
 from typing import Literal
 
-from agentic_scraper.backend.core.settings import get_environment
+from agentic_scraper.core.settings import get_environment
 
 
 class EnvironmentFilter(Filter):

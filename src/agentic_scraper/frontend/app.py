@@ -15,12 +15,12 @@ import sys
 
 import streamlit as st
 
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR,
     MSG_INFO_APP_RESET_TRIGGERED,
 )
-from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
-from agentic_scraper.backend.core.settings import Settings, get_settings, log_settings
+from agentic_scraper.core.logger_setup import get_logger, setup_logging
+from agentic_scraper.core.settings import Settings, get_settings, log_settings
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
 from agentic_scraper.frontend.ui_auth import authenticate_user
 from agentic_scraper.frontend.ui_display import display_results

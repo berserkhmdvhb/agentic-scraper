@@ -13,7 +13,7 @@ import sys
 
 import streamlit as st
 
-from agentic_scraper.backend.core.logger_setup import setup_logging
+from agentic_scraper.core.logger_setup import setup_logging
 
 # Windows asyncio compatibility
 if sys.platform.startswith("win"):

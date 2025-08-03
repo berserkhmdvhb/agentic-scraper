@@ -25,10 +25,6 @@ from tenacity import (
     wait_exponential,
 )
 
-from agentic_scraper.backend.config.messages import (
-    MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
-)
-from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
     capture_optional_screenshot,
     handle_openai_exception,
@@ -38,7 +34,11 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
 )
 from agentic_scraper.backend.scraper.agent.field_utils import normalize_keys
 from agentic_scraper.backend.scraper.agent.prompt_helpers import build_prompt
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.config.messages import (
+    MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
+)
+from agentic_scraper.config.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.core.settings import Settings
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam

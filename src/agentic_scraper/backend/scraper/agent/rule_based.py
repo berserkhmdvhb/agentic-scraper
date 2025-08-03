@@ -20,13 +20,17 @@ import re
 
 from pydantic import ValidationError
 
-from agentic_scraper.backend.config.constants import (
+from agentic_scraper.backend.scraper.agent.agent_helpers import (
+    capture_optional_screenshot,
+    log_structured_data,
+)
+from agentic_scraper.config.constants import (
     DESCRIPTION_MAX_LENGTH,
     DESCRIPTION_MIN_LENGTH,
     REGEX_PARAGRAPH_SPLIT_PATTERN,
     REGEX_PRICE_PATTERN,
 )
-from agentic_scraper.backend.config.messages import (
+from agentic_scraper.config.messages import (
     MSG_DEBUG_RULE_BASED_DESCRIPTION,
     MSG_DEBUG_RULE_BASED_PRICE,
     MSG_DEBUG_RULE_BASED_START,
@@ -35,12 +39,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_RULE_BASED_VALIDATION_SUCCESS,
     MSG_ERROR_RULE_BASED_EXTRACTION_FAILED,
 )
-from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.agent.agent_helpers import (
-    capture_optional_screenshot,
-    log_structured_data,
-)
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.config.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.core.settings import Settings
 
 __all__ = ["extract_structured_data"]
 
