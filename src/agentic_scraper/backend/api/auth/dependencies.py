@@ -20,6 +20,7 @@ Example:
 """
 
 import logging
+from typing import cast
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -31,6 +32,7 @@ from agentic_scraper.backend.api.utils.log_helpers import (
     raise_internal_error,
     raise_unauthorized,
 )
+from agentic_scraper.backend.config.constants import CLAIM_EMAIL, CLAIM_NAME
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_VERIFYING_JWT_TOKEN,
     MSG_ERROR_UNEXPECTED_EXCEPTION,
@@ -49,40 +51,24 @@ async def get_current_user(
     """
     Extract and verify the current user from a JWT token provided in the Authorization header.
 
-    This function uses the FastAPI `Depends` system to extract a bearer token from
-    the HTTP Authorization header. It then verifies the token using Auth0's JSON
-    Web Key Set (JWKS) and decodes the payload into an `AuthUser` structure.
+    Internally verifies the token with Auth0's JWKS, validates required claims,
+    and transforms the decoded payload into an `AuthUser`.
 
     Args:
-        credentials (HTTPAuthorizationCredentials):
-            The bearer token extracted by FastAPI from the incoming request's
-            Authorization header.
+        credentials (HTTPAuthorizationCredentials): The bearer token from the Authorization header.
 
     Returns:
-        AuthUser:
-            A dictionary-like object containing the user's `sub`, `email`, `name`, and `scope`.
+        AuthUser: Dictionary containing 'sub', 'email', 'name', and 'scope'.
 
     Raises:
-        HTTPException (401): If the token is missing required fields or is invalid.
-        HTTPException (500): If any unexpected error occurs during decoding.
+        HTTPException: If the token is missing required fields or is invalid (401).
+        HTTPException: If any unexpected error occurs during decoding (500).
     """
     token = credentials.credentials
 
     try:
         logger.debug(MSG_DEBUG_VERIFYING_JWT_TOKEN.format(token=token))
         payload = await verify_jwt(token)
-
-        user_data: AuthUser = {
-            "sub": payload.get("sub"),
-            "email": payload.get("https://agentic.scraper/email", payload.get("email")),
-            "name": payload.get("https://agentic.scraper/name", payload.get("name")),
-            "scope": payload.get("scope", ""),
-        }
-
-        if not user_data["sub"]:
-            raise_unauthorized("Missing 'sub' in token payload")
-        else:
-            return user_data
 
     except JWTError as err:
         logger.warning(MSG_WARNING_JWT_VERIFICATION_FAILED, exc_info=err)
@@ -91,3 +77,14 @@ async def get_current_user(
     except Exception as e:
         logger.exception(MSG_ERROR_UNEXPECTED_EXCEPTION, exc_info=e)
         raise_internal_error(e)
+
+    sub = payload.get("sub")
+    if not sub:
+        raise_unauthorized("Missing 'sub' in token payload")
+
+    return {
+        "sub": cast("str", sub),
+        "email": payload.get(CLAIM_EMAIL, payload.get("email")),
+        "name": payload.get(CLAIM_NAME, payload.get("name")),
+        "scope": payload.get("scope", ""),
+    }

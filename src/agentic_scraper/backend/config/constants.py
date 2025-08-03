@@ -165,3 +165,12 @@ FIELD_SYNONYMS: dict[str, str] = {
     "heading": "title",
     "posted_by": "author",
 }
+
+# ---------------------------------------------------------------------
+# api/auth/
+# ---------------------------------------------------------------------
+
+# dependencies.py
+
+CLAIM_EMAIL = "https://agentic.scraper/email"
+CLAIM_NAME = "https://agentic.scraper/name"

@@ -21,7 +21,7 @@ def configure_page() -> None:
     st.markdown("Extract structured data from any list of URLs using LLM-powered parsing.")
 
 
-def render_input_section() -> str | None:
+def render_input_section() -> str:
     input_method = st.radio("Input method:", ["Paste URLs", "Upload .txt file"], horizontal=True)
 
     if input_method == "Paste URLs":

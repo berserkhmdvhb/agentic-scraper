@@ -1,4 +1,5 @@
 import logging
+from typing import NoReturn
 
 from fastapi import HTTPException, status
 from jose import JWTError
@@ -52,7 +53,7 @@ def raise_unauthorized(err: JWTError) -> None:
     ) from err
 
 
-def raise_internal_error(e: Exception) -> None:
+def raise_internal_error(e: Exception) -> NoReturn:
     """
     Raise a 500 Internal Server Error HTTPException.
 

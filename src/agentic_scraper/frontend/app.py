@@ -10,7 +10,7 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import Settings, get_settings, log_settings
-from agentic_scraper.frontend.models import PipelineConfig
+from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
 from agentic_scraper.frontend.ui_auth import authenticate_user
 from agentic_scraper.frontend.ui_display import display_results
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
@@ -22,12 +22,12 @@ if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
-def setup_logging_and_logger() -> get_logger:
+def setup_logging_and_logger() -> logging.Logger:
     setup_logging(reset=True)
     return get_logger()
 
 
-def configure_app_page(settings: Settings) -> tuple:
+def configure_app_page(settings: Settings) -> tuple[SidebarConfig, str]:
     configure_page()
     return render_sidebar_controls(settings), render_input_section()
 
@@ -46,7 +46,7 @@ def handle_run_button(input_ready: str) -> None:
 
 
 def process_pipeline(
-    raw_input: str, controls: dict, settings: Settings, logger: logging.Logger
+    raw_input: str, controls: SidebarConfig, settings: Settings, logger: logging.Logger
 ) -> None:
     try:
         effective_settings = settings.model_copy(
