@@ -29,6 +29,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_FIELD_SCORE_PER_RETRY,
     MSG_DEBUG_LLM_JSON_DUMP_SAVED,
     MSG_DEBUG_PARSED_STRUCTURED_DATA,
+    MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS,
     MSG_ERROR_API,
     MSG_ERROR_API_LOG_WITH_URL,
     MSG_ERROR_JSON_DECODING_FAILED_WITH_URL,
@@ -285,19 +286,20 @@ def try_validate_scraped_item(
 
     Returns:
         ScrapedItem | None: Validated item or None if validation failed.
-
-    Raises:
-        None
     """
+    if not data:
+        return None
+
     try:
         item = ScrapedItem.model_validate(data)
     except ValidationError as ve:
         logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
         return None
-
-    logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
-    log_structured_data(item.model_dump(mode="json"), settings)
-    return item
+    else:
+        logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
+        logger.debug(MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS.format(fields=list(data.keys())))
+        log_structured_data(item.model_dump(mode="json"), settings)
+        return item
 
 
 def score_and_log_fields(fields: set[str], attempt: int, url: str) -> int:
