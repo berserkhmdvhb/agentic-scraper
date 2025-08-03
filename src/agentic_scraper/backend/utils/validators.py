@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 from agentic_scraper.backend.config.constants import (
     FETCH_ERROR_PREFIX,
     MIN_ENCRYPTION_SECRET_LENGTH,
-    VALID_AGENT_MODES,
     VALID_AUTH0_ALGORITHMS,
     VALID_ENVIRONMENTS,
     VALID_LOG_LEVELS,
@@ -190,6 +189,8 @@ def ensure_directory(path: Path) -> Path:
         raise ValueError(MSG_ERROR_NOT_A_DIRECTORY % path)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
 def validate_agent_mode(mode: str) -> AgentMode:
     """Ensure the agent mode is one of the valid enum options and return it as AgentMode."""
     mode_cleaned = mode.strip().lower()
@@ -204,6 +205,8 @@ def validate_agent_mode(mode: str) -> AgentMode:
                 [m.value for m in AgentMode],
             )
         )
+
+
 def validate_openai_api_key(api_key: str | None) -> str:
     """Raise error if API key is missing or invalid."""
     if api_key in (None, "", "<<MISSING>>"):

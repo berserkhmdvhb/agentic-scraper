@@ -8,16 +8,16 @@ from agentic_scraper.backend.config.aliases import (
     ScrapeInput,
 )
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_WORKER_PICKED_URL,
+    MSG_DEBUG_POOL_CANCELLING_WORKERS,
+    MSG_DEBUG_POOL_DONE,
+    MSG_DEBUG_POOL_ENQUEUED_URL,
+    MSG_DEBUG_POOL_SPAWNED_WORKERS,
+    MSG_DEBUG_WORKER_CANCELLED,
     MSG_DEBUG_WORKER_CREATED_REQUEST,
     MSG_DEBUG_WORKER_GOT_ITEM,
     MSG_DEBUG_WORKER_ITEM_APPENDED,
     MSG_DEBUG_WORKER_NO_ITEM,
-    MSG_DEBUG_WORKER_CANCELLED,
-    MSG_DEBUG_POOL_ENQUEUED_URL,
-    MSG_DEBUG_POOL_SPAWNED_WORKERS,
-    MSG_DEBUG_POOL_CANCELLING_WORKERS,
-    MSG_DEBUG_POOL_DONE,
+    MSG_DEBUG_WORKER_PICKED_URL,
     MSG_DEBUG_WORKER_PROGRESS,
     MSG_ERROR_WORKER_FAILED,
     MSG_INFO_WORKER_POOL_START,
@@ -77,7 +77,9 @@ async def worker(
 
                 if item is not None:
                     results.append(item)
-                    logger.debug(MSG_DEBUG_WORKER_ITEM_APPENDED.format(worker_id=worker_id, url=url))
+                    logger.debug(
+                        MSG_DEBUG_WORKER_ITEM_APPENDED.format(worker_id=worker_id, url=url)
+                    )
                     if context.on_item_processed:
                         context.on_item_processed(item)
                 else:
@@ -102,7 +104,6 @@ async def worker(
                 queue.task_done()
     except asyncio.CancelledError:
         logger.debug(MSG_DEBUG_WORKER_CANCELLED.format(worker_id=worker_id))
-        pass
 
 
 async def run_worker_pool(

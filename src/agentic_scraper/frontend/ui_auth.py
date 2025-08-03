@@ -4,25 +4,27 @@ import httpx
 import streamlit as st
 from httpx import HTTPStatusError, RequestError
 
-from agentic_scraper.backend.core.settings import get_settings
-from agentic_scraper.backend.scraper.models import OpenAIConfig
 from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_JWT_FROM_URL,
-    MSG_WARNING_MALFORMED_JWT,
-    MSG_WARNING_NO_JWT_FOUND,
-    MSG_EXCEPTION_USER_PROFILE,
-    MSG_EXCEPTION_USER_PROFILE_NETWORK,
-    MSG_INFO_USER_PROFILE_SUCCESS,
-    MSG_INFO_CREDENTIALS_SUCCESS,
     MSG_EXCEPTION_OPENAI_CREDENTIALS,
     MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK,
-    MSG_INFO_TOKEN_SESSION_LENGTH,
+    MSG_EXCEPTION_USER_PROFILE,
+    MSG_EXCEPTION_USER_PROFILE_NETWORK,
+    MSG_INFO_AUTH0_LOGIN_URI,
+    MSG_INFO_CREDENTIALS_SUCCESS,
     MSG_INFO_NO_TOKEN_YET,
+    MSG_INFO_TOKEN_SESSION_LENGTH,
+    MSG_INFO_USER_PROFILE_SUCCESS,
+    MSG_WARNING_MALFORMED_JWT,
+    MSG_WARNING_NO_JWT_FOUND,
 )
+from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.backend.scraper.models import OpenAIConfig
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
 
 def get_jwt_token_from_url() -> str | None:
     """Extract JWT token from query params or session state."""
@@ -35,10 +37,9 @@ def get_jwt_token_from_url() -> str | None:
             logger.debug(MSG_DEBUG_JWT_FROM_URL.format(token=jwt_token))
             st.query_params.clear()
             return jwt_token
-        else:
-            logger.warning(MSG_WARNING_MALFORMED_JWT.format(token=jwt_token))
-            st.warning("⚠️ Token format appears invalid. Login may fail.")
-            return None
+        logger.warning(MSG_WARNING_MALFORMED_JWT.format(token=jwt_token))
+        st.warning("⚠️ Token format appears invalid. Login may fail.")
+        return None
 
     token_from_session = st.session_state.get("jwt_token")
     if token_from_session:
@@ -47,10 +48,12 @@ def get_jwt_token_from_url() -> str | None:
         logger.warning(MSG_WARNING_NO_JWT_FOUND)
     return token_from_session
 
+
 def ensure_https(domain: str) -> str:
     if not domain.startswith("http"):
         return "https://" + domain
     return domain
+
 
 def fetch_user_profile() -> None:
     """Fetch user profile from backend `/me` endpoint and store in session."""
@@ -77,6 +80,7 @@ def fetch_user_profile() -> None:
         logger.info(MSG_INFO_USER_PROFILE_SUCCESS)
         logger.info(MSG_INFO_CREDENTIALS_SUCCESS)
         st.session_state["user_info"] = response.json()
+
 
 def fetch_openai_credentials() -> None:
     """Fetch OpenAI credentials from backend and store in session."""
@@ -112,6 +116,7 @@ def fetch_openai_credentials() -> None:
         st.session_state["openai_credentials"] = openai_config
         st.success("OpenAI credentials retrieved successfully!")
 
+
 def authenticate_user() -> None:
     """Authenticate user by extracting JWT and populating session state."""
     if "jwt_token" in st.session_state and "user_info" in st.session_state:
@@ -123,12 +128,13 @@ def authenticate_user() -> None:
             logger.warning(MSG_WARNING_MALFORMED_JWT.format(token=jwt_token))
             st.warning("⚠️ Token format appears invalid. Login may fail.")
 
-        logger.info(MSG_INFO_TOKEN_SESSION_LENGTH.format(n=len(jwt_token)))
+        logger.info(MSG_INFO_TOKEN_SESSION_LENGTH.format(length=len(jwt_token)))
         fetch_user_profile()
         fetch_openai_credentials()
         st.success("Logged in successfully!")
     else:
         logger.info(MSG_INFO_NO_TOKEN_YET)
+
 
 def logout_user() -> None:
     """Clear session state and refresh UI."""
@@ -136,6 +142,7 @@ def logout_user() -> None:
     st.session_state.pop("user_info", None)
     st.session_state.pop("openai_credentials", None)
     st.success("Logged out successfully!")
+
 
 def login_ui(agent_mode: str) -> None:
     """Render login/logout buttons based on session state."""
@@ -161,7 +168,7 @@ def login_ui(agent_mode: str) -> None:
             )
 
             if settings.is_verbose_mode:
-                print("Auth0 login URI:", login_url)
+                logger.debug(MSG_INFO_AUTH0_LOGIN_URI.format(uri=login_url))
 
             st.markdown(
                 f"""

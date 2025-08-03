@@ -18,8 +18,6 @@ MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR = "Unexpected error during extraction pi
 MSG_INFO_APP_RESET_TRIGGERED = "User triggered app reset via sidebar."
 
 # ui_auth.py
-
-# [FRONTEND] [AUTH]
 MSG_INFO_JWT_STORED = "[FRONTEND] [AUTH] JWT token stored in session. Length: {length}"
 MSG_INFO_NO_JWT_FOUND = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
 MSG_WARNING_MALFORMED_JWT = "[FRONTEND] [AUTH] Suspected malformed JWT (segments = {segments})"
@@ -27,8 +25,12 @@ MSG_WARNING_NO_TOKEN_FOUND = "[FRONTEND] [AUTH] No token found in URL or session
 
 MSG_ERROR_FETCH_USER_PROFILE = "[FRONTEND] [AUTH] Failed to fetch user profile: {error}"
 MSG_ERROR_FETCH_CREDENTIALS = "[FRONTEND] [AUTH] Failed to fetch OpenAI credentials: {error}"
-MSG_ERROR_NETWORK_USER_PROFILE = "[FRONTEND] [AUTH] Network error while fetching user profile: {error}"
-MSG_ERROR_NETWORK_CREDENTIALS = "[FRONTEND] [AUTH] Network error while fetching credentials: {error}"
+MSG_ERROR_NETWORK_USER_PROFILE = (
+    "[FRONTEND] [AUTH] Network error while fetching user profile: {error}"
+)
+MSG_ERROR_NETWORK_CREDENTIALS = (
+    "[FRONTEND] [AUTH] Network error while fetching credentials: {error}"
+)
 
 MSG_INFO_PROFILE_FETCHED = "[FRONTEND] [AUTH] User profile fetched successfully"
 MSG_INFO_CREDENTIALS_FETCHED = "[FRONTEND] [AUTH] OpenAI credentials fetched and stored"
@@ -37,14 +39,18 @@ MSG_DEBUG_JWT_FROM_URL = "[FRONTEND] [AUTH] Extracted token from URL: {token}"
 MSG_WARNING_MALFORMED_JWT = "[FRONTEND] [AUTH] Suspected malformed JWT: {token}"
 MSG_WARNING_NO_JWT_FOUND = "[FRONTEND] [AUTH] No token found in URL or session"
 MSG_EXCEPTION_USER_PROFILE = "[FRONTEND] [AUTH] Failed to fetch user profile: {error}"
-MSG_EXCEPTION_USER_PROFILE_NETWORK = "[FRONTEND] [AUTH] Network error while fetching user profile: {error}"
+MSG_EXCEPTION_USER_PROFILE_NETWORK = (
+    "[FRONTEND] [AUTH] Network error while fetching user profile: {error}"
+)
 MSG_INFO_USER_PROFILE_SUCCESS = "[FRONTEND] [AUTH] User profile fetched successfully"
 MSG_INFO_CREDENTIALS_SUCCESS = "[FRONTEND] [AUTH] OpenAI credentials fetched and stored"
 MSG_EXCEPTION_OPENAI_CREDENTIALS = "[FRONTEND] [AUTH] Failed to fetch OpenAI credentials: {error}"
-MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK = "[FRONTEND] [AUTH] Network error while fetching OpenAI credentials: {error}"
+MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK = (
+    "[FRONTEND] [AUTH] Network error while fetching OpenAI credentials: {error}"
+)
 MSG_INFO_TOKEN_SESSION_LENGTH = "[FRONTEND] [AUTH] JWT token stored in session. Length: {length}"
 MSG_INFO_NO_TOKEN_YET = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
-
+MSG_INFO_AUTH0_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 login URI: {uri}"
 
 # ─── Backend ───
 
@@ -59,12 +65,18 @@ MSG_INFO_SCRAPE_REQUEST_RECEIVED = "[API] Received scrape request for {n} URL(s)
 MSG_INFO_SHUTDOWN_LOG = "[API] [LIFECYCLE] Shutdown complete, cleaning up resources..."
 MSG_INFO_PRELOADING_JWKS = "[API] [LIFECYCLE] Preloading JWKS from Auth0..."
 MSG_DEBUG_LIFESPAN_STARTED = "[API] [LIFECYCLE] Lifespan started for app: {app}"
-MSG_INFO_JWKS_PRELOAD_SUCCESSFUL = "[API] [LIFECYCLE] JWKS preload successful. The app is ready to handle requests."
+MSG_INFO_JWKS_PRELOAD_SUCCESSFUL = (
+    "[API] [LIFECYCLE] JWKS preload successful. The app is ready to handle requests."
+)
 
 
 # user_store.py
-MSG_ERROR_INVALID_CREDENTIALS = "[API] [USERSTORE] Error saving credentials for user {user_id}: {error}"
-MSG_ERROR_DECRYPTION_FAILED = "[API] [USERSTORE] Error decrypting credentials for user {user_id}: {error}"
+MSG_ERROR_INVALID_CREDENTIALS = (
+    "[API] [USERSTORE] Error saving credentials for user {user_id}: {error}"
+)
+MSG_ERROR_DECRYPTION_FAILED = (
+    "[API] [USERSTORE] Error decrypting credentials for user {user_id}: {error}"
+)
 MSG_ERROR_LOADING_USER_STORE = "[API] [USERSTORE] Failed to load user store"
 MSG_ERROR_SAVING_USER_STORE = "[API] [USERSTORE] Failed to save user store: {error}"
 MSG_WARNING_CREDENTIALS_NOT_FOUND = "[API] [USERSTORE] Credentials not found for user {user_id}"
@@ -72,9 +84,15 @@ MSG_WARNING_CREDENTIALS_NOT_FOUND = "[API] [USERSTORE] Credentials not found for
 # auth/dependencies.py
 # ruff: noqa: S105
 MSG_ERROR_INVALID_TOKEN = "[API] [AUTH] [DEP] Invalid or expired token: {error}"
-MSG_WARNING_INSUFFICIENT_PERMISSIONS = "[API] [AUTH] [DEP] User does not have required permissions: {scopes}"
-MSG_ERROR_INTERNAL_SERVER = "[API] [AUTH] [DEP] Internal server error during token validation: {error}"
-MSG_ERROR_MISSING_SCOPES = "[API] [AUTH] [DEP] The token is missing one or more required scopes: {scopes}"
+MSG_WARNING_INSUFFICIENT_PERMISSIONS = (
+    "[API] [AUTH] [DEP] User does not have required permissions: {scopes}"
+)
+MSG_ERROR_INTERNAL_SERVER = (
+    "[API] [AUTH] [DEP] Internal server error during token validation: {error}"
+)
+MSG_ERROR_MISSING_SCOPES = (
+    "[API] [AUTH] [DEP] The token is missing one or more required scopes: {scopes}"
+)
 MSG_DEBUG_VERIFYING_JWT_TOKEN = "[API] [AUTH] [DEP] Verifying JWT token: {token}"
 MSG_WARNING_JWT_VERIFICATION_FAILED = "[API] [AUTH] [DEP] JWT verification failed"
 
@@ -86,7 +104,9 @@ MSG_INFO_DECODING_JWT = "[API] [AUTH] [AUTH0] Decoding JWT..."
 
 MSG_ERROR_FETCHING_JWKS = "[API] [AUTH] [AUTH0] Error fetching JWKS: {error}"
 MSG_ERROR_INVALID_JWT_HEADER = "[API] [AUTH] [AUTH0] Invalid JWT header"
-MSG_ERROR_NO_RSA_KEY = "[API] [AUTH] [AUTH0] No RSA key found matching the JWT header's 'kid': {kid}"
+MSG_ERROR_NO_RSA_KEY = (
+    "[API] [AUTH] [AUTH0] No RSA key found matching the JWT header's 'kid': {kid}"
+)
 MSG_ERROR_JWT_EXPIRED = "[API] [AUTH] [AUTH0] JWT has expired: {error}"
 MSG_ERROR_JWT_VERIFICATION = "[API] [AUTH] [AUTH0] JWT verification failed: {error}"
 MSG_ERROR_JWT_UNEXPECTED = "[API] [AUTH] [AUTH0] Unexpected error while processing JWT: {error}"
@@ -106,21 +126,38 @@ MSG_WARNING_USER_FAILED_AUTHORIZATION = "[API] [AUTH] [AUTH0] User {user_id} fai
 
 # routes/auth.py
 MSG_WARNING_AUTH_CALLBACK_MISSING_CODE = "[API] [ROUTE] [AUTH] Missing 'code' in query params"
-MSG_DEBUG_AUTH_CALLBACK_CODE_RECEIVED = "[API] [ROUTE] [AUTH] Auth0 code received in callback: {code}"
-MSG_ERROR_AUTH_TOKEN_EXCHANGE_FAILED = "[API] [ROUTE] [AUTH] Auth0 token exchange failed. Status: {status}, Body: {body}"
+MSG_DEBUG_AUTH_CALLBACK_CODE_RECEIVED = (
+    "[API] [ROUTE] [AUTH] Auth0 code received in callback: {code}"
+)
+MSG_ERROR_AUTH_TOKEN_EXCHANGE_FAILED = (
+    "[API] [ROUTE] [AUTH] Auth0 token exchange failed. Status: {status}, Body: {body}"
+)
 MSG_ERROR_AUTH_RESPONSE_MISSING_TOKEN = "[API] [ROUTE] [AUTH] Auth0 response missing access_token"
-MSG_DEBUG_AUTH_TOKEN_RECEIVED = "[API] [ROUTE] [AUTH] Access token received: {token_preview}... [truncated]"
-MSG_DEBUG_AUTH_REDIRECT_URL = "[API] [ROUTE] [AUTH] Redirecting to frontend with token in URL: {redirect_url}"
-MSG_EXCEPTION_AUTH_CALLBACK_FAILURE = "[API] [ROUTE] [AUTH] Token exchange failed during Auth0 callback"
+MSG_DEBUG_AUTH_TOKEN_RECEIVED = (
+    "[API] [ROUTE] [AUTH] Access token received: {token_preview}... [truncated]"
+)
+MSG_DEBUG_AUTH_REDIRECT_URL = (
+    "[API] [ROUTE] [AUTH] Redirecting to frontend with token in URL: {redirect_url}"
+)
+MSG_EXCEPTION_AUTH_CALLBACK_FAILURE = (
+    "[API] [ROUTE] [AUTH] Token exchange failed during Auth0 callback"
+)
 MSG_INFO_AUTH_CALLBACK_DURATION = "[API] [ROUTE] [AUTH] Auth0 callback completed in {duration:.2f}s"
 
 # routes/user.py
-MSG_WARNING_NO_CREDENTIALS_FOUND = "[API] [ROUTE] [USER] No OpenAI credentials found for user {user_id}"
+MSG_WARNING_NO_CREDENTIALS_FOUND = (
+    "[API] [ROUTE] [USER] No OpenAI credentials found for user {user_id}"
+)
 MSG_INFO_CREDENTIALS_SAVED = "[API] [ROUTE] [USER] OpenAI credentials saved for user: {user_id}"
 MSG_INFO_CREDENTIALS_LOADED = "[API] [ROUTE] [USER] OpenAI credentials loaded for user: {user_id}"
 
 # routes/scrape.py
-MSG_DEBUG_SCRAPE_CONFIG_MERGED = "[API] [ROUTE] [SCRAPE] Backend config values merged with settings: {config}"
+MSG_DEBUG_SCRAPE_CONFIG_MERGED = (
+    "[API] [ROUTE] [SCRAPE] Backend config values merged with settings: {config}"
+)
+MSG_ERROR_MISSING_FIELDS_FOR_AGENT = (
+    "Missing required fields for agent_mode '{agent_mode}': {missing_fields}."
+)
 
 # ---------------------------------------------------------------------
 # core/
@@ -130,7 +167,9 @@ MSG_DEBUG_SCRAPE_CONFIG_MERGED = "[API] [ROUTE] [SCRAPE] Backend config values m
 MSG_DEBUG_SETTINGS_LOADED = "[CONFIG] Settings loaded successfully:"
 MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES = "[CONFIG] Settings loaded successfully:\n{values}"
 MSG_ERROR_MISSING_API_KEY = "[CONFIG] OPENAI_API_KEY is required in your .env file."
-MSG_ERROR_INVALID_MODEL_NAME = "[CONFIG] Invalid OpenAI model: {model}. Valid options: {valid_options}"
+MSG_ERROR_INVALID_MODEL_NAME = (
+    "[CONFIG] Invalid OpenAI model: {model}. Valid options: {valid_options}"
+)
 MSG_ERROR_INVALID_TEMPERATURE = "[CONFIG] Temperature must be between 0.0 and 2.0. Got: {value}"
 MSG_ERROR_INVALID_TOKENS = "[CONFIG] Max tokens must be a positive integer. Got: {value}"
 MSG_ERROR_INVALID_CONCURRENCY = "[CONFIG] Concurrency must be greater than 0. Got: {value}"
@@ -158,7 +197,9 @@ MSG_WARNING_SETTING_INVALID = "[CONFIG] Invalid {key}={original!r}: {error}"
 # fetcher.py
 MSG_INFO_FETCH_SUCCESS = "[FETCHER] Fetched {url} successfully"
 MSG_WARNING_FETCH_FAILED = "[FETCHER] Failed to fetch {url}"
-MSG_ERROR_UNREACHABLE_FETCH_URL = "[FETCHER] Unreachable code reached in fetch_url (unexpected fallback)"
+MSG_ERROR_UNREACHABLE_FETCH_URL = (
+    "[FETCHER] Unreachable code reached in fetch_url (unexpected fallback)"
+)
 MSG_DEBUG_RETRYING_URL = "[FETCHER] Retrying {url} (attempt {no}): previous failure was {exc!r}"
 MSG_ERROR_UNEXPECTED_FETCH_EXCEPTION = "[FETCHER] Unexpected exception while fetching {url}"
 
@@ -204,7 +245,8 @@ MSG_DEBUG_POOL_DONE = "[POOL] Worker pool finished. Total results: {count}"
 
 # pipeline.py
 MSG_DEBUG_SCRAPE_STATS_START = (
-    "[PIPELINE] Starting scrape_with_stats: agent_mode={agent_mode}, openai_config_provided={has_openai}"
+    "[PIPELINE] Starting scrape_with_stats: agent_mode={agent_mode}, "
+    "openai_config_provided={has_openai}"
 )
 
 MSG_INFO_FETCH_COMPLETE = "[PIPELINE] Fetched HTML for {count} URLs"
@@ -214,13 +256,23 @@ MSG_INFO_VALID_SCRAPE_INPUTS = (
 )
 
 MSG_INFO_SCRAPE_STATS_COMPLETE = (
-    "[PIPELINE] Scraping completed: {total} total, {success} success, {failed} failed in {duration}s"
+    "[PIPELINE] Scraping completed: {total} total, ",
+    "{success} success, {failed} failed in {duration}s",
 )
 
 
 # ---------------------------------------------------------------------
 # scraper/agent/
 # ---------------------------------------------------------------------
+
+# --init--.py
+
+MSG_DEBUG_AGENT_DISPATCH_START = (
+    "[AGENT] Dispatching extract_structured_data ",
+    "with agent_mode={mode}",
+)
+MSG_DEBUG_AGENT_SELECTED = "[AGENT] Using {mode} extraction agent"
+
 
 # agent_helpers.py
 MSG_DEBUG_LLM_JSON_DUMP_SAVED = "[AGENT] Full LLM JSON output saved to {path}"
@@ -230,7 +282,9 @@ MSG_ERROR_RATE_LIMIT_DETAIL = "[AGENT] Rate limit detail: {error}"
 MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL = "[AGENT] Unexpected OpenAI error. [URL: {url}]"
 MSG_ERROR_OPENAI_UNEXPECTED = "[AGENT] Unexpected OpenAI error: {error}"
 MSG_ERROR_OPENAI_UNEXPECTED_LOG = "[AGENT] Unexpected OpenAI error: {exc}"
-MSG_ERROR_LLM_JSON_DECODE_LOG = "[AGENT] Failed to decode JSON from LLM response: {exc!r} [URL: {url}]"
+MSG_ERROR_LLM_JSON_DECODE_LOG = (
+    "[AGENT] Failed to decode JSON from LLM response: {exc!r} [URL: {url}]"
+)
 MSG_ERROR_JSON_DECODING_FAILED_WITH_URL = "[AGENT] Failed to parse LLM output: {exc} [URL: {url}]"
 MSG_ERROR_API_LOG_WITH_URL = "[AGENT] OpenAI API error occurred. [URL: {url}]"
 MSG_ERROR_API = "[AGENT] OpenAI API error occurred: {error}"
@@ -249,7 +303,9 @@ Return only a JSON object with the following fields:
 - date_published (string or null)
 
 All values must be valid JSON. If a field is not found, return null for it."""
-MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL = "[AGENT] [LLM] LLM response missing or malformed. [URL: {url}]"
+MSG_ERROR_LLM_RESPONSE_MALFORMED_WITH_URL = (
+    "[AGENT] [LLM] LLM response missing or malformed. [URL: {url}]"
+)
 MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL = "[AGENT] [LLM] response was None. [URL: {url}]"
 
 MSG_ERROR_RATE_LIMIT = (
@@ -261,10 +317,14 @@ MSG_ERROR_RATE_LIMIT_LOG = "[AGENT] [LLM] OpenAI quota exceeded."
 MSG_ERROR_API_LOG = "[AGENT] [LLM] OpenAI API error occurred: {exc}"
 
 MSG_INFO_EXTRACTION_SUCCESS_WITH_URL = "[AGENT] Extracted structured data from: {url}"
-MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL = "[AGENT] [LLM] Failed to validate LLM response for {url}: {exc}"
+MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL = (
+    "[AGENT] [LLM] Failed to validate LLM response for {url}: {exc}"
+)
 
 # __init__.py
-MSG_ERROR_INVALID_AGENT_MODE = "[AGENT] Invalid agent mode: '{value}'. Valid options: {valid_options}"
+MSG_ERROR_INVALID_AGENT_MODE = (
+    "[AGENT] Invalid agent mode: '{value}'. Valid options: {valid_options}"
+)
 MSG_ERROR_UNHANDLED_AGENT_MODE = "[AGENT] Unhandled AGENT_MODE: {value}"
 
 
@@ -276,9 +336,14 @@ MSG_DEBUG_RULE_BASED_START = "[AGENT] [RULE_BASED] Attempting extraction for URL
 MSG_DEBUG_RULE_BASED_TITLE = "[AGENT] [RULE_BASED] Title guessed: {title}"
 MSG_DEBUG_RULE_BASED_DESCRIPTION = "[AGENT] [RULE_BASED] Description guessed: {description}"
 MSG_DEBUG_RULE_BASED_PRICE = "[AGENT] [RULE_BASED] Price guessed: {price}"
-MSG_DEBUG_RULE_BASED_VALIDATION_SUCCESS = "[AGENT] [RULE_BASED] Validation succeeded. Returning ScrapedItem."
-MSG_DEBUG_RULE_BASED_VALIDATION_FAILED_FIELDS = "[AGENT] [RULE_BASED] Validation failed for fields: title={title!r}, description={description!r}, price={price!r}, url={url}"
-MSG_ERROR_RULE_BASED_EXTRACTION_FAILED = "[AGENT] [RULE_BASED] Validation failed for URL: {url} with error: {error}"
+MSG_DEBUG_RULE_BASED_VALIDATION_SUCCESS = (
+    "[AGENT] [RULE_BASED] Validation succeeded. Returning ScrapedItem."
+)
+MSG_DEBUG_RULE_BASED_VALIDATION_FAILED_FIELDS = (
+    "[AGENT] [RULE_BASED] Validation failed for fields: title={title!r}, "
+    "description={description!r}, price={price!r}, url={url}"
+)
+MSG_ERROR_RULE_BASED_EXTRACTION_FAILED = "[AGENT] [RULE_BASED] Validation failed for URL: {url}"
 
 
 # llm_dynamic_adaptive.py
@@ -300,9 +365,15 @@ MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES = (
 )
 MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS = "[AGENT] [LLM] Using best candidate with fields: {fields}"
 MSG_DEBUG_LLM_RETRY_ATTEMPT = "[AGENT] [LLM] LLM retry attempt {attempt}/{total} for {url}"
-MSG_WARN_LLM_RATE_LIMIT_SLEEP = "[AGENT] [LLM] Rate limit hit for {url}, sleeping {delay:.1f}s as advised..."
-MSG_DEBUG_FIELD_SCORE_PER_RETRY = "[AGENT] [LLM] [{url}] Retry #{attempt}: score={score}, fields={fields}"
+MSG_WARN_LLM_RATE_LIMIT_SLEEP = (
+    "[AGENT] [LLM] Rate limit hit for {url}, sleeping {delay:.1f}s as advised..."
+)
+MSG_DEBUG_FIELD_SCORE_PER_RETRY = (
+    "[AGENT] [LLM] [{url}] Retry #{attempt}: score={score}, fields={fields}"
+)
 MSG_DEBUG_LLM_INITIAL_PROMPT = "[AGENT] [LLM] Initial LLM prompt for {url}:\n{prompt}"
+
+MSG_DEBUG_LLM_RETRY_PROMPT = "[AGENT] [LLM] Retry prompt for {url} (attempt {attempt}):\n{message}"
 
 # ---------------------------------------------------------------------
 # common/logging.py
@@ -343,9 +414,15 @@ MSG_ERROR_INVALID_PRICE_FORMAT = "[VALIDATION] Invalid price format: {value}"
 MSG_ERROR_INVALID_AUTH0_DOMAIN = (
     "[VALIDATION] AUTH0_DOMAIN must be a valid Auth0 domain (e.g., dev-xxx.us.auth0.com)"
 )
-MSG_ERROR_INVALID_API_AUDIENCE = "[VALIDATION] API_AUDIENCE must be a valid URL (e.g., https://api.example.com/)"
-MSG_ERROR_INVALID_ENCRYPTION_SECRET = "[VALIDATION] ENCRYPTION_SECRET must be at least {value} characters long"
-MSG_ERROR_INVALID_AUTH0_ALGORITHMS = "[VALIDATION] Invalid auth0_algorithms {algo}. Optionas are {valid_options}"
+MSG_ERROR_INVALID_API_AUDIENCE = (
+    "[VALIDATION] API_AUDIENCE must be a valid URL (e.g., https://api.example.com/)"
+)
+MSG_ERROR_INVALID_ENCRYPTION_SECRET = (
+    "[VALIDATION] ENCRYPTION_SECRET must be at least {value} characters long"
+)
+MSG_ERROR_INVALID_AUTH0_ALGORITHMS = (
+    "[VALIDATION] Invalid auth0_algorithms {algo}. Optionas are {valid_options}"
+)
 MSG_ERROR_EMPTY_AUTH0_ALGORITHMS = "[VALIDATION] auth0_algorithms must not be empty"
 MSG_ERROR_UNEXPECTED_EXCEPTION = "[VALIDATION] Unexpected error during token validation."
 MSG_INFO_USER_AUTHORIZED = "[VALIDATION] User successfully authenticated and authorized."

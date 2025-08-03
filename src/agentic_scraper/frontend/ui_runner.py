@@ -1,25 +1,25 @@
 import asyncio
 import time
+
 import httpx
 import streamlit as st
-from fastapi import status
 
+from agentic_scraper import __api_version__ as api_version
+from agentic_scraper.backend.config.constants import SCRAPER_CONFIG_FIELDS
 from agentic_scraper.backend.config.messages import (
-    MSG_INFO_NO_VALID_URLS,
     MSG_ERROR_EXTRACTION_FAILED,
+    MSG_INFO_NO_VALID_URLS,
     MSG_INFO_USING_CACHE,
 )
-from agentic_scraper.backend.config.constants import SCRAPER_CONFIG_FIELDS
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.frontend.models import PipelineConfig
 from agentic_scraper.frontend.ui_runner_helpers import (
-    validate_and_deduplicate_urls,
     render_invalid_url_section,
     render_valid_url_feedback,
     summarize_results,
+    validate_and_deduplicate_urls,
 )
-from agentic_scraper import __api_version__ as api_version
 
 settings = get_settings()
 
@@ -48,14 +48,15 @@ async def start_scraping(urls: list[str], config: PipelineConfig) -> tuple[list[
             st.error("OpenAI credentials are missing!")
             return [], 0
 
-        body.update({
-            "openai_credentials": openai_credentials.model_dump(),
-            "openai_model": config.openai_model,
-            "llm_concurrency": config.llm_concurrency,
-            "llm_schema_retries": config.llm_schema_retries,
-        })
+        body.update(
+            {
+                "openai_credentials": openai_credentials.model_dump(),
+                "openai_model": config.openai_model,
+                "llm_concurrency": config.llm_concurrency,
+                "llm_schema_retries": config.llm_schema_retries,
+            }
+        )
 
-    print(f"🔧 Frontend: config values of user: {config_values}")
     try:
         with st.spinner("🔍 Scraping in progress..."):
             async with httpx.AsyncClient() as client:

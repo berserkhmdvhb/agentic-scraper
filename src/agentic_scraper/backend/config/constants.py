@@ -6,6 +6,7 @@ from agentic_scraper.backend.config.types import (
     LogLevel,
     OpenAIModel,
 )
+
 SCRAPER_CONFIG_FIELDS = [
     "fetch_concurrency",
     "llm_concurrency",

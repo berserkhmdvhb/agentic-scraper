@@ -34,6 +34,7 @@ Required JSON schema (example fields):
 - date (str)
 """
 
+
 def build_prompt(
     text: str,
     url: str,
@@ -107,7 +108,6 @@ Page URL: {url}
 Page Content:
 {text[:4000]}
 """.strip()
-
 
 
 def build_retry_prompt(

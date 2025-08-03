@@ -2,11 +2,10 @@ import streamlit as st
 
 from agentic_scraper.backend.config.constants import SESSION_KEYS, VALID_MODEL_OPTIONS
 from agentic_scraper.backend.config.types import AgentMode
-from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.backend.core.settings import Settings, get_environment, get_log_dir
 from agentic_scraper.frontend.models import SidebarConfig
 from agentic_scraper.frontend.ui_auth import login_ui
 from agentic_scraper.frontend.ui_auth_credentials import render_credentials_form
-from agentic_scraper.backend.core.settings import get_environment, get_log_dir
 
 
 def render_sidebar_controls(settings: Settings) -> SidebarConfig:
@@ -23,7 +22,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         if "jwt_token" in st.session_state:
             render_credentials_form()
             st.markdown("---")
-            
+
         # --- Agent Mode ---
         st.markdown("## 🧠 Agent Mode")
         agent_mode_values = [m.value for m in AgentMode]
@@ -56,9 +55,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
                 help="Choose which OpenAI model to use for LLM-powered parsing.",
             )
 
-        screenshot_enabled = st.checkbox(
-            "📸 Enable Screenshot", value=settings.screenshot_enabled
-        )
+        screenshot_enabled = st.checkbox("📸 Enable Screenshot", value=settings.screenshot_enabled)
         st.markdown("---")
         # --- Performance Settings ---
         st.markdown("## ⚙️ Performance Settings")
@@ -161,7 +158,6 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
                 SESSION_KEYS["llm_schema_retries"], settings.llm_schema_retries
             )
 
-        
         st.markdown("---")
     # --- Store in session state ---
     st.session_state[SESSION_KEYS["screenshot_enabled"]] = screenshot_enabled

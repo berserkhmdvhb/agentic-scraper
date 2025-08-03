@@ -1,15 +1,12 @@
 import time
-from typing import Any
 
 import streamlit as st
 
 from agentic_scraper.backend.config.messages import (
-    MSG_INFO_VALID_URLS_FOUND,
     MSG_INFO_NO_VALID_URLS,
+    MSG_INFO_VALID_URLS_FOUND,
 )
 from agentic_scraper.backend.scraper.models import ScrapedItem
-
-
 
 DOMAIN_EMOJIS = {
     "youtube.com": "🎮",
@@ -19,6 +16,7 @@ DOMAIN_EMOJIS = {
     "wikipedia.org": "📚",
     "google.com": "🔎",
 }
+
 
 def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]:
     """Split and validate input URLs, returning valid and invalid ones."""

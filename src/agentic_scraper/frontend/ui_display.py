@@ -51,6 +51,7 @@ def prepare_dataframe(items: list[ScrapedItem], *, screenshot_enabled: bool) -> 
         df_extracted_data = df_extracted_data[cols]
     return df_extracted_data
 
+
 def display_data_table(df: pd.DataFrame) -> None:
     """Display the extracted data table using AgGrid."""
     gb = GridOptionsBuilder.from_dataframe(df)

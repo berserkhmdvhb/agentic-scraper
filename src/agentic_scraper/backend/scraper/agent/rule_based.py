@@ -1,7 +1,24 @@
+"""
+Rule-based scraping agent for extracting structured data using regex heuristics.
+
+This module implements a lightweight fallback agent that infers fields like
+title, description, and price using simple text and regex rules, rather than LLMs.
+It is used when LLM usage is disabled or unavailable.
+
+Key Features:
+- Uses regular expressions to detect price patterns.
+- Extracts first non-empty line as title.
+- Extracts a medium-length paragraph as description.
+- Optionally captures a screenshot via Playwright.
+- Returns a validated `ScrapedItem`, or None if validation fails.
+
+Used in: scraper agent registry when `agent_mode="rule_based"` is selected.
+"""
+
 import logging
 import re
 
-from pydantic import HttpUrl, ValidationError
+from pydantic import ValidationError
 
 from agentic_scraper.backend.config.constants import (
     DESCRIPTION_MAX_LENGTH,
@@ -10,12 +27,12 @@ from agentic_scraper.backend.config.constants import (
     REGEX_PRICE_PATTERN,
 )
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_RULE_BASED_START,
-    MSG_DEBUG_RULE_BASED_TITLE,
     MSG_DEBUG_RULE_BASED_DESCRIPTION,
     MSG_DEBUG_RULE_BASED_PRICE,
-    MSG_DEBUG_RULE_BASED_VALIDATION_SUCCESS,
+    MSG_DEBUG_RULE_BASED_START,
+    MSG_DEBUG_RULE_BASED_TITLE,
     MSG_DEBUG_RULE_BASED_VALIDATION_FAILED_FIELDS,
+    MSG_DEBUG_RULE_BASED_VALIDATION_SUCCESS,
     MSG_ERROR_RULE_BASED_EXTRACTION_FAILED,
 )
 from agentic_scraper.backend.core.settings import Settings
@@ -25,10 +42,21 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
 )
 from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
 
+__all__ = ["extract_structured_data"]
+
 logger = logging.getLogger(__name__)
 
 
 def guess_price(text: str) -> float | None:
+    """
+    Extract the first detected price-like pattern from the input text.
+
+    Args:
+        text (str): The full text content of the webpage.
+
+    Returns:
+        float | None: Parsed price value, or None if not found or invalid.
+    """
     price_match = re.search(REGEX_PRICE_PATTERN, text)
     if price_match:
         try:
@@ -39,6 +67,15 @@ def guess_price(text: str) -> float | None:
 
 
 def guess_title(text: str) -> str | None:
+    """
+    Extract the first non-empty line from the input text as a potential title.
+
+    Args:
+        text (str): The full text content of the webpage.
+
+    Returns:
+        str | None: Title candidate, or None if no valid line found.
+    """
     for line in text.strip().splitlines():
         clean = line.strip()
         if clean:
@@ -47,6 +84,15 @@ def guess_title(text: str) -> str | None:
 
 
 def guess_description(text: str) -> str | None:
+    """
+    Extract a paragraph of medium length from the text as a description.
+
+    Args:
+        text (str): The full text content of the webpage.
+
+    Returns:
+        str | None: A paragraph matching the length constraints, or None if not found.
+    """
     paragraphs = re.split(REGEX_PARAGRAPH_SPLIT_PATTERN, text)
     for p in paragraphs:
         clean = p.strip()
@@ -60,6 +106,23 @@ async def extract_structured_data(
     *,
     settings: Settings,
 ) -> ScrapedItem | None:
+    """
+    Perform rule-based extraction of structured data from a scrape request.
+
+    This function infers common metadata fields using simple regex or text-based
+    heuristics and returns a validated `ScrapedItem`. It also logs intermediate
+    values and optionally captures a screenshot.
+
+    Args:
+        request (ScrapeRequest): The incoming URL and cleaned page content.
+        settings (Settings): Runtime configuration including screenshot flag.
+
+    Returns:
+        ScrapedItem | None: Structured result if valid, otherwise None.
+
+    Raises:
+        None explicitly. Validation errors are logged and handled gracefully.
+    """
     title = guess_title(request.text)
     description = guess_description(request.text)
     price = guess_price(request.text)
@@ -95,11 +158,8 @@ async def extract_structured_data(
             date_published=None,
             screenshot_path=screenshot_path,
         )
-        logger.debug(MSG_DEBUG_RULE_BASED_VALIDATION_SUCCESS)
-        return item
-
-    except ValidationError as exc:
-        logger.error(MSG_ERROR_RULE_BASED_EXTRACTION_FAILED.format(url=request.url, error=exc))
+    except ValidationError:
+        logger.exception(MSG_ERROR_RULE_BASED_EXTRACTION_FAILED.format(url=request.url))
         logger.debug(
             MSG_DEBUG_RULE_BASED_VALIDATION_FAILED_FIELDS.format(
                 title=title,
@@ -109,3 +169,6 @@ async def extract_structured_data(
             )
         )
         return None
+    else:
+        logger.debug(MSG_DEBUG_RULE_BASED_VALIDATION_SUCCESS)
+        return item

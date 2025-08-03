@@ -1,7 +1,10 @@
 from typing import Annotated, Any
+
 from pydantic import BaseModel, Field, HttpUrl, model_validator
-from agentic_scraper.backend.scraper.models import ScrapedItem, OpenAIConfig
+
+from agentic_scraper.backend.config.messages import MSG_ERROR_MISSING_FIELDS_FOR_AGENT
 from agentic_scraper.backend.config.types import AgentMode, OpenAIModel
+from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
 
 UrlsType = Annotated[
     list[HttpUrl],
@@ -12,11 +15,6 @@ UrlsType = Annotated[
     ),
 ]
 
-
-from pydantic import BaseModel, model_validator
-from typing import Optional
-from agentic_scraper.backend.config.types import AgentMode, OpenAIModel
-from agentic_scraper.backend.scraper.models import OpenAIConfig
 
 class ScrapeRequest(BaseModel):
     urls: list[str]
@@ -48,7 +46,9 @@ class ScrapeRequest(BaseModel):
 
         if missing:
             raise ValueError(
-                f"Missing required fields for agent_mode '{self.agent_mode}': {', '.join(missing)}."
+                MSG_ERROR_MISSING_FIELDS_FOR_AGENT.format(
+                    agent_mode=self.agent_mode, missing_fields=", ".join(missing)
+                )
             )
 
         return self

@@ -1,6 +1,10 @@
 import logging
 
-from agentic_scraper.backend.config.messages import MSG_ERROR_UNHANDLED_AGENT_MODE
+from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_AGENT_DISPATCH_START,
+    MSG_DEBUG_AGENT_SELECTED,
+    MSG_ERROR_UNHANDLED_AGENT_MODE,
+)
 from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
@@ -12,6 +16,7 @@ from .llm_fixed import extract_structured_data as extract_fixed
 from .rule_based import extract_structured_data as extract_rule_based
 
 logger = logging.getLogger(__name__)
+
 AGENT_DISPATCH = {
     AgentMode.LLM_FIXED: extract_fixed,
     AgentMode.LLM_DYNAMIC: extract_dynamic,
@@ -19,18 +24,18 @@ AGENT_DISPATCH = {
     AgentMode.RULE_BASED: extract_rule_based,
 }
 
+
 async def extract_structured_data(
     request: ScrapeRequest,
     *,
     settings: Settings,
 ) -> ScrapedItem | None:
     mode = validate_agent_mode(settings.agent_mode)
-    print(f"🧪 AGENT INIT CALLED WITH MODE: {mode}")
-    logger.debug(f"[AGENT] Dispatching extract_structured_data with agent_mode={mode}")
+    logger.debug(MSG_DEBUG_AGENT_DISPATCH_START.format(mode=mode))
 
     agent_fn = AGENT_DISPATCH.get(mode)
     if not agent_fn:
         raise ValueError(MSG_ERROR_UNHANDLED_AGENT_MODE.format(value=mode))
 
-    logger.debug(f"[AGENT] Using {mode} extraction agent.")
+    logger.debug(MSG_DEBUG_AGENT_SELECTED.format(mode=mode))
     return await agent_fn(request, settings=settings)

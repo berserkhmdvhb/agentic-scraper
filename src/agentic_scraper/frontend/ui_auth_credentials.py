@@ -1,10 +1,11 @@
-import streamlit as st
 import httpx
+import streamlit as st
 
-from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper import __api_version__ as api_version
+from agentic_scraper.backend.core.settings import get_settings
 
 settings = get_settings()
+
 
 def render_credentials_form():
     """Render form for user to input OpenAI credentials."""
@@ -28,13 +29,8 @@ def render_credentials_form():
                 st.error("You must be logged in to submit credentials.")
                 return
 
-            headers = {
-                "Authorization": f"Bearer {st.session_state['jwt_token']}"
-            }
-            data = {
-                "api_key": api_key,
-                "project_id": project_id
-            }
+            headers = {"Authorization": f"Bearer {st.session_state['jwt_token']}"}
+            data = {"api_key": api_key, "project_id": project_id}
 
             try:
                 with st.spinner("Saving credentials..."):
@@ -42,7 +38,7 @@ def render_credentials_form():
                         f"{settings.backend_domain}/api/{api_version}/user/openai-credentials",
                         json=data,
                         headers=headers,
-                        timeout=10
+                        timeout=10,
                     )
                     response.raise_for_status()
 

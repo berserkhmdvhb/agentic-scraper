@@ -100,7 +100,7 @@ def log_raise_error(message: str, **kwargs: dict[str, object]) -> None:
         message (str): The message to log.
         kwargs: Additional context to include in the log.
     """
-    logger.error(message, extra=kwargs)
+    logger.exception(message, extra=kwargs)
 
 
 def log_raise_user_authorization(user_id: str, *, success: bool) -> None:

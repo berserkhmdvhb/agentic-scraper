@@ -1,13 +1,13 @@
-import time
 import logging
+import time
 from typing import TYPE_CHECKING
 
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SCRAPE_STATS_START,
     MSG_INFO_FETCH_COMPLETE,
-    MSG_INFO_VALID_SCRAPE_INPUTS,
     MSG_INFO_SCRAPE_STATS_COMPLETE,
+    MSG_INFO_VALID_SCRAPE_INPUTS,
 )
 from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import Settings
@@ -68,10 +68,11 @@ async def scrape_with_stats(
     settings: Settings,
     openai: OpenAIConfig | None = None,
 ) -> tuple[list[ScrapedItem], dict[str, float | int]]:
-    logger.debug(MSG_DEBUG_SCRAPE_STATS_START.format(
-        agent_mode=settings.agent_mode,
-        has_openai=openai is not None
-    ))
+    logger.debug(
+        MSG_DEBUG_SCRAPE_STATS_START.format(
+            agent_mode=settings.agent_mode, has_openai=openai is not None
+        )
+    )
 
     start = time.perf_counter()
 
@@ -79,12 +80,14 @@ async def scrape_with_stats(
 
     duration = round(time.perf_counter() - start, 2)
 
-    logger.info(MSG_INFO_SCRAPE_STATS_COMPLETE.format(
-        total=len(urls),
-        success=len(results),
-        failed=len(urls) - len(results),
-        duration=duration
-    ))
+    logger.info(
+        MSG_INFO_SCRAPE_STATS_COMPLETE.format(
+            total=len(urls),
+            success=len(results),
+            failed=len(urls) - len(results),
+            duration=duration,
+        )
+    )
 
     stats = {
         "num_urls": len(urls),

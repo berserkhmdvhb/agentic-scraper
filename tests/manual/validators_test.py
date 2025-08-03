@@ -20,6 +20,6 @@ os.environ["LOG_FORMAT"] = "json"
 try:
     settings = Settings()
     print("✅ Settings loaded and validated successfully!\n")
-    pprint(settings.model_dump())
+    print(settings.model_dump())
 except Exception as e:
     print("❌ Validation failed: ", e)
