@@ -202,7 +202,7 @@ def validate_agent_mode(mode: str) -> AgentMode:
                 MSG_ERROR_INVALID_AGENT_MODE,
                 "value",
                 mode_cleaned,
-                [m.value for m in AgentMode],
+                {m.value for m in AgentMode},
             )
         ) from None
 

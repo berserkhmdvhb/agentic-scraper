@@ -30,6 +30,7 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     handle_openai_exception,
     log_structured_data,
     parse_llm_response,
+    retrieve_openai_credentials,
 )
 from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
 
@@ -108,11 +109,11 @@ async def _extract_impl(
         {"role": "user", "content": request.text[:4000]},
     ]
 
+    api_key, project_id = retrieve_openai_credentials(request.openai)
     client = AsyncOpenAI(
-        api_key=request.openai.api_key,
-        project=request.openai.project_id,
+        api_key=api_key,
+        project=project_id,
     )
-
     try:
         response = await client.chat.completions.create(
             model=settings.openai_model,

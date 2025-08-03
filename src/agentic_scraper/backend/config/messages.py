@@ -295,6 +295,9 @@ MSG_ERROR_API_LOG_WITH_URL = "[AGENT] OpenAI API error occurred. [URL: {url}]"
 MSG_ERROR_API = "[AGENT] OpenAI API error occurred: {error}"
 MSG_DEBUG_PARSED_STRUCTURED_DATA = "[AGENT] Parsed structured data: {data}"
 MSG_DEBUG_API_EXCEPTION = "[AGENT] Full exception details:"
+MSG_ERROR_MISSING_OPENAI_CONFIG = "Missing OpenAI config."
+MSG_ERROR_MISSING_OPENAI_API_KEY = "Missing OpenAI API key."
+MSG_ERROR_MISSING_OPENAI_PROJECT_ID = "Missing OpenAI project ID."
 
 
 # llm_fixed.py

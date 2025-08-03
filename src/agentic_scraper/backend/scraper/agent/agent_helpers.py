@@ -34,6 +34,9 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_JSON_DECODING_FAILED_WITH_URL,
     MSG_ERROR_LLM_JSON_DECODE_LOG,
     MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
+    MSG_ERROR_MISSING_OPENAI_API_KEY,
+    MSG_ERROR_MISSING_OPENAI_CONFIG,
+    MSG_ERROR_MISSING_OPENAI_PROJECT_ID,
     MSG_ERROR_OPENAI_UNEXPECTED,
     MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL,
     MSG_ERROR_RATE_LIMIT_DETAIL,
@@ -43,7 +46,7 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.field_utils import score_fields
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
 from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
 
 logger = logging.getLogger(__name__)
@@ -346,3 +349,30 @@ def select_best_candidate(candidate_data: dict[str, Any], url: str) -> ScrapedIt
 
     logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
     return item
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Data validation and retry scoring
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def retrieve_openai_credentials(config: OpenAIConfig | None) -> tuple[str, str]:
+    """
+    Validate and extract OpenAI credentials from the config.
+
+    Args:
+        config (OpenAIConfig | None): The OpenAI credentials configuration.
+
+    Returns:
+        tuple[str, str]: A tuple of (api_key, project_id).
+
+    Raises:
+        ValueError: If config is None or required fields are missing.
+    """
+    if config is None:
+        raise ValueError(MSG_ERROR_MISSING_OPENAI_CONFIG)
+    if not config.api_key:
+        raise ValueError(MSG_ERROR_MISSING_OPENAI_API_KEY)
+    if not config.project_id:
+        raise ValueError(MSG_ERROR_MISSING_OPENAI_PROJECT_ID)
+    return config.api_key, config.project_id

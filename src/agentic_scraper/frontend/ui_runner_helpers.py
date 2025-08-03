@@ -180,7 +180,7 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     return True
 
 
-def parse_scraper_response(data: dict) -> tuple[list[ScrapedItem], int]:
+def parse_scraper_response(data: dict[str, Any]) -> tuple[list[ScrapedItem], int]:
     """
     Parse the backend response into structured items and count skipped entries.
 

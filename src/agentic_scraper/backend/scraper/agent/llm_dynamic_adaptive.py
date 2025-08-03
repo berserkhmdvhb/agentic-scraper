@@ -41,6 +41,7 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     extract_context_hints,
     handle_openai_exception,
     parse_llm_response,
+    retrieve_openai_credentials,
     score_and_log_fields,
     select_best_candidate,
     try_validate_scraped_item,
@@ -182,7 +183,12 @@ async def extract_adaptive_data(
     messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
     logger.debug(MSG_DEBUG_LLM_INITIAL_PROMPT.format(url=request.url, prompt=prompt))
 
-    client = AsyncOpenAI(api_key=request.openai.api_key, project=request.openai.project_id)
+    api_key, project_id = retrieve_openai_credentials(request.openai)
+
+    client = AsyncOpenAI(
+        api_key=api_key,
+        project=project_id,
+    )
 
     best_score = 0
     best_fields: dict[str, Any] | None = None

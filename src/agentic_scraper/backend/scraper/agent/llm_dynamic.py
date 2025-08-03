@@ -33,6 +33,7 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     capture_optional_screenshot,
     handle_openai_exception,
     parse_llm_response,
+    retrieve_openai_credentials,
     try_validate_scraped_item,
 )
 from agentic_scraper.backend.scraper.agent.field_utils import normalize_keys
@@ -111,9 +112,11 @@ async def _extract_impl(
     )
 
     messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
+    api_key, project_id = retrieve_openai_credentials(request.openai)
+
     client = AsyncOpenAI(
-        api_key=request.openai.api_key,
-        project=request.openai.project_id,
+        api_key=api_key,
+        project=project_id,
     )
 
     try:
