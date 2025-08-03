@@ -261,6 +261,11 @@ MSG_INFO_SCRAPE_STATS_COMPLETE = (
     "{success} success, {failed} failed in {duration}s"
 )
 
+MSG_DEBUG_PIPELINE_WORKER_POOL_START = (
+    "[PIPELINE] Launching worker pool with {count} inputs (LLM mode: {is_llm})"
+)
+
+MSG_DEBUG_PIPELINE_FETCH_START = "[PIPELINE] Starting HTML fetch for {count} URLs..."
 
 # ---------------------------------------------------------------------
 # scraper/agent/

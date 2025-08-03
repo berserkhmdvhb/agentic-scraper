@@ -1,3 +1,16 @@
+"""
+Screenshot capture module using Playwright.
+
+This module allows capturing full-page screenshots of web pages. It handles:
+- URL validation
+- Slugified filename generation
+- Unique hash-based filename suffixing
+- Directory preparation
+- Screenshot saving via headless Chromium
+
+Used by scraping agents for visual archiving or debugging.
+"""
+
 import hashlib
 import logging
 import re
@@ -45,6 +58,9 @@ async def capture_screenshot(url: str, output_dir: Path) -> str | None:
 
     Returns:
         str | None: Filesystem path to the saved screenshot, or None if capture failed.
+
+    Raises:
+        Logs an error if the URL is invalid or screenshot fails.
     """
     if not is_valid_url(url):
         logger.exception(MSG_ERROR_INVALID_SCREENSHOT_URL.format(url=url))

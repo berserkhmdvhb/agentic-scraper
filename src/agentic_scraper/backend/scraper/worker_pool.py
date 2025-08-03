@@ -1,3 +1,19 @@
+"""
+Asynchronous worker pool for structured data extraction.
+
+This module runs a configurable number of worker coroutines to process
+scraping tasks concurrently. Each worker extracts structured data from
+preprocessed input using either LLM-based or rule-based agents.
+
+The core pipeline:
+1. Inputs (ScrapeInput) are enqueued.
+2. Workers consume and process them concurrently.
+3. Each item is parsed and appended to results.
+4. Optional callbacks can be used for progress/error tracking.
+
+Used by the scraping pipeline to scale up parallel scraping.
+"""
+
 import asyncio
 import logging
 from dataclasses import dataclass
@@ -32,6 +48,17 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class WorkerPoolConfig:
+    """
+    Configuration for running a concurrent scraping worker pool.
+    Args:
+        take_screenshot (bool): Whether to capture screenshots during scraping.
+        openai (OpenAIConfig | None): Optional OpenAI credentials.
+        concurrency (int): Number of concurrent worker tasks.
+        max_queue_size (int | None): Optional limit on input queue size.
+        on_item_processed (OnSuccessCallback | None): Callback on successful extraction.
+        on_error (OnErrorCallback | None): Callback on error during extraction.
+    """
+
     take_screenshot: bool
     openai: OpenAIConfig | None = None
     concurrency: int = 10
@@ -42,6 +69,10 @@ class WorkerPoolConfig:
 
 @dataclass
 class _WorkerContext:
+    """
+    Internal runtime context shared by each worker instance.
+    """
+
     settings: Settings
     take_screenshot: bool
     openai: OpenAIConfig | None = None
@@ -56,6 +87,18 @@ async def worker(
     results: list[ScrapedItem],
     context: _WorkerContext,
 ) -> None:
+    """
+    Worker coroutine that consumes ScrapeInput items and performs extraction.
+
+    Args:
+        worker_id (int): Unique ID for logging/debugging.
+        queue (asyncio.Queue[ScrapeInput]): Task queue to pull from.
+        results (list[ScrapedItem]): Shared list to store valid scraped items.
+        context (_WorkerContext): Context containing runtime config and callbacks.
+
+    Raises:
+        asyncio.CancelledError: Raised when the worker is cancelled.
+    """
     try:
         while True:
             url, text = await queue.get()
@@ -112,6 +155,17 @@ async def run_worker_pool(
     settings: Settings,
     config: WorkerPoolConfig,
 ) -> list[ScrapedItem]:
+    """
+    Launch and manage a pool of workers to process scraping inputs concurrently.
+
+    Args:
+        inputs (list[ScrapeInput]): List of (url, text) tuples to scrape.
+        settings (Settings): Global runtime settings.
+        config (WorkerPoolConfig): Pool configuration and optional callbacks.
+
+    Returns:
+        list[ScrapedItem]: List of structured items successfully extracted.
+    """
     queue: asyncio.Queue[ScrapeInput] = asyncio.Queue(maxsize=config.max_queue_size or 0)
     results: list[ScrapedItem] = []
 
@@ -144,6 +198,7 @@ async def run_worker_pool(
     ]
 
     logger.debug(MSG_DEBUG_POOL_SPAWNED_WORKERS.format(count=len(workers)))
+
     await queue.join()
     logger.debug(MSG_DEBUG_POOL_CANCELLING_WORKERS)
 

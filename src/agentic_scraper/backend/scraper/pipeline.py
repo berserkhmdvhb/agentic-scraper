@@ -1,9 +1,26 @@
+"""
+Scraping pipeline orchestrator for AgenticScraper.
+
+This module coordinates the full scraping lifecycle:
+1. Fetching raw HTML from input URLs.
+2. Extracting main textual content.
+3. Delegating parsing and data extraction to agent workers via a concurrent pool.
+
+Usage:
+    Call `scrape_urls` to run the scraper with a list of URLs and settings.
+    Call `scrape_with_stats` to run scraping and receive execution metrics.
+
+Intended for internal use by API route handlers or CLI scripts.
+"""
+
 import logging
 import time
 from typing import TYPE_CHECKING
 
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
 from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_PIPELINE_FETCH_START,
+    MSG_DEBUG_PIPELINE_WORKER_POOL_START,
     MSG_DEBUG_SCRAPE_STATS_START,
     MSG_INFO_FETCH_COMPLETE,
     MSG_INFO_SCRAPE_STATS_COMPLETE,
@@ -27,6 +44,24 @@ async def scrape_urls(
     settings: Settings,
     openai: OpenAIConfig | None = None,
 ) -> list[ScrapedItem]:
+    """
+    Run the scraping pipeline on the provided URLs using the configured agent mode.
+
+    This function:
+    - Fetches HTML content for each URL.
+    - Extracts the main text from HTML.
+    - Runs the extraction workers with LLM or non-LLM agents.
+
+    Args:
+        urls (list[str]): List of target URLs to scrape.
+        settings (Settings): Runtime settings (agent mode, concurrency, etc.).
+        openai (OpenAIConfig | None): OpenAI credentials for LLM agents. Optional.
+
+    Returns:
+        list[ScrapedItem]: List of successfully scraped and structured items.
+    """
+    logger.debug(MSG_DEBUG_PIPELINE_FETCH_START.format(count=len(urls)))
+
     html_by_url = await fetch_all(
         urls=urls,
         settings=settings,
@@ -56,6 +91,10 @@ async def scrape_urls(
         concurrency=settings.llm_concurrency if is_llm_mode else settings.fetch_concurrency,
     )
 
+    logger.debug(
+        MSG_DEBUG_PIPELINE_WORKER_POOL_START.format(count=len(scrape_inputs), is_llm=is_llm_mode)
+    )
+
     return await run_worker_pool(
         inputs=scrape_inputs,
         settings=settings,
@@ -68,6 +107,21 @@ async def scrape_with_stats(
     settings: Settings,
     openai: OpenAIConfig | None = None,
 ) -> tuple[list[ScrapedItem], dict[str, float | int]]:
+    """
+    Run the scraping pipeline and return both results and performance metrics.
+
+    This function wraps `scrape_urls` and collects timing and outcome statistics.
+
+    Args:
+        urls (list[str]): List of URLs to scrape.
+        settings (Settings): Runtime scraper configuration.
+        openai (OpenAIConfig | None): Optional OpenAI API credentials.
+
+    Returns:
+        tuple[list[ScrapedItem], dict[str, float | int]]:
+            - List of successfully scraped items.
+            - Dictionary of scrape stats including duration and counts.
+    """
     logger.debug(
         MSG_DEBUG_SCRAPE_STATS_START.format(
             agent_mode=settings.agent_mode, has_openai=openai is not None

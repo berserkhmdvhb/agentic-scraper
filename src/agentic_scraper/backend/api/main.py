@@ -1,3 +1,16 @@
+"""
+Main entrypoint for the FastAPI backend of Agentic Scraper.
+
+Responsibilities:
+- Initializes the FastAPI app instance with versioning and lifespan.
+- Applies CORS middleware for frontend compatibility.
+- Mounts all versioned route modules (auth, user, scrape).
+- Applies a custom OpenAPI schema with JWT Bearer auth support.
+- Exposes basic root and health-check routes.
+
+This file is executed by the ASGI server to start the API.
+"""
+
 from typing import Any
 
 from fastapi import FastAPI, status
@@ -48,8 +61,13 @@ app.add_middleware(
 )
 
 
-# Custom OpenAPI schema
 def custom_openapi_for_app() -> dict[str, Any]:
+    """
+    Patch the app's OpenAPI schema to inject custom JWT bearer auth support.
+
+    Returns:
+        dict[str, Any]: The generated OpenAPI schema.
+    """
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = custom_openapi(app)
@@ -60,19 +78,33 @@ def custom_openapi_for_app() -> dict[str, Any]:
 app.openapi = custom_openapi_for_app  # type: ignore[method-assign]
 
 
-# Health check
 @app.get("/health", status_code=status.HTTP_200_OK)
 async def health_check() -> dict[str, str]:
+    """
+    Health check endpoint for uptime and service monitoring.
+
+    Returns:
+        dict[str, str]: A simple JSON response with status and version.
+    """
     return {"status": "ok", "version": version}
 
 
-# Root route
 @app.get("/", include_in_schema=False)
 async def root() -> dict[str, str]:
-    return {"message": "Welcome to Agentic Scraper API", "docs": "/docs", "version": version}
+    """
+    Root route that redirects to the API documentation.
+
+    Returns:
+        dict[str, str]: Welcome message and useful link paths.
+    """
+    return {
+        "message": "Welcome to Agentic Scraper API",
+        "docs": "/docs",
+        "version": version,
+    }
 
 
-# Register routers with proper /api/v1/ prefix
+# Register routers with /api/v1/ prefix
 app.include_router(user_router, prefix=f"{API_PREFIX}/{api_version}/user", tags=["User"])
 app.include_router(scrape_router, prefix=f"{API_PREFIX}/{api_version}/scrape", tags=["Scrape"])
 app.include_router(auth_router, prefix=f"{API_PREFIX}/{api_version}/auth", tags=["Auth"])

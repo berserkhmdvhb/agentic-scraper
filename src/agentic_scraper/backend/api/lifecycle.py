@@ -1,16 +1,25 @@
+"""
+FastAPI lifespan handler for startup and shutdown tasks.
+
+This module defines an `asynccontextmanager` for:
+- Preloading Auth0 JWKS on app startup.
+- Logging the service status and any startup errors.
+- Optionally cleaning up resources during shutdown.
+
+The `lifespan` function is passed into the FastAPI app instance.
+"""
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from httpx import TimeoutException
 
-from agentic_scraper.backend.api.auth.auth0_helpers import (
-    jwks_cache_instance,  # Import the instance
-)
+from agentic_scraper.backend.api.auth.auth0_helpers import jwks_cache_instance
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_LIFESPAN_STARTED,
     MSG_ERROR_PRELOADING_JWKS,
-    MSG_INFO_JWKS_PRELOAD_SUCCESSFUL,  # New constant for success message
+    MSG_INFO_JWKS_PRELOAD_SUCCESSFUL,
     MSG_INFO_PRELOADING_JWKS,
     MSG_INFO_SHUTDOWN_LOG,
 )
@@ -32,29 +41,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     Yields:
         None: Indicates that the app is now ready to serve requests.
+
+    Raises:
+        HTTPException: If the JWKS preload times out or fails.
     """
     try:
-        # Startup Logic: Preload JWKS or other resources
-        logger.info(MSG_INFO_PRELOADING_JWKS)  # Log that JWKS is being preloaded
+        # ─── Startup Logic ───
+        logger.info(MSG_INFO_PRELOADING_JWKS)
         try:
-            # Add a timeout for the JWKS fetching operation to avoid hanging indefinitely
-            await jwks_cache_instance.get_jwks()  # Use the JWKSCache instance
-        except TimeoutException as exc:  # Correctly catching TimeoutException from httpx
-            # Log the timeout error
+            await jwks_cache_instance.get_jwks()
+        except TimeoutException as exc:
             logger.exception(MSG_ERROR_PRELOADING_JWKS, exc_info=exc)
-            # Link the original exception
             raise HTTPException(status_code=503, detail="Timeout fetching JWKS") from exc
 
-        # Successful JWKS preload
-        logger.info(MSG_INFO_JWKS_PRELOAD_SUCCESSFUL)  # Use the constant for success message
-
-        # Minimal reference to 'app' to avoid unused argument warning
+        logger.info(MSG_INFO_JWKS_PRELOAD_SUCCESSFUL)
         logger.debug(MSG_DEBUG_LIFESPAN_STARTED.format(app=app))
 
-        # Yield to indicate that startup is complete and the app can begin receiving requests
         yield
 
     finally:
-        # Shutdown Logic: Clean up resources, close DB connections, etc.
-        logger.info(MSG_INFO_SHUTDOWN_LOG)  # Log when the app is shutting down
-        # Any other shutdown tasks like closing connections can be added here.
+        # ─── Shutdown Logic ───
+        logger.info(MSG_INFO_SHUTDOWN_LOG)
+        # Any additional teardown logic (e.g., closing DB sessions) can be added here.

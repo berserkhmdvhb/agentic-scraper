@@ -1,3 +1,16 @@
+"""
+Asynchronous HTML fetcher for scraping pipeline.
+
+This module provides functionality to fetch HTML content from one or more URLs using
+`httpx` with support for retries and concurrency limits.
+
+Functions:
+- `fetch_url`: Fetch a single URL with retry support.
+- `fetch_all`: Fetch multiple URLs concurrently and handle individual errors.
+
+Logging is verbosity-aware: detailed stack traces are logged only when verbose mode is enabled.
+"""
+
 import asyncio
 import logging
 
@@ -31,7 +44,19 @@ async def fetch_url(client: httpx.AsyncClient, url: str, *, settings: Settings) 
     """
     Fetch a single URL using the provided AsyncClient and return its HTML content.
 
-    Retries are controlled dynamically based on settings.retry_attempts.
+    This function supports automatic retries for transient HTTP failures.
+
+    Args:
+        client (httpx.AsyncClient): HTTP client used for the request.
+        url (str): The target URL to fetch.
+        settings (Settings): Global runtime settings, including retry config and timeout.
+
+    Returns:
+        str: Raw HTML content returned from the URL.
+
+    Raises:
+        httpx.HTTPStatusError: If the request fails and retries are exhausted.
+        RuntimeError: If unreachable fallback is hit (should not happen).
     """
     if settings.retry_attempts > 1:
         async for attempt in AsyncRetrying(
@@ -63,7 +88,7 @@ async def fetch_url(client: httpx.AsyncClient, url: str, *, settings: Settings) 
         response.raise_for_status()
         return response.text
 
-    # Safety fallback for Ruff RET503
+    # Safety fallback to appease Ruff (RET503)
     raise RuntimeError(MSG_ERROR_UNREACHABLE_FETCH_URL)
 
 
@@ -75,6 +100,17 @@ async def fetch_all(
 ) -> dict[str, str]:
     """
     Fetch multiple URLs concurrently with a configurable concurrency limit.
+
+    This function uses a semaphore to restrict parallel fetches and collects
+    results in a shared dictionary. Failures are prefixed with FETCH_ERROR_PREFIX.
+
+    Args:
+        urls (list[str]): List of URLs to fetch.
+        settings (Settings): Runtime scraper settings.
+        concurrency (int): Max number of concurrent HTTP requests.
+
+    Returns:
+        dict[str, str]: Mapping of URL to HTML content or error message.
     """
     results: dict[str, str] = {}
     semaphore = asyncio.Semaphore(concurrency)
@@ -82,7 +118,11 @@ async def fetch_all(
     async with httpx.AsyncClient(headers=DEFAULT_HEADERS, follow_redirects=True) as client:
 
         async def bounded_fetch(url: str) -> None:
-            """Fetch a single URL under concurrency control and handle errors."""
+            """
+            Fetch a single URL under concurrency control and handle errors.
+
+            Results are written to the shared `results` dictionary with the URL as key.
+            """
             async with semaphore:
                 try:
                     html = await fetch_url(client, url, settings=settings)

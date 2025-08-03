@@ -1,3 +1,14 @@
+"""
+HTML metadata and text parser for AgenticScraper.
+
+This module provides utilities for parsing structured content from raw HTML,
+including:
+- Cleaned main body text for LLM summarization.
+- Metadata fields: <title>, meta description, and author.
+
+Logging is enabled for verbose mode to help trace parsed fields.
+"""
+
 import logging
 
 from bs4 import BeautifulSoup
@@ -19,6 +30,14 @@ logger = logging.getLogger(__name__)
 def extract_main_text(html: str) -> str:
     """
     Extract main visible text content from HTML for LLM summarization.
+
+    Strips non-content tags like <script> and <style>, and returns a cleaned string.
+
+    Args:
+        html (str): Raw HTML source of the page.
+
+    Returns:
+        str: Visible body text with newlines preserved.
     """
     soup = BeautifulSoup(html, "html.parser")
 
@@ -35,8 +54,7 @@ def extract_title_from_soup(soup: BeautifulSoup, settings: Settings) -> str | No
     """
     Extract the page title from a BeautifulSoup object.
 
-    Looks for the <title> tag and returns its trimmed text if found. Logs debug output
-    if verbose mode is enabled.
+    Looks for the <title> tag and returns its trimmed text if found.
 
     Args:
         soup (BeautifulSoup): Parsed HTML document.
@@ -60,7 +78,7 @@ def extract_meta_description_from_soup(soup: BeautifulSoup, settings: Settings) 
     Extract the meta description from a BeautifulSoup object.
 
     Looks for a <meta name="description"> tag and returns its trimmed "content" value
-    if available. Logs debug output if verbose mode is enabled.
+    if available.
 
     Args:
         soup (BeautifulSoup): Parsed HTML document.
@@ -86,7 +104,7 @@ def extract_author_from_soup(soup: BeautifulSoup, settings: Settings) -> str | N
     Attempt to extract the author's name from known meta tags in a BeautifulSoup object.
 
     Tries a list of common author-related meta tag attributes such as "author",
-    "article:author", and "byline". Logs debug output if verbose mode is enabled.
+    "article:author", and "byline".
 
     Args:
         soup (BeautifulSoup): Parsed HTML document.
@@ -114,7 +132,7 @@ def parse_all_metadata(html: str, settings: Settings) -> dict[str, str | None]:
     Parse common metadata fields (title, description, author) from an HTML document.
 
     Internally parses the HTML into a BeautifulSoup object and applies individual
-    extractors for title, meta description, and author.
+    extractors for each supported field.
 
     Args:
         html (str): Raw HTML content of the page.
@@ -122,7 +140,7 @@ def parse_all_metadata(html: str, settings: Settings) -> dict[str, str | None]:
 
     Returns:
         dict[str, str | None]: Dictionary with keys 'title', 'description', and 'author'.
-        Each value may be None if not found.
+                               Each value may be None if not found.
     """
     soup = BeautifulSoup(html, "html.parser")
     return {

@@ -1,3 +1,15 @@
+"""
+Handles secure storage and retrieval of user credentials for OpenAI access.
+
+This module provides utilities to:
+- Encrypt and store user credentials (API key and project ID) on disk.
+- Decrypt and retrieve them later during authenticated user sessions.
+- Use a local JSON file as a simple encrypted user credential store.
+
+Credentials are encrypted before being saved and safely written via a temp file.
+Errors during storage or decryption are logged and handled gracefully.
+"""
+
 import json
 import tempfile
 from pathlib import Path
@@ -16,20 +28,25 @@ from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.scraper.models import OpenAIConfig
 from agentic_scraper.backend.utils.crypto import decrypt, encrypt
 
-# Initialize logger for error logging
 logger = get_logger()
 
-# File path to local encrypted user credential store
 USER_STORE = Path(".cache/user_store.json")
 USER_STORE.parent.mkdir(parents=True, exist_ok=True)
 
-# Create an empty store file if it does not exist
 if not USER_STORE.exists():
     USER_STORE.write_text("{}")
 
 
 def _load_store() -> dict[str, dict[str, str]]:
-    """Loads the user store from file."""
+    """
+    Load the encrypted user store from disk.
+
+    Returns:
+        dict[str, dict[str, str]]: Dictionary mapping user IDs to encrypted credential dicts.
+
+    Raises:
+        json.JSONDecodeError: If the store is malformed (caught internally and logged).
+    """
     try:
         return cast("dict[str, dict[str, str]]", json.loads(USER_STORE.read_text()))
     except json.JSONDecodeError as e:
@@ -38,32 +55,45 @@ def _load_store() -> dict[str, dict[str, str]]:
 
 
 def _save_store(store: dict[str, dict[str, str]]) -> None:
-    """Saves the user store to file."""
+    """
+    Save the encrypted user credential store safely to disk.
+
+    Uses a temporary file for atomic write operations.
+
+    Args:
+        store (dict[str, dict[str, str]]): Encrypted credentials mapped by user ID.
+
+    Raises:
+        OSError: If saving fails, wraps and raises the underlying error.
+    """
     try:
-        # Use tempfile to ensure safe temporary file handling
         with tempfile.NamedTemporaryFile("w", dir=USER_STORE.parent, delete=False) as tmp:
-            # Write to the temporary file
             json.dump(store, tmp, indent=2)
-            tmp.flush()  # Ensure data is written to the file
-
-            # Properly close the temporary file before replacing
+            tmp.flush()
             tmp.close()
-
-            # Now, replace the original file with the temporary file
             Path(tmp.name).replace(USER_STORE)
-
-    except OSError as e:  # Catch specific OSError
+    except OSError as e:
         error_message = MSG_ERROR_SAVING_USER_STORE.format(error=str(e))
-        logger.exception(error_message, exc_info=e)  # Use exception logging
+        logger.exception(error_message, exc_info=e)
         raise OSError(error_message) from e
     except Exception as e:
         error_message = MSG_ERROR_SAVING_USER_STORE.format(error=str(e))
-        logger.exception(error_message, exc_info=e)  # Use exception logging
+        logger.exception(error_message, exc_info=e)
         raise OSError(error_message) from e
 
 
 def save_user_credentials(user_id: str, api_key: str, project_id: str) -> None:
-    """Encrypts and saves the user's OpenAI credentials."""
+    """
+    Encrypt and persist OpenAI credentials for a user.
+
+    Args:
+        user_id (str): The user's Auth0 subject ID.
+        api_key (str): OpenAI API key to encrypt and store.
+        project_id (str): OpenAI project ID to encrypt and store.
+
+    Raises:
+        HTTPException: If credentials cannot be saved or encrypted.
+    """
     store = _load_store()
     try:
         store[user_id] = {
@@ -73,17 +103,28 @@ def save_user_credentials(user_id: str, api_key: str, project_id: str) -> None:
         _save_store(store)
     except Exception as e:
         error_message = MSG_ERROR_INVALID_CREDENTIALS.format(user_id=user_id, error=str(e))
-        logger.exception(error_message, exc_info=e)  # Use exception logging
+        logger.exception(error_message, exc_info=e)
         raise HTTPException(status_code=400, detail="Error saving credentials") from e
 
 
 def load_user_credentials(user_id: str) -> OpenAIConfig | None:
-    """Loads and decrypts the user's OpenAI credentials."""
+    """
+    Load and decrypt OpenAI credentials for a user.
+
+    Args:
+        user_id (str): The user's Auth0 subject ID.
+
+    Returns:
+        OpenAIConfig | None: Decrypted credentials if available and valid, otherwise None.
+
+    Raises:
+        Exception: If decryption fails internally (returns None but logs exception).
+    """
     store = _load_store()
     user_data = store.get(user_id)
     if not user_data:
         logger.warning(MSG_WARNING_CREDENTIALS_NOT_FOUND.format(user_id=user_id))
-        return None  # No credentials found for this user
+        return None
 
     try:
         decrypted_api_key = decrypt(user_data["api_key"])
@@ -91,5 +132,5 @@ def load_user_credentials(user_id: str) -> OpenAIConfig | None:
         return OpenAIConfig(api_key=decrypted_api_key, project_id=decrypted_project_id)
     except Exception as e:
         error_message = MSG_ERROR_DECRYPTION_FAILED.format(user_id=user_id, error=str(e))
-        logger.exception(error_message, exc_info=e)  # Use exception logging
-        return None  # Return None if decryption fails
+        logger.exception(error_message, exc_info=e)
+        return None

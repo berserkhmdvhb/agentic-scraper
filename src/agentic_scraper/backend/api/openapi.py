@@ -1,9 +1,20 @@
+"""
+Custom OpenAPI schema generator for Agentic Scraper.
+
+This module modifies FastAPI's default OpenAPI schema to:
+- Embed a JWT Bearer authentication scheme.
+- Customize metadata (title, description, contact, license).
+- Globally apply the security scheme to all endpoints.
+
+Used at startup via the main app file.
+"""
+
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
-# Define the security scheme
+# Define the JWT Bearer authentication scheme
 security_scheme = {
     "BearerAuth": {
         "type": "http",
@@ -16,18 +27,23 @@ security_scheme = {
 
 def custom_openapi(app: FastAPI) -> dict[str, Any]:
     """
-    Customizes the OpenAPI schema to include JWT Bearer authentication.
+    Customize the FastAPI OpenAPI schema to include Bearer auth and extra metadata.
+
+    This modifies the auto-generated OpenAPI docs to:
+    - Add global JWT bearer security scheme.
+    - Apply the scheme to all routes.
+    - Set detailed metadata such as contact and license.
 
     Args:
         app (FastAPI): The FastAPI app instance whose schema is being modified.
 
     Returns:
-        dict: The customized OpenAPI schema with security definitions.
+        dict[str, Any]: The customized OpenAPI schema.
     """
     if app.openapi_schema:
         return app.openapi_schema
 
-    # Generate the default OpenAPI schema
+    # Generate the base OpenAPI schema
     openapi_schema = get_openapi(
         title=app.title,
         version=app.version,
@@ -35,7 +51,7 @@ def custom_openapi(app: FastAPI) -> dict[str, Any]:
         routes=app.routes,
     )
 
-    # Customize the info section
+    # Customize metadata fields
     openapi_schema["info"]["title"] = "Agentic Scraper API"
     openapi_schema["info"]["description"] = "LLM-powered web scraper"
     openapi_schema["info"]["version"] = app.version
@@ -50,14 +66,11 @@ def custom_openapi(app: FastAPI) -> dict[str, Any]:
         "url": "https://opensource.org/licenses/MIT",
     }
 
-    # Add security scheme to OpenAPI schema
+    # Add the BearerAuth security scheme globally
     openapi_schema["components"]["securitySchemes"] = security_scheme
-
-    # Apply security scheme to each path operation
     for path in openapi_schema["paths"].values():
         for method in path.values():
-            method["security"] = [{"BearerAuth": []}]  # Apply security globally
+            method["security"] = [{"BearerAuth": []}]
 
-    # Cache the customized OpenAPI schema in the app
     app.openapi_schema = openapi_schema
     return app.openapi_schema
