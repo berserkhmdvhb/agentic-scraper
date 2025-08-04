@@ -30,6 +30,7 @@ from tenacity import (
 
 from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS
 from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_FINAL_DISCOVERY_RETRY_TRIGGERED,
     MSG_DEBUG_LLM_INITIAL_PROMPT,
     MSG_DEBUG_LLM_RETRY_ATTEMPT,
     MSG_DEBUG_LLM_RETRY_PROMPT,
@@ -204,6 +205,13 @@ async def process_retry(
     required = get_required_fields(page_type) or IMPORTANT_FIELDS
     best_keys = set(ctx.best_fields or {})
     missing = set(_sort_fields_by_weight(required - best_keys - unavailable_fields))
+
+    # ─── Final Discovery Retry ────────────────────────────────────────────────
+    if item is not None and not missing and not ctx.has_done_discovery:
+        ctx.has_done_discovery = True
+        logger.debug(MSG_DEBUG_FINAL_DISCOVERY_RETRY_TRIGGERED.format(url=request.url))
+        # Force one last retry to discover optional fields
+        return False, ctx
 
     if should_exit_early(
         item=item,

@@ -1,6 +1,13 @@
+import logging
 from typing import Any
 
 from agentic_scraper.backend.config.constants import FIELD_SYNONYMS
+from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_NORMALIZED_KEYS,
+    MSG_DEBUG_UNAVAILABLE_FIELDS_DETECTED,
+)
+
+logger = logging.getLogger(__name__)
 
 # Strings commonly used on websites to mean "no value available"
 PLACEHOLDER_VALUES = {"not specified", "n/a", "none", "unknown", "-", ""}
@@ -40,7 +47,12 @@ def normalize_keys(raw: dict[str, Any]) -> dict[str, Any]:
     Returns:
         dict[str, Any]: Dictionary with normalized field names.
     """
-    return {FIELD_SYNONYMS.get(k, k): v for k, v in raw.items()}
+    original_keys = list(raw.keys())
+    normalized = {FIELD_SYNONYMS.get(k, k): v for k, v in raw.items()}
+    logger.debug(
+        MSG_DEBUG_NORMALIZED_KEYS.format(original=original_keys, normalized=list(normalized.keys()))
+    )
+    return normalized
 
 
 def score_nonempty_fields(data: dict[str, Any]) -> float:
@@ -149,4 +161,6 @@ def detect_unavailable_fields(raw: dict[str, Any]) -> set[str]:
     for k, v in raw.items():
         if isinstance(v, str) and v.strip().lower() in PLACEHOLDER_VALUES:
             unavailable.add(k)
+    if unavailable:
+        logger.debug(MSG_DEBUG_UNAVAILABLE_FIELDS_DETECTED.format(fields=sorted(unavailable)))
     return unavailable

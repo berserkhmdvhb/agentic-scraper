@@ -3,7 +3,11 @@ import logging
 from typing import Any
 
 from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS, MAX_TEXT_FOR_FEWSHOT
-from agentic_scraper.backend.config.messages import MSG_DEBUG_CONTEXTUAL_HINTS_USED
+from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_CONTEXTUAL_HINTS_USED,
+    MSG_DEBUG_PROMPT_FALLBACK_MODE,
+    MSG_DEBUG_PROMPT_RETRY_MODE,
+)
 from agentic_scraper.backend.scraper.agent.field_utils import FIELD_WEIGHTS
 
 logger = logging.getLogger(__name__)
@@ -34,6 +38,10 @@ Template JSON schema (example fields):
 - location (str)
 - date (str)
 ...
+
+These are just illustrative fields. Depending on the context,
+extract additional relevant fields that are clearly presented on the page.
+
 """
 
 
@@ -75,11 +83,23 @@ Based on the inferred page type and context, choose the most relevant fields to 
 Instructions:
 - Infer the page_type (e.g. product, blog, job) and context.
 - Decide which fields are useful to add to results, based on context.
+- Don't limit yourself to common fields (e.g., title, price, author), also extract other
+relevant attributes you can infer from the page that would be useful
+(e.g., for a product page: product features and specifications, ratings, etc)
+- Extract the entire page for semantically meaningful fields as possible.
 - If any field is unavailable or missing from the page (e.g., 'Not specified', 'N/A', etc.),
 return it as syntactic null. Do not guess or hallucinate values.
-- The following fields are especially important and should be prioritized if found:
-{", ".join(IMPORTANT_FIELDS)}, but don't hesitate to add more relevant fields.
-- Return only valid JSON.
+- The following fields are especially important:
+{", ".join(IMPORTANT_FIELDS)}, but don't hesitate to add more relevant
+fields and explore for more fields.
+- Return as a valid JSON object.
+- If the page includes key-value pairs, such as product specifications,
+bullet points, or labeled sections, extract each as a separate field in the JSON output.
+And include them as structured field in JSON output, even if they're not
+part of the original schema.
+
+Your goal is to extract as much relevant information and more useful fields as possible.
+
 
 Mandatory fields: url, page_type.
 {SCHEMA_BLOCK}
@@ -144,7 +164,8 @@ def build_retry_prompt(
     return f"""We previously extracted the following fields from the URL:
 {_truncate_fields(best_fields)}
 
-However, the following important fields were missing:
+We would like to both recover the following important missing fields,
+and explore the page for any additional structured data:
 {", ".join(_sort_fields_by_weight(missing_fields)) or "None"}.
 
 Instructions:
@@ -155,11 +176,17 @@ return it as syntactic null. Do not guess or hallucinate values.
 - If previously returned values were null and are still not available on
 the page, leave them as null.
 - Include any additional relevant or useful fields if not already present.
+- Explore all sections of page.
 - Use your judgment based on the page type and context to
 choose the most relevant fields to extract.
+- Don't limit yourself to common fields (e.g., title, price, author), also extract other
+relevant attributes you can infer from the page that would be useful
+(e.g., for a product page: product features and specifications, ratings, etc)
+- If the page includes key-value pairs, such as product specifications,
+bullet points, or labeled sections, extract each as a separate field in the JSON output.
+And include them as a structured field, even if they're not in the template.
 
 Your goal is to extract as much relevant information and more useful fields as possible.
-Return only a valid JSON object.
 """
 
 
@@ -178,21 +205,30 @@ def build_retry_or_fallback_prompt(
         str: Retry or fallback prompt for another LLM attempt.
     """
     if missing_fields:
+        logger.debug(
+            MSG_DEBUG_PROMPT_RETRY_MODE.format(
+                url=(best_fields or {}).get("url", "N/A"), missing=missing_fields
+            )
+        )
         return build_retry_prompt(best_fields or {}, missing_fields)
 
     if best_fields:
+        logger.debug(MSG_DEBUG_PROMPT_FALLBACK_MODE.format(url=best_fields.get("url", "N/A")))
         return f"""We previously extracted the following fields:
 {_truncate_fields(best_fields)}
 
 Instructions:
-- Analyze the content again and extract any additional useful or contextually important fields.
+- Analyze the content again and extract any additional useful or contextually relevant fields.
 - If possible, improve or extend previously extracted fields (do not just repeat them).
 - Use your judgment based on the page type and context, to add more fields.
-Return only a valid JSON object.
+
+Return as a valid JSON object.
 """
 
     return (
         "Analyze the content and extract all useful, relevant, or structured fields. "
         "Use your best judgment to infer fields based on page context and type. "
-        "Return only a valid JSON object."
+        "Don't limit yourself to common fields (e.g., title, price, author), also extract other"
+        "relevant attributes you can infer from the page that would be useful. "
+        "Return as a valid JSON object."
     )

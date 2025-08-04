@@ -26,6 +26,7 @@ from pydantic import ValidationError
 
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_API_EXCEPTION,
+    MSG_DEBUG_CONTEXT_HINTS_EXTRACTED,
     MSG_DEBUG_EARLY_EXIT_SKIPPED,
     MSG_DEBUG_EARLY_EXIT_TRIGGERED,
     MSG_DEBUG_LLM_FIELD_SCORE_DETAILS,
@@ -274,6 +275,14 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
     else:
         page_type = "unknown"
 
+    logger.debug(
+        MSG_DEBUG_CONTEXT_HINTS_EXTRACTED.format(
+            url=url,
+            page_type=page_type,
+            meta_keys=len(meta_tags),
+            breadcrumbs=len(breadcrumb_texts),
+        )
+    )
     return {
         "meta": meta_summary,
         "breadcrumbs": breadcrumbs,
@@ -392,8 +401,12 @@ def should_exit_early(
     if item is None:
         return False
 
-    previous_keys = set(best_fields or {})
-    current_keys = set(raw_data.keys())
+    # Prevent early exit on first result (always retry once)
+    if not best_fields:
+        return False
+
+    previous_keys = set(best_fields)
+    current_keys = set(raw_data)
     new_fields = current_keys - previous_keys
     newly_filled_missing = missing & new_fields
 

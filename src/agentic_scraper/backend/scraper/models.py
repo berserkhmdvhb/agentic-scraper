@@ -70,3 +70,4 @@ class RetryContext:
     best_fields: dict[str, Any] | None
     best_valid_item: ScrapedItem | None
     all_fields: dict[str, Any]
+    has_done_discovery: bool = False

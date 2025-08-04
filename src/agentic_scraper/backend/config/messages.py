@@ -309,6 +309,15 @@ MSG_DEBUG_EARLY_EXIT_SKIPPED = (
     "[AGENT] [LLM] [{url}] Continue retry: "
     "new_fields={new_fields}, newly_filled_missing={newly_filled_missing}"
 )
+MSG_DEBUG_CONTEXT_HINTS_EXTRACTED = (
+    "[AGENT] [LLM] [{url}] Context hints extracted: type={page_type},"
+    "meta_keys={meta_keys}, breadcrumbs_count={breadcrumbs}"
+)
+
+# field_utils.py
+MSG_DEBUG_UNAVAILABLE_FIELDS_DETECTED = "Unavailable fields detected in raw data: {fields}"
+MSG_DEBUG_NORMALIZED_KEYS = "Field keys normalized: original={original}, mapped={normalized}"
+
 
 # llm_fixed.py
 MSG_SYSTEM_PROMPT = """You are a web extraction assistant.
@@ -392,6 +401,20 @@ MSG_DEBUG_FIELD_SCORE_PER_RETRY = (
 MSG_DEBUG_LLM_INITIAL_PROMPT = "[AGENT] [LLM] Initial LLM prompt for {url}:\n{prompt}"
 
 MSG_DEBUG_LLM_RETRY_PROMPT = "[AGENT] [LLM] Retry prompt for {url} (attempt {attempt}):\n{message}"
+
+MSG_DEBUG_FINAL_DISCOVERY_RETRY_TRIGGERED = (
+    "[AGENT] [LLM] [{url}] Final discovery"
+    "retry triggered (required fields complete, exploring optional fields)."
+)
+
+
+MSG_DEBUG_PROMPT_RETRY_MODE = (
+    "[AGENT] [LLM] [{url}] Building retryprompt. Missing fields: {missing}"
+)
+MSG_DEBUG_PROMPT_FALLBACK_MODE = (
+    "[AGENT] [LLM] [{url}] Building fallbackprompt (no missing fields)."
+)
+
 
 # ---------------------------------------------------------------------
 # common/logging.py
