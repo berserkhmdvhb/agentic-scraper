@@ -23,7 +23,7 @@ Extracted JSON:
 """
 
 SCHEMA_BLOCK = """
-Required JSON schema (example fields):
+Template JSON schema (example fields):
 - url (str)
 - page_type (str)
 - title (str)
@@ -33,6 +33,9 @@ Required JSON schema (example fields):
 - company (str)
 - location (str)
 - date (str)
+- responsbilities (str)
+- qualifications (str)
+- skills (str)
 ...
 """
 
@@ -74,9 +77,8 @@ Extract as much relevant information as possible.
 Instructions:
 - Infer the page_type (e.g. product, blog, job).
 - Choose fields based on type.
-- Only extract values that are explicitly present on the page.
-- If a value is clearly marked as unknown or unavailable
-(e.g., "Not specified", "N/A"), return a syntactic null.
+- If any field is unavailable or missing from the page (e.g., 'Not specified', 'N/A', etc.),
+return it as syntactic null. Do not guess or hallucinate values.
 - The following fields are especially important and should be prioritized if found:
 {", ".join(IMPORTANT_FIELDS)}, but don't hesitate to add more relevant fields.
 - Return only valid JSON.
@@ -150,13 +152,15 @@ However, the following important fields were missing:
 Instructions:
 - Re-analyze the page carefully.
 - Fill in the missing required fields listed above.
-- If a value is clearly marked as unknown or unavailable
-(e.g., "Not specified", "N/A"), return a syntactic null
+- If any field is unavailable or missing from the page (e.g., 'Not specified', 'N/A', etc.),
+return it as syntactic null. Do not guess or hallucinate values.
+- If previously returned values were null and are still not available on
+the page, leave them as null.
 - Include any additional relevant or useful fields not already present.
-- Use your judgment based on the page type and context.
+- Use your judgment based on the page type and context to decide which fields to add.
 - Extract as much relevant information as possible.
 
-Return only a valid JSON object. Do not include explanations or extra text.
+Return only a valid JSON object.
 """
 
 
@@ -186,11 +190,11 @@ Instructions:
 - If possible, improve or extend previously extracted fields (do not just repeat them).
 - Use your judgment based on the page type and context.
 
-Return only a valid JSON object. Do not include explanations or extra text.
+Return only a valid JSON object.
 """
 
     return (
         "Analyze the content and extract all useful, relevant, or structured fields. "
         "Use your best judgment to infer fields based on page context and type. "
-        "Return only a valid JSON object. Do not include explanations or extra text."
+        "Return only a valid JSON object."
     )

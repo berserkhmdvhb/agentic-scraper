@@ -46,6 +46,7 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     try_validate_scraped_item,
 )
 from agentic_scraper.backend.scraper.agent.field_utils import (
+    detect_unavailable_fields,
     get_required_fields,
     normalize_fields,
     normalize_keys,
@@ -114,7 +115,7 @@ async def _attempt_llm_pass(
     content: str,
     url: str,
     settings: Settings,
-) -> tuple[ScrapedItem | None, str, set[str], dict[str, Any]]:
+) -> tuple[ScrapedItem | None, str, set[str], dict[str, Any], set[str]]:
     """
     Perform a single validation pass of the LLM response.
 
@@ -127,21 +128,30 @@ async def _attempt_llm_pass(
         tuple:
             - ScrapedItem | None: Validated result if successful.
             - str: Extracted page_type or "".
-            - set[str]: Observed non-empty field names.
+            - set[str]: Observed non-empty field names (excluding null/blank).
             - dict[str, Any]: Raw normalized output from the LLM.
+            - set[str]: Fields detected as explicitly marked unavailable (e.g., "N/A").
     """
     raw_data = parse_llm_response(content, url, settings)
     if raw_data is None:
-        return None, "", set(), {}
+        return None, "", set(), {}, set()
+
     raw_data["url"] = url
     raw_data = normalize_keys(raw_data)
-    non_empty_fields = {k for k, v in raw_data.items() if v not in [None, ""]}
+
+    # Detect unavailable fields *before* normalization
+    unavailable_fields = detect_unavailable_fields(raw_data)
+
+    # Identify non-empty fields (excluding null/empty/placeholder)
+    non_empty_fields = {
+        k for k, v in raw_data.items() if v not in [None, ""] and k not in unavailable_fields
+    }
 
     # Normalize only for validation
-
     normalized = normalize_fields(raw_data)
     item = try_validate_scraped_item(normalized, url, settings)
-    return item, raw_data.get("page_type", ""), non_empty_fields, normalized
+
+    return item, raw_data.get("page_type", ""), non_empty_fields, normalized, unavailable_fields
 
 
 # ruff: noqa: PLR0913
@@ -168,7 +178,7 @@ async def process_retry(
 
     ctx.messages.append({"role": "assistant", "content": content})
 
-    item, page_type, observed_fields, raw_data = await _attempt_llm_pass(
+    item, page_type, observed_fields, raw_data, unavailable_fields = await _attempt_llm_pass(
         content=content,
         url=request.url,
         settings=settings,
@@ -191,7 +201,7 @@ async def process_retry(
         or ""
     )
     required = get_required_fields(page_type) or IMPORTANT_FIELDS
-    missing = set(_sort_fields_by_weight(required - observed_fields))
+    missing = set(_sort_fields_by_weight(required - observed_fields - unavailable_fields))
 
     if item is not None and not missing:
         return True, ctx

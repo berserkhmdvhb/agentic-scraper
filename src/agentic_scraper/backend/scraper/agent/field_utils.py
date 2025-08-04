@@ -2,6 +2,7 @@ from typing import Any
 
 from agentic_scraper.backend.config.constants import FIELD_SYNONYMS
 
+# Strings commonly used on websites to mean "no value available"
 PLACEHOLDER_VALUES = {"not specified", "n/a", "none", "unknown", "-", ""}
 
 # Mapping of page types to the canonical fields expected for extraction.
@@ -140,3 +141,12 @@ def normalize_fields(raw_fields: dict[str, Any]) -> dict[str, Any]:
             normalized[key] = value
 
     return normalized
+
+
+def detect_unavailable_fields(raw: dict[str, Any]) -> set[str]:
+    """Detect fields whose raw values indicate 'not available' semantics."""
+    unavailable = set()
+    for k, v in raw.items():
+        if isinstance(v, str) and v.strip().lower() in PLACEHOLDER_VALUES:
+            unavailable.add(k)
+    return unavailable
