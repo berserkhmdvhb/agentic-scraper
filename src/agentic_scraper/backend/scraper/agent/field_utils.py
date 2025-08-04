@@ -1,6 +1,16 @@
+import logging
 from typing import Any
 
 from agentic_scraper.backend.config.constants import FIELD_SYNONYMS
+from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_NORMALIZED_KEYS,
+    MSG_DEBUG_UNAVAILABLE_FIELDS_DETECTED,
+)
+
+logger = logging.getLogger(__name__)
+
+# Strings commonly used on websites to mean "no value available"
+PLACEHOLDER_VALUES = {"not specified", "n/a", "none", "unknown", "-", ""}
 
 # Mapping of page types to the canonical fields expected for extraction.
 PAGE_TYPE_TO_FIELDS: dict[str, set[str]] = {
@@ -37,23 +47,33 @@ def normalize_keys(raw: dict[str, Any]) -> dict[str, Any]:
     Returns:
         dict[str, Any]: Dictionary with normalized field names.
     """
-    return {FIELD_SYNONYMS.get(k, k): v for k, v in raw.items()}
+    original_keys = list(raw.keys())
+    normalized = {FIELD_SYNONYMS.get(k, k): v for k, v in raw.items()}
+    logger.debug(
+        MSG_DEBUG_NORMALIZED_KEYS.format(original=original_keys, normalized=list(normalized.keys()))
+    )
+    return normalized
 
 
-def score_fields(fields: set[str]) -> int:
+def score_nonempty_fields(data: dict[str, Any]) -> float:
     """
-    Compute a weighted score for a set of fields based on FIELD_WEIGHTS.
-
-    Higher weights are assigned to more important fields (e.g., 'title', 'price').
-    This is used to compare and rank different LLM outputs by quality.
+    Compute a hybrid score for extracted fields based on importance and coverage.
 
     Args:
-        fields (set[str]): Set of normalized field names.
+        data (dict[str, Any]): Dictionary of extracted fields with values.
 
     Returns:
-        int: Total weighted score.
+        float: Weighted score combining important known fields and bonus for general coverage.
     """
-    return sum(FIELD_WEIGHTS.get(f, 0) for f in fields)
+    base_score = 0.3  # For unknown fields
+    score = 0.0
+
+    for key, value in data.items():
+        if value in [None, ""]:
+            continue
+        score += FIELD_WEIGHTS.get(key, base_score)
+
+    return score
 
 
 def get_required_fields(page_type: str | list[str] | None) -> set[str]:
@@ -73,3 +93,111 @@ def get_required_fields(page_type: str | list[str] | None) -> set[str]:
     elif not isinstance(page_type, str):
         page_type = ""
     return PAGE_TYPE_TO_FIELDS.get(page_type.lower().strip(), set())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Normalizers
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def normalize_value(
+    value: str | float | None,
+    target_type: type[float] | type[int] | type[str],
+) -> float | int | str | None:
+    """
+    Normalize a raw value based on its expected target type.
+
+    This function coerces the input value into the specified type (float, int, or str),
+    and returns None if the value is considered a placeholder (e.g., "n/a", "not specified").
+
+    Args:
+        value (str | float | None): The raw value to normalize.
+        target_type (type): The expected target type (float, int, or str).
+
+    Returns:
+        float | int | str | None: Normalized value or None if invalid or unavailable.
+    """
+
+    if value is None:
+        return None
+
+    if isinstance(value, str) and value.strip().lower() in PLACEHOLDER_VALUES:
+        return None
+
+    result: float | int | str | None = None
+    try:
+        if target_type is float:
+            result = float(value)
+        elif target_type is int:
+            result = int(value)
+        elif target_type is str:
+            result = str(value).strip()
+    except (ValueError, TypeError):
+        result = None
+
+    return result
+
+
+def normalize_fields(raw_fields: dict[str, Any]) -> dict[str, Any]:
+    """
+    Normalize a dictionary of LLM-extracted fields to match expected schema formats.
+
+    Field-specific normalization is applied based on known schema keys. Unknown fields
+    are passed through without modification. This ensures consistency for downstream
+    validation and scoring.
+
+    Args:
+        raw_fields (dict[str, Any]): Dictionary of raw extracted field values.
+
+    Returns:
+        dict[str, Any]: Dictionary with normalized values per expected field types.
+    """
+    normalized = {}
+
+    for key, value in raw_fields.items():
+        if key == "price":
+            normalized[key] = normalize_value(value, float)
+        elif key == "date_published":
+            normalized[key] = str(value).strip() if value else None
+        elif key in {
+            "title",
+            "description",
+            "author",
+            "summary",
+            "job_title",
+            "company",
+            "location",
+            "job_type",
+            "application_deadline",
+        }:
+            normalized[key] = normalize_value(value, str)
+        elif key == "url":
+            normalized[key] = str(value).strip() if value else None
+        else:
+            # Unknown or unhandled fields: pass through untouched
+            normalized[key] = value
+
+    return normalized
+
+
+def detect_unavailable_fields(raw: dict[str, Any]) -> set[str]:
+    """
+    Detect which fields contain syntactic placeholders (e.g., "n/a", "unknown").
+
+    This function flags fields whose values represent the absence of meaningful data,
+    such as "Not specified" or "N/A". These fields are excluded from retry prompts
+    and scoring logic to avoid redundant extraction attempts.
+
+    Args:
+        raw (dict[str, Any]): Dictionary of raw extracted field values.
+
+    Returns:
+        set[str]: Set of field names explicitly marked as unavailable.
+    """
+    unavailable = set()
+    for k, v in raw.items():
+        if isinstance(v, str) and v.strip().lower() in PLACEHOLDER_VALUES:
+            unavailable.add(k)
+    if unavailable:
+        logger.debug(MSG_DEBUG_UNAVAILABLE_FIELDS_DETECTED.format(fields=sorted(unavailable)))
+    return unavailable

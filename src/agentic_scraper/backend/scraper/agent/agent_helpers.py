@@ -26,7 +26,10 @@ from pydantic import ValidationError
 
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_API_EXCEPTION,
-    MSG_DEBUG_FIELD_SCORE_PER_RETRY,
+    MSG_DEBUG_CONTEXT_HINTS_EXTRACTED,
+    MSG_DEBUG_EARLY_EXIT_SKIPPED,
+    MSG_DEBUG_EARLY_EXIT_TRIGGERED,
+    MSG_DEBUG_LLM_FIELD_SCORE_DETAILS,
     MSG_DEBUG_LLM_JSON_DUMP_SAVED,
     MSG_DEBUG_PARSED_STRUCTURED_DATA,
     MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS,
@@ -46,7 +49,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL,
 )
 from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.agent.field_utils import score_fields
+from agentic_scraper.backend.scraper.agent.field_utils import FIELD_WEIGHTS, score_nonempty_fields
 from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
 from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
 
@@ -58,8 +61,8 @@ __all__ = [
     "handle_openai_exception",
     "log_structured_data",
     "parse_llm_response",
+    "retrieve_openai_credentials",
     "score_and_log_fields",
-    "select_best_candidate",
     "try_validate_scraped_item",
 ]
 
@@ -243,7 +246,7 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
                 seen_breadcrumbs.add(text)
 
     if not breadcrumb_texts:
-        nav_breadcrumb = soup.select_one("nav[aria-label='breadcrumb']")  # fallback
+        nav_breadcrumb = soup.select_one("nav[aria-label='breadcrumb']")
         if nav_breadcrumb:
             breadcrumb_texts.append(nav_breadcrumb.get_text(strip=True))
 
@@ -257,14 +260,38 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
     h1 = soup.find("h1")
     first_h1 = h1.get_text(strip=True) if h1 else ""
 
+    # ─── Naive Page Type Inference ─────────────────────────────────────────────
+    lower_url = url.lower()
+    lower_title = page_title.lower()
+    lower_h1 = first_h1.lower()
+    combined = f"{lower_url} {lower_title} {lower_h1}"
+
+    if "product" in combined or "shop" in combined:
+        page_type = "product"
+    elif "job" in combined or "career" in combined or "apply" in combined:
+        page_type = "job"
+    elif "blog" in combined or "post" in combined or "article" in combined:
+        page_type = "blog"
+    else:
+        page_type = "unknown"
+
+    logger.debug(
+        MSG_DEBUG_CONTEXT_HINTS_EXTRACTED.format(
+            url=url,
+            page_type=page_type,
+            meta_keys=len(meta_tags),
+            breadcrumbs=len(breadcrumb_texts),
+        )
+    )
     return {
         "meta": meta_summary,
         "breadcrumbs": breadcrumbs,
         "url_segments": url_segments,
         "context_domain": domain,
-        "page_hint": last_segment,
+        "url_last_segment": last_segment,
         "page_title": page_title,
         "first_h1": first_h1,
+        "page": page_type,  # Included for prompt_helpers.py
     }
 
 
@@ -302,60 +329,30 @@ def try_validate_scraped_item(
         return item
 
 
-def score_and_log_fields(fields: set[str], attempt: int, url: str) -> int:
-    """
-    Compute a numeric score based on extracted fields and log it.
+def score_and_log_fields(
+    fields: set[str],
+    attempt: int,
+    url: str,
+    raw_data: dict[str, Any] | None = None,
+) -> float:
+    nonempty_keys = {
+        k
+        for k, v in (raw_data.items() if raw_data else [(f, "nonempty") for f in fields])
+        if v not in [None, ""]
+    }
 
-    Args:
-        fields (set[str]): Set of field names extracted by the LLM.
-        attempt (int): Retry attempt index.
-        url (str): Source URL.
+    score = score_nonempty_fields(raw_data or dict.fromkeys(nonempty_keys, "nonempty"))
 
-    Returns:
-        int: Computed score (higher means better coverage).
-
-    Raises:
-        None
-    """
-    score = score_fields(fields)
     logger.debug(
-        MSG_DEBUG_FIELD_SCORE_PER_RETRY.format(
-            url=url,
+        MSG_DEBUG_LLM_FIELD_SCORE_DETAILS.format(
             attempt=attempt,
+            url=url,
             score=score,
-            fields=sorted(fields),
+            field_weights={k: FIELD_WEIGHTS.get(k, 0.3) for k in nonempty_keys},
         )
     )
+
     return score
-
-
-def select_best_candidate(candidate_data: dict[str, Any], url: str) -> ScrapedItem | None:
-    """
-    Final validation of the best-scoring retry candidate.
-
-    Args:
-        candidate_data (dict[str, Any]): Fields from best retry attempt.
-        url (str): URL for logging context.
-
-    Returns:
-        ScrapedItem | None: Valid item if validation succeeds, else None.
-
-    Raises:
-        None
-    """
-    try:
-        item = ScrapedItem.model_validate(candidate_data)
-    except ValidationError as ve:
-        logger.warning(MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL.format(url=url, exc=ve))
-        return None
-
-    logger.info(MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL.format(url=url))
-    return item
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Data validation and retry scoring
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 def retrieve_openai_credentials(config: OpenAIConfig | None) -> tuple[str, str]:
@@ -378,3 +375,52 @@ def retrieve_openai_credentials(config: OpenAIConfig | None) -> tuple[str, str]:
     if not config.project_id:
         raise ValueError(MSG_ERROR_MISSING_OPENAI_PROJECT_ID)
     return config.api_key, config.project_id
+
+
+def should_exit_early(
+    *,
+    item: ScrapedItem | None,
+    raw_data: dict[str, Any],
+    best_fields: dict[str, Any] | None,
+    missing: set[str],
+    url: str,
+) -> bool:
+    """
+    Decide whether to stop retrying based on whether any useful progress was made.
+
+    Args:
+        item (ScrapedItem | None): The current validated item (if any).
+        raw_data (dict[str, Any]): Raw normalized fields from current attempt.
+        best_fields (dict[str, Any] | None): Best fields seen so far across attempts.
+        missing (set[str]): Required fields still missing.
+        url (str): The URL being scraped, used for logging.
+
+    Returns:
+        bool: True if we should exit early, False to continue retrying.
+    """
+    if item is None:
+        return False
+
+    # Prevent early exit on first result (always retry once)
+    if not best_fields:
+        return False
+
+    previous_keys = set(best_fields)
+    current_keys = set(raw_data)
+    new_fields = current_keys - previous_keys
+    newly_filled_missing = missing & new_fields
+
+    should_stop = not new_fields and not newly_filled_missing
+
+    if should_stop:
+        logger.debug(MSG_DEBUG_EARLY_EXIT_TRIGGERED.format(url=url))
+    else:
+        logger.debug(
+            MSG_DEBUG_EARLY_EXIT_SKIPPED.format(
+                url=url,
+                new_fields=new_fields,
+                newly_filled_missing=newly_filled_missing,
+            )
+        )
+
+    return should_stop

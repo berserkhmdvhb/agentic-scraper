@@ -1,3 +1,7 @@
+from dataclasses import dataclass
+from typing import Any
+
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 from agentic_scraper.backend.utils.validators import (
@@ -56,3 +60,14 @@ class ScrapeRequest(BaseModel):
     take_screenshot: bool = False
     openai: OpenAIConfig | None = None
     context_hints: dict[str, str] | None = None
+
+
+@dataclass
+class RetryContext:
+    messages: list[ChatCompletionMessageParam]
+    best_score: float
+    best_valid_score: float
+    best_fields: dict[str, Any] | None
+    best_valid_item: ScrapedItem | None
+    all_fields: dict[str, Any]
+    has_done_discovery: bool = False

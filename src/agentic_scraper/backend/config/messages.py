@@ -298,6 +298,25 @@ MSG_DEBUG_API_EXCEPTION = "[AGENT] Full exception details:"
 MSG_ERROR_MISSING_OPENAI_CONFIG = "Missing OpenAI config."
 MSG_ERROR_MISSING_OPENAI_API_KEY = "Missing OpenAI API key."
 MSG_ERROR_MISSING_OPENAI_PROJECT_ID = "Missing OpenAI project ID."
+MSG_DEBUG_LLM_FIELD_SCORE_DETAILS = (
+    "[AGENT] [LLM] Attempt {attempt} for {url}: score={score:.2f} | field_weights={field_weights}"
+)
+
+MSG_DEBUG_EARLY_EXIT_TRIGGERED = (
+    "[AGENT] [LLM] [{url}] Early exit: no new fields added and no missing fields recovered."
+)
+MSG_DEBUG_EARLY_EXIT_SKIPPED = (
+    "[AGENT] [LLM] [{url}] Continue retry: "
+    "new_fields={new_fields}, newly_filled_missing={newly_filled_missing}"
+)
+MSG_DEBUG_CONTEXT_HINTS_EXTRACTED = (
+    "[AGENT] [LLM] [{url}] Context hints extracted: type={page_type},"
+    "meta_keys={meta_keys}, breadcrumbs_count={breadcrumbs}"
+)
+
+# field_utils.py
+MSG_DEBUG_UNAVAILABLE_FIELDS_DETECTED = "Unavailable fields detected in raw data: {fields}"
+MSG_DEBUG_NORMALIZED_KEYS = "Field keys normalized: original={original}, mapped={normalized}"
 
 
 # llm_fixed.py
@@ -353,6 +372,12 @@ MSG_DEBUG_RULE_BASED_VALIDATION_FAILED_FIELDS = (
 )
 MSG_ERROR_RULE_BASED_EXTRACTION_FAILED = "[AGENT] [RULE_BASED] Validation failed for URL: {url}"
 
+# llm_dynamic.py
+MSG_INFO_FIELD_DISCOVERY_SCORE = (
+    "[AGENT] [LLM] [{url}] Field discovery score: "
+    "{score:.2f} (excluding {num_unavailable} unavailable)"
+)
+
 
 # llm_dynamic_adaptive.py
 
@@ -382,6 +407,20 @@ MSG_DEBUG_FIELD_SCORE_PER_RETRY = (
 MSG_DEBUG_LLM_INITIAL_PROMPT = "[AGENT] [LLM] Initial LLM prompt for {url}:\n{prompt}"
 
 MSG_DEBUG_LLM_RETRY_PROMPT = "[AGENT] [LLM] Retry prompt for {url} (attempt {attempt}):\n{message}"
+
+MSG_DEBUG_FINAL_DISCOVERY_RETRY_TRIGGERED = (
+    "[AGENT] [LLM] [{url}] Final discovery"
+    "retry triggered (required fields complete, exploring optional fields)."
+)
+
+
+MSG_DEBUG_PROMPT_RETRY_MODE = (
+    "[AGENT] [LLM] [{url}] Building retryprompt. Missing fields: {missing}"
+)
+MSG_DEBUG_PROMPT_FALLBACK_MODE = (
+    "[AGENT] [LLM] [{url}] Building fallbackprompt (no missing fields)."
+)
+
 
 # ---------------------------------------------------------------------
 # common/logging.py
