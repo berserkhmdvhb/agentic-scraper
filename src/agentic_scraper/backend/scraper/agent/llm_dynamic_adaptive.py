@@ -17,7 +17,6 @@ Primary entrypoint:
 
 import copy
 import logging
-import re
 from typing import Any
 
 from openai import AsyncOpenAI, OpenAIError
@@ -51,16 +50,15 @@ from agentic_scraper.backend.scraper.agent.field_utils import (
     normalize_keys,
 )
 from agentic_scraper.backend.scraper.agent.prompt_helpers import (
+    _sort_fields_by_weight,
     build_prompt,
     build_retry_or_fallback_prompt,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.backend.scraper.models import RetryContext, ScrapedItem, ScrapeRequest
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["extract_adaptive_data"]
-
-RATE_LIMIT_RETRY_REGEX = re.compile(r"(?:retry|try again).*?(\d+(?:\.\d+)?)s", re.IGNORECASE)
 
 
 async def run_llm_with_retries(
@@ -100,9 +98,10 @@ async def run_llm_with_retries(
                     temperature=settings.llm_temperature,
                     max_tokens=settings.llm_max_tokens,
                 )
-                if not response.choices or not response.choices[0].message.content:
+                content = response.choices[0].message.content
+                if not content or not isinstance(content, str):
                     return None
-                return response.choices[0].message.content.strip()
+                return content.strip()
             except OpenAIError as e:
                 handle_openai_exception(e, url, settings)
                 raise
@@ -114,8 +113,6 @@ async def _attempt_llm_pass(
     content: str,
     url: str,
     settings: Settings,
-    *,
-    take_screenshot: bool,
 ) -> tuple[ScrapedItem | None, str, set[str], dict[str, Any]]:
     """
     Perform a single validation pass of the LLM response.
@@ -124,7 +121,6 @@ async def _attempt_llm_pass(
         content (str): Raw string content from the LLM.
         url (str): The source page URL.
         settings (Settings): App-wide runtime settings.
-        take_screenshot (bool): Whether to capture a screenshot if successful.
 
     Returns:
         tuple:
@@ -140,14 +136,110 @@ async def _attempt_llm_pass(
     raw_data = normalize_keys(raw_data)
     raw_data["url"] = url
 
-    if take_screenshot:
-        screenshot_path = await capture_optional_screenshot(url, settings)
-        if screenshot_path:
-            raw_data["screenshot_path"] = screenshot_path
-
     item = try_validate_scraped_item(raw_data, url, settings)
     non_empty_fields = {k for k, v in raw_data.items() if v not in [None, ""]}
     return item, raw_data.get("page_type", ""), non_empty_fields, raw_data
+
+
+# ruff: noqa: PLR0913
+async def process_retry(
+    attempt_num: int,
+    ctx: RetryContext,
+    *,
+    initial_messages: list[ChatCompletionMessageParam],
+    request: ScrapeRequest,
+    settings: Settings,
+    client: AsyncOpenAI,
+) -> tuple[bool, RetryContext]:
+    logger.debug(
+        MSG_DEBUG_LLM_RETRY_ATTEMPT.format(
+            attempt=attempt_num,
+            total=settings.llm_schema_retries,
+            url=request.url,
+        )
+    )
+
+    content = await run_llm_with_retries(client, ctx.messages, settings, request.url)
+    if content is None:
+        return True, ctx
+
+    ctx.messages.append({"role": "assistant", "content": content})
+
+    item, page_type, observed_fields, raw_data = await _attempt_llm_pass(
+        content=content,
+        url=request.url,
+        settings=settings,
+    )
+
+    ctx.all_fields.update({k: v for k, v in raw_data.items() if v not in [None, ""]})
+
+    score = score_and_log_fields(observed_fields, attempt_num, request.url, raw_data)
+    if score > ctx.best_score:
+        ctx.best_score = score
+        ctx.best_fields = copy.deepcopy(raw_data)
+    if item is not None and score > ctx.best_valid_score:
+        ctx.best_valid_item = item
+        ctx.best_valid_score = score
+
+    page_type = (
+        page_type
+        or raw_data.get("page_type")
+        or (request.context_hints.get("page_type") if request.context_hints else None)
+        or ""
+    )
+    required = get_required_fields(page_type) or IMPORTANT_FIELDS
+    missing = set(_sort_fields_by_weight(required - observed_fields))
+
+    if item is not None and not missing:
+        return True, ctx
+
+    retry_prompt = build_retry_or_fallback_prompt(ctx.best_fields, missing)
+    ctx.messages = [
+        initial_messages[0],  # system
+        {"role": "user", "content": retry_prompt},
+    ]
+    logger.debug(
+        MSG_DEBUG_LLM_RETRY_PROMPT.format(
+            url=request.url,
+            attempt=attempt_num,
+            message=retry_prompt,
+        )
+    )
+
+    return False, ctx
+
+
+async def handle_fallback(
+    best_valid_item: ScrapedItem | None,
+    best_fields: dict[str, Any] | None,
+    all_fields: dict[str, Any],
+    request: ScrapeRequest,
+    settings: Settings,
+) -> ScrapedItem | None:
+    screenshot_path: str | None = None
+    if request.take_screenshot and (best_valid_item or best_fields):
+        screenshot_path = await capture_optional_screenshot(request.url, settings)
+        if best_valid_item and screenshot_path:
+            best_valid_item.screenshot_path = screenshot_path
+
+    if best_valid_item:
+        return best_valid_item
+
+    for candidate in (all_fields, best_fields):
+        if candidate:
+            if screenshot_path:
+                candidate["screenshot_path"] = screenshot_path
+            item = try_validate_scraped_item(candidate, request.url, settings)
+            if item:
+                return item
+
+    logger.warning(
+        MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES.format(
+            attempts=settings.llm_schema_retries,
+            url=request.url,
+        )
+    )
+    return None
 
 
 async def extract_adaptive_data(
@@ -157,19 +249,6 @@ async def extract_adaptive_data(
 ) -> ScrapedItem | None:
     """
     Perform structured extraction with adaptive retry logic.
-
-    Builds an enhanced prompt with context hints and allows multiple retry
-    attempts to improve field coverage based on missing schema elements.
-
-    Args:
-        request (ScrapeRequest): Includes cleaned page text, URL, OpenAI creds, and context.
-        settings (Settings): Controls retries, model parameters, and screenshot settings.
-
-    Returns:
-        ScrapedItem | None: Fully or partially validated item, or None on total failure.
-
-    Raises:
-        None: All retryable errors are handled internally.
     """
     if request.context_hints is None:
         request.context_hints = extract_context_hints(request.text, request.url)
@@ -180,82 +259,45 @@ async def extract_adaptive_data(
         prompt_style="enhanced",
         context_hints=request.context_hints,
     )
-    messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
+
+    initial_messages: list[ChatCompletionMessageParam] = [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant that extracts structured data in JSON format.",
+        },
+        {"role": "user", "content": prompt},
+    ]
+
     logger.debug(MSG_DEBUG_LLM_INITIAL_PROMPT.format(url=request.url, prompt=prompt))
 
     api_key, project_id = retrieve_openai_credentials(request.openai)
+    client = AsyncOpenAI(api_key=api_key, project=project_id)
 
-    client = AsyncOpenAI(
-        api_key=api_key,
-        project=project_id,
+    ctx = RetryContext(
+        messages=initial_messages.copy(),
+        best_score=0.0,
+        best_valid_score=0.0,
+        best_fields=None,
+        best_valid_item=None,
+        all_fields={},
     )
-
-    best_score = 0
-    best_fields: dict[str, Any] | None = None
-    all_fields: dict[str, Any] = {}
 
     for attempt_num in range(1, settings.llm_schema_retries + 1):
-        logger.debug(
-            MSG_DEBUG_LLM_RETRY_ATTEMPT.format(
-                attempt=attempt_num,
-                total=settings.llm_schema_retries,
-                url=request.url,
-            )
-        )
-
-        content = await run_llm_with_retries(client, messages, settings, request.url)
-        if content is None:
-            return None
-
-        item, page_type, observed_fields, raw_data = await _attempt_llm_pass(
-            content=content,
-            url=request.url,
+        done, ctx = await process_retry(
+            attempt_num,
+            ctx,
+            initial_messages=initial_messages,
+            request=request,
             settings=settings,
-            take_screenshot=request.take_screenshot,
+            client=client,
         )
+        if done and ctx.best_valid_item:
+            return ctx.best_valid_item
 
-        all_fields.update({k: v for k, v in raw_data.items() if v not in [None, ""]})
-
-        if item is not None:
-            return item
-
-        page_type = (
-            page_type or raw_data.get("page_type") or request.context_hints.get("page_type") or ""
-        )
-        required = get_required_fields(page_type) or IMPORTANT_FIELDS
-        missing = required - observed_fields
-
-        retry_prompt = build_retry_or_fallback_prompt(best_fields, missing)
-        messages[:] = messages[:1]
-        messages.append({"role": "user", "content": retry_prompt})
-
-        logger.debug(
-            MSG_DEBUG_LLM_RETRY_PROMPT.format(
-                url=request.url,
-                attempt=attempt_num,
-                message=retry_prompt,
-            )
-        )
-
-        score = score_and_log_fields(observed_fields, attempt_num, request.url)
-        if score > best_score:
-            best_score = score
-            best_fields = copy.deepcopy(raw_data)
-
-    if all_fields:
-        item = try_validate_scraped_item(all_fields, request.url, settings)
-        if item:
-            return item
-
-    if best_fields:
-        item = try_validate_scraped_item(best_fields, request.url, settings)
-        if item:
-            return item
-
-    logger.warning(
-        MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES.format(
-            attempts=settings.llm_schema_retries,
-            url=request.url,
-        )
+    return await handle_fallback(
+        ctx.best_valid_item,
+        ctx.best_fields,
+        ctx.all_fields,
+        request,
+        settings,
     )
-    return None

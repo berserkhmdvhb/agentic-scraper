@@ -298,6 +298,9 @@ MSG_DEBUG_API_EXCEPTION = "[AGENT] Full exception details:"
 MSG_ERROR_MISSING_OPENAI_CONFIG = "Missing OpenAI config."
 MSG_ERROR_MISSING_OPENAI_API_KEY = "Missing OpenAI API key."
 MSG_ERROR_MISSING_OPENAI_PROJECT_ID = "Missing OpenAI project ID."
+MSG_DEBUG_LLM_FIELD_SCORE_DETAILS = (
+    "[AGENT] [LLM] Attempt {attempt} for {url}: score={score:.2f} | field_weights={field_weights}"
+)
 
 
 # llm_fixed.py

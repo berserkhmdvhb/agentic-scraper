@@ -40,20 +40,25 @@ def normalize_keys(raw: dict[str, Any]) -> dict[str, Any]:
     return {FIELD_SYNONYMS.get(k, k): v for k, v in raw.items()}
 
 
-def score_fields(fields: set[str]) -> int:
+def score_nonempty_fields(data: dict[str, Any]) -> float:
     """
-    Compute a weighted score for a set of fields based on FIELD_WEIGHTS.
-
-    Higher weights are assigned to more important fields (e.g., 'title', 'price').
-    This is used to compare and rank different LLM outputs by quality.
+    Compute a hybrid score for extracted fields based on importance and coverage.
 
     Args:
-        fields (set[str]): Set of normalized field names.
+        data (dict[str, Any]): Dictionary of extracted fields with values.
 
     Returns:
-        int: Total weighted score.
+        float: Weighted score combining important known fields and bonus for general coverage.
     """
-    return sum(FIELD_WEIGHTS.get(f, 0) for f in fields)
+    base_score = 0.3  # For unknown fields
+    score = 0.0
+
+    for key, value in data.items():
+        if value in [None, ""]:
+            continue
+        score += FIELD_WEIGHTS.get(key, base_score)
+
+    return score
 
 
 def get_required_fields(page_type: str | list[str] | None) -> set[str]:

@@ -4,6 +4,7 @@ from typing import Any
 
 from agentic_scraper.backend.config.constants import IMPORTANT_FIELDS, MAX_TEXT_FOR_FEWSHOT
 from agentic_scraper.backend.config.messages import MSG_DEBUG_CONTEXTUAL_HINTS_USED
+from agentic_scraper.backend.scraper.agent.field_utils import FIELD_WEIGHTS
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,17 @@ Required JSON schema (example fields):
 - company (str)
 - location (str)
 - date (str)
+...
 """
+
+
+def _truncate_fields(fields: dict[str, Any], limit: int = 500) -> str:
+    raw = json.dumps(fields, indent=2)
+    return raw if len(raw) <= limit else raw[:limit] + "\n... (truncated)"
+
+
+def _sort_fields_by_weight(fields: set[str]) -> list[str]:
+    return sorted(fields, key=lambda f: FIELD_WEIGHTS.get(f, 0), reverse=True)
 
 
 def build_prompt(
@@ -58,13 +69,13 @@ You are a smart web content extraction agent.
 Your goal is to extract all useful information from the web page below,
 based on the type of the web page (product, blog, job) and its context.
 Decide which fields to extract accordingly.
-The more relevant information you could extract, the better.
+Extract as much relevant information as possible.
 
 Instructions:
 - Infer the page_type (e.g. product, blog, job).
 - Choose fields based on type.
 - Only extract values present in the page.
-- Prioritize extracting important fields:
+- The following fields are especially important and should be prioritized if found:
 {", ".join(IMPORTANT_FIELDS)}, but don't hesitate to add more relevant fields.
 - Return only valid JSON.
 
@@ -73,6 +84,7 @@ Mandatory fields: url, page_type.
 """.strip()
 
     if prompt_style == "enhanced":
+        page_type = context_hints.get("page") if context_hints else None
         meta = context_hints.get("meta") if context_hints else None
         breadcrumbs = context_hints.get("breadcrumbs") if context_hints else None
         url_segments = context_hints.get("url_segments") if context_hints else None
@@ -88,6 +100,7 @@ Mandatory fields: url, page_type.
 
         context_block = f"""
 Extra context:
+- Page Type: {page_type or "N/A"}
 - Meta tags: {meta or "N/A"}
 - Breadcrumbs: {breadcrumbs or "N/A"}
 - URL segments: {url_segments or "N/A"}
@@ -100,6 +113,7 @@ Extra context:
 
     return f"""
 {base_message}
+
 {example_block}
 {context_block}
 
@@ -115,22 +129,31 @@ def build_retry_prompt(
     missing_fields: set[str],
 ) -> str:
     """
-    Build a focused retry prompt using previously extracted data and missing field hints.
+    Build a retry prompt that recovers missing required
+    fields and expands with other relevant metadata.
 
     Args:
-        best_fields (dict[str, Any]): Partial extracted fields from prior attempts.
-        missing_fields (set[str]): Fields that were missing.
+        best_fields (dict[str, Any]): Previously extracted data (may be partial).
+        missing_fields (set[str]): Required fields that were missing in the last attempt.
 
     Returns:
-        str: Retry prompt to send to the LLM.
+        str: Retry instruction combining prior output and extraction goals.
     """
-    return (
-        "We previously extracted the following fields:\n"
-        f"{json.dumps(best_fields, indent=2)}\n\n"
-        f"The following important fields were missing: {', '.join(sorted(missing_fields))}.\n"
-        "Please re-analyze the page content and extract ONLY the missing fields if available.\n"
-        "Return a valid JSON object with just those fields."
-    )
+    return f"""We previously extracted the following fields:
+{_truncate_fields(best_fields)}
+
+However, the following important fields were missing:
+{", ".join(_sort_fields_by_weight(missing_fields)) or "None"}.
+
+Instructions:
+- Re-analyze the page carefully.
+- Fill in the missing required fields listed above.
+- Include any additional relevant or useful fields not already present.
+- Use your judgment based on the page type and context.
+- Extract as much relevant information as possible.
+
+Return only a valid JSON object. Do not include explanations or extra text.
+"""
 
 
 def build_retry_or_fallback_prompt(
@@ -150,9 +173,20 @@ def build_retry_or_fallback_prompt(
     if missing_fields:
         return build_retry_prompt(best_fields or {}, missing_fields)
 
+    if best_fields:
+        return f"""We previously extracted the following fields:
+{_truncate_fields(best_fields)}
+
+Instructions:
+- Analyze the content again and extract any additional useful or contextually important fields.
+- If possible, improve or extend previously extracted fields (do not just repeat them).
+- Use your judgment based on the page type and context.
+
+Return only a valid JSON object. Do not include explanations or extra text.
+"""
+
     return (
-        "Please try to extract any additional useful fields from the content "
-        "that may have been missed earlier. Ensure your output includes all "
-        "relevant fields and metadata based on the page type and context. "
-        "Return only valid JSON."
+        "Analyze the content and extract all useful, relevant, or structured fields. "
+        "Use your best judgment to infer fields based on page context and type. "
+        "Return only a valid JSON object. Do not include explanations or extra text."
     )
