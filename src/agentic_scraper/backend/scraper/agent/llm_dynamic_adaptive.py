@@ -166,6 +166,26 @@ async def process_retry(
     settings: Settings,
     client: AsyncOpenAI,
 ) -> tuple[bool, RetryContext]:
+    """
+    Perform a single adaptive retry pass with updated prompt and result evaluation.
+
+    This function sends the current message context to the LLM, parses the response,
+    evaluates field quality, and updates the retry context. It determines whether
+    a follow-up retry is needed based on missing required fields, score improvements,
+    and discovery completeness.
+
+    Args:
+        attempt_num (int): Current retry attempt number (1-based).
+        ctx (RetryContext): Ongoing context holding best results and accumulated fields.
+        initial_messages (list[ChatCompletionMessageParam]): Original system/user message pair.
+        request (ScrapeRequest): Scraping request containing input text, metadata, and credentials.
+        settings (Settings): Runtime configuration controlling retries, verbosity, and model usage.
+        client (AsyncOpenAI): OpenAI client instance for making the chat request.
+
+    Returns:
+        tuple[bool, RetryContext]: A tuple where the first value indicates whether
+        retries should stop (`True` to exit), and the second is the updated retry context.
+    """
     logger.debug(
         MSG_DEBUG_LLM_RETRY_ATTEMPT.format(
             attempt=attempt_num,
@@ -246,6 +266,26 @@ async def handle_fallback(
     request: ScrapeRequest,
     settings: Settings,
 ) -> ScrapedItem | None:
+    """
+    Attempt final validation and return the best available result after retries.
+
+    This function is called when all adaptive retry attempts have been exhausted.
+    It first returns the best validated result if available. Otherwise, it attempts
+    to validate and return the best raw field candidates (`best_fields` or `all_fields`).
+    If screenshot capture is enabled, it captures a screenshot and attaches the path
+    to the result if possible.
+
+    Args:
+        best_valid_item (ScrapedItem | None): The best validated item from retry attempts.
+        best_fields (dict[str, Any] | None): The most complete unvalidated field set.
+        all_fields (dict[str, Any]): All raw fields collected across retries.
+        request (ScrapeRequest): Scraping request containing URL, OpenAI config, and options.
+        settings (Settings): Global runtime settings for validation, logging, and screenshots.
+
+    Returns:
+        ScrapedItem | None:
+            A validated structured item or None if no candidate passes schema validation.
+    """
     screenshot_path: str | None = None
     if request.take_screenshot and (best_valid_item or best_fields):
         screenshot_path = await capture_optional_screenshot(request.url, settings)
@@ -278,7 +318,23 @@ async def extract_adaptive_data(
     settings: Settings,
 ) -> ScrapedItem | None:
     """
-    Perform structured extraction with adaptive retry logic.
+    Perform structured data extraction using adaptive retry logic.
+
+    This function coordinates a multi-pass extraction strategy using OpenAI's
+    Chat API. It builds an enhanced prompt with optional context hints and executes
+    several retries to improve field coverage. Each retry adjusts the prompt based
+    on missing required fields or incomplete output. The best valid result is returned,
+    or a fallback is attempted if retries fail.
+
+    Args:
+        request (ScrapeRequest): Scraping request containing cleaned HTML text, URL,
+            OpenAI credentials, screenshot flag, and optional context hints.
+        settings (Settings): Global runtime configuration including retry attempts,
+            model settings, and logging verbosity.
+
+    Returns:
+        ScrapedItem | None: Structured and validated scraped data, or None if all
+        retry attempts fail to produce a valid result.
     """
     if request.context_hints is None:
         request.context_hints = extract_context_hints(request.text, request.url)

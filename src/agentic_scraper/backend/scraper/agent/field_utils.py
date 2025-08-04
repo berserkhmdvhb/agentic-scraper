@@ -104,7 +104,20 @@ def normalize_value(
     value: str | float | None,
     target_type: type[float] | type[int] | type[str],
 ) -> float | int | str | None:
-    """Normalize a value based on its expected target type."""
+    """
+    Normalize a raw value based on its expected target type.
+
+    This function coerces the input value into the specified type (float, int, or str),
+    and returns None if the value is considered a placeholder (e.g., "n/a", "not specified").
+
+    Args:
+        value (str | float | None): The raw value to normalize.
+        target_type (type): The expected target type (float, int, or str).
+
+    Returns:
+        float | int | str | None: Normalized value or None if invalid or unavailable.
+    """
+
     if value is None:
         return None
 
@@ -126,7 +139,19 @@ def normalize_value(
 
 
 def normalize_fields(raw_fields: dict[str, Any]) -> dict[str, Any]:
-    """Normalize raw LLM fields to match schema expectations."""
+    """
+    Normalize a dictionary of LLM-extracted fields to match expected schema formats.
+
+    Field-specific normalization is applied based on known schema keys. Unknown fields
+    are passed through without modification. This ensures consistency for downstream
+    validation and scoring.
+
+    Args:
+        raw_fields (dict[str, Any]): Dictionary of raw extracted field values.
+
+    Returns:
+        dict[str, Any]: Dictionary with normalized values per expected field types.
+    """
     normalized = {}
 
     for key, value in raw_fields.items():
@@ -156,7 +181,19 @@ def normalize_fields(raw_fields: dict[str, Any]) -> dict[str, Any]:
 
 
 def detect_unavailable_fields(raw: dict[str, Any]) -> set[str]:
-    """Detect fields whose raw values indicate 'not available' semantics."""
+    """
+    Detect which fields contain syntactic placeholders (e.g., "n/a", "unknown").
+
+    This function flags fields whose values represent the absence of meaningful data,
+    such as "Not specified" or "N/A". These fields are excluded from retry prompts
+    and scoring logic to avoid redundant extraction attempts.
+
+    Args:
+        raw (dict[str, Any]): Dictionary of raw extracted field values.
+
+    Returns:
+        set[str]: Set of field names explicitly marked as unavailable.
+    """
     unavailable = set()
     for k, v in raw.items():
         if isinstance(v, str) and v.strip().lower() in PLACEHOLDER_VALUES:

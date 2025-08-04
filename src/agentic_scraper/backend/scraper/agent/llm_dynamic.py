@@ -27,6 +27,7 @@ from tenacity import (
 
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
+    MSG_INFO_FIELD_DISCOVERY_SCORE,
 )
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
@@ -36,7 +37,12 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     retrieve_openai_credentials,
     try_validate_scraped_item,
 )
-from agentic_scraper.backend.scraper.agent.field_utils import normalize_keys
+from agentic_scraper.backend.scraper.agent.field_utils import (
+    detect_unavailable_fields,
+    normalize_fields,
+    normalize_keys,
+    score_nonempty_fields,
+)
 from agentic_scraper.backend.scraper.agent.prompt_helpers import build_prompt
 from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
 
@@ -108,7 +114,8 @@ async def _extract_impl(
     prompt = build_prompt(
         text=request.text,
         url=request.url,
-        prompt_style="simple",  # Change to "enhanced" and add context_hints if desired
+        prompt_style="enhanced",
+        context_hints=request.context_hints,
     )
 
     messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
@@ -132,6 +139,7 @@ async def _extract_impl(
             logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=request.url))
             return None
 
+        # ─── Parse, Normalize, and Score ──────────────────────────────────────
         raw_data = parse_llm_response(content, request.url, settings)
         if raw_data is None:
             return None
@@ -139,15 +147,25 @@ async def _extract_impl(
         raw_data = normalize_keys(raw_data)
         raw_data["url"] = request.url
 
-        if request.take_screenshot:
-            screenshot_path = await capture_optional_screenshot(
+        unavailable_fields = detect_unavailable_fields(raw_data)
+        score = score_nonempty_fields(raw_data)
+        logger.info(
+            MSG_INFO_FIELD_DISCOVERY_SCORE.format(
                 url=request.url,
-                settings=settings,
+                score=score,
+                num_unavailable=len(unavailable_fields),
             )
-            if screenshot_path:
-                raw_data["screenshot_path"] = screenshot_path
+        )
 
-        return try_validate_scraped_item(raw_data, request.url, settings)
+        normalized = normalize_fields(raw_data)
+
+        # ─── Screenshot (Optional) ────────────────────────────────────────────
+        if request.take_screenshot:
+            screenshot_path = await capture_optional_screenshot(request.url, settings)
+            if screenshot_path:
+                normalized.setdefault("screenshot_path", screenshot_path)
+
+        return try_validate_scraped_item(normalized, request.url, settings)
 
     except (RateLimitError, APIError, OpenAIError) as e:
         handle_openai_exception(e, url=request.url, settings=settings)
