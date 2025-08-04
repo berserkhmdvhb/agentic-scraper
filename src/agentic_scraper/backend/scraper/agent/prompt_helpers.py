@@ -182,6 +182,7 @@ choose the most relevant fields to extract.
 - Don't limit yourself to common fields (e.g., title, price, author), also extract other
 relevant attributes you can infer from the page that would be useful
 (e.g., for a product page: product features and specifications, ratings, etc)
+- Create new field names as needed when encountering novel information.
 - If the page includes key-value pairs, such as product specifications,
 bullet points, or labeled sections, extract each as a separate field in the JSON output.
 And include them as a structured field, even if they're not in the template.
@@ -221,6 +222,7 @@ Instructions:
 - Analyze the content again and extract any additional useful or contextually relevant fields.
 - If possible, improve or extend previously extracted fields (do not just repeat them).
 - Use your judgment based on the page type and context, to add more fields.
+- Create new field names as needed when encountering novel information.
 
 Return as a valid JSON object.
 """
@@ -230,5 +232,6 @@ Return as a valid JSON object.
         "Use your best judgment to infer fields based on page context and type. "
         "Don't limit yourself to common fields (e.g., title, price, author), also extract other"
         "relevant attributes you can infer from the page that would be useful. "
+        "Create new field names as needed when encountering novel information. "
         "Return as a valid JSON object."
     )
