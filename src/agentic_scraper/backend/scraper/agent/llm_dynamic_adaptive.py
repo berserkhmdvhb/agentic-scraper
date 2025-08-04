@@ -47,6 +47,7 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
 )
 from agentic_scraper.backend.scraper.agent.field_utils import (
     get_required_fields,
+    normalize_fields,
     normalize_keys,
 )
 from agentic_scraper.backend.scraper.agent.prompt_helpers import (
@@ -132,13 +133,15 @@ async def _attempt_llm_pass(
     raw_data = parse_llm_response(content, url, settings)
     if raw_data is None:
         return None, "", set(), {}
-
-    raw_data = normalize_keys(raw_data)
     raw_data["url"] = url
-
-    item = try_validate_scraped_item(raw_data, url, settings)
+    raw_data = normalize_keys(raw_data)
     non_empty_fields = {k for k, v in raw_data.items() if v not in [None, ""]}
-    return item, raw_data.get("page_type", ""), non_empty_fields, raw_data
+
+    # Normalize only for validation
+
+    normalized = normalize_fields(raw_data)
+    item = try_validate_scraped_item(normalized, url, settings)
+    return item, raw_data.get("page_type", ""), non_empty_fields, normalized
 
 
 # ruff: noqa: PLR0913

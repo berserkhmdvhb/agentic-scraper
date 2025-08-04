@@ -74,7 +74,9 @@ Extract as much relevant information as possible.
 Instructions:
 - Infer the page_type (e.g. product, blog, job).
 - Choose fields based on type.
-- Only extract values present in the page.
+- Only extract values that are explicitly present on the page.
+- If a value is clearly marked as unknown or unavailable
+(e.g., "Not specified", "N/A"), return a syntactic null.
 - The following fields are especially important and should be prioritized if found:
 {", ".join(IMPORTANT_FIELDS)}, but don't hesitate to add more relevant fields.
 - Return only valid JSON.
@@ -148,6 +150,8 @@ However, the following important fields were missing:
 Instructions:
 - Re-analyze the page carefully.
 - Fill in the missing required fields listed above.
+- If a value is clearly marked as unknown or unavailable
+(e.g., "Not specified", "N/A"), return a syntactic null
 - Include any additional relevant or useful fields not already present.
 - Use your judgment based on the page type and context.
 - Extract as much relevant information as possible.

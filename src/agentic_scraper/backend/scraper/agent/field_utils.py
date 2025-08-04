@@ -2,6 +2,8 @@ from typing import Any
 
 from agentic_scraper.backend.config.constants import FIELD_SYNONYMS
 
+PLACEHOLDER_VALUES = {"not specified", "n/a", "none", "unknown", "-", ""}
+
 # Mapping of page types to the canonical fields expected for extraction.
 PAGE_TYPE_TO_FIELDS: dict[str, set[str]] = {
     "product": {"title", "price", "description"},
@@ -78,3 +80,63 @@ def get_required_fields(page_type: str | list[str] | None) -> set[str]:
     elif not isinstance(page_type, str):
         page_type = ""
     return PAGE_TYPE_TO_FIELDS.get(page_type.lower().strip(), set())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Normalizers
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def normalize_value(
+    value: str | float | None,
+    target_type: type[float] | type[int] | type[str],
+) -> float | int | str | None:
+    """Normalize a value based on its expected target type."""
+    if value is None:
+        return None
+
+    if isinstance(value, str) and value.strip().lower() in PLACEHOLDER_VALUES:
+        return None
+
+    result: float | int | str | None = None
+    try:
+        if target_type is float:
+            result = float(value)
+        elif target_type is int:
+            result = int(value)
+        elif target_type is str:
+            result = str(value).strip()
+    except (ValueError, TypeError):
+        result = None
+
+    return result
+
+
+def normalize_fields(raw_fields: dict[str, Any]) -> dict[str, Any]:
+    """Normalize raw LLM fields to match schema expectations."""
+    normalized = {}
+
+    for key, value in raw_fields.items():
+        if key == "price":
+            normalized[key] = normalize_value(value, float)
+        elif key == "date_published":
+            normalized[key] = str(value).strip() if value else None
+        elif key in {
+            "title",
+            "description",
+            "author",
+            "summary",
+            "job_title",
+            "company",
+            "location",
+            "job_type",
+            "application_deadline",
+        }:
+            normalized[key] = normalize_value(value, str)
+        elif key == "url":
+            normalized[key] = str(value).strip() if value else None
+        else:
+            # Unknown or unhandled fields: pass through untouched
+            normalized[key] = value
+
+    return normalized
