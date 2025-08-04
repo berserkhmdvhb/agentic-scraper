@@ -26,6 +26,8 @@ from pydantic import ValidationError
 
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_API_EXCEPTION,
+    MSG_DEBUG_EARLY_EXIT_SKIPPED,
+    MSG_DEBUG_EARLY_EXIT_TRIGGERED,
     MSG_DEBUG_LLM_FIELD_SCORE_DETAILS,
     MSG_DEBUG_LLM_JSON_DUMP_SAVED,
     MSG_DEBUG_PARSED_STRUCTURED_DATA,
@@ -364,3 +366,48 @@ def retrieve_openai_credentials(config: OpenAIConfig | None) -> tuple[str, str]:
     if not config.project_id:
         raise ValueError(MSG_ERROR_MISSING_OPENAI_PROJECT_ID)
     return config.api_key, config.project_id
+
+
+def should_exit_early(
+    *,
+    item: ScrapedItem | None,
+    raw_data: dict[str, Any],
+    best_fields: dict[str, Any] | None,
+    missing: set[str],
+    url: str,
+) -> bool:
+    """
+    Decide whether to stop retrying based on whether any useful progress was made.
+
+    Args:
+        item (ScrapedItem | None): The current validated item (if any).
+        raw_data (dict[str, Any]): Raw normalized fields from current attempt.
+        best_fields (dict[str, Any] | None): Best fields seen so far across attempts.
+        missing (set[str]): Required fields still missing.
+        url (str): The URL being scraped, used for logging.
+
+    Returns:
+        bool: True if we should exit early, False to continue retrying.
+    """
+    if item is None:
+        return False
+
+    previous_keys = set(best_fields or {})
+    current_keys = set(raw_data.keys())
+    new_fields = current_keys - previous_keys
+    newly_filled_missing = missing & new_fields
+
+    should_stop = not new_fields and not newly_filled_missing
+
+    if should_stop:
+        logger.debug(MSG_DEBUG_EARLY_EXIT_TRIGGERED.format(url=url))
+    else:
+        logger.debug(
+            MSG_DEBUG_EARLY_EXIT_SKIPPED.format(
+                url=url,
+                new_fields=new_fields,
+                newly_filled_missing=newly_filled_missing,
+            )
+        )
+
+    return should_stop

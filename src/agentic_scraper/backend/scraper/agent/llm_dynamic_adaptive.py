@@ -43,6 +43,7 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     parse_llm_response,
     retrieve_openai_credentials,
     score_and_log_fields,
+    should_exit_early,
     try_validate_scraped_item,
 )
 from agentic_scraper.backend.scraper.agent.field_utils import (
@@ -201,14 +202,22 @@ async def process_retry(
         or ""
     )
     required = get_required_fields(page_type) or IMPORTANT_FIELDS
-    missing = set(_sort_fields_by_weight(required - observed_fields - unavailable_fields))
+    best_keys = set(ctx.best_fields or {})
+    missing = set(_sort_fields_by_weight(required - best_keys - unavailable_fields))
 
-    if item is not None and not missing:
+    if should_exit_early(
+        item=item,
+        raw_data=raw_data,
+        best_fields=ctx.best_fields,
+        missing=missing,
+        url=request.url,
+    ):
         return True, ctx
 
     retry_prompt = build_retry_or_fallback_prompt(ctx.best_fields, missing)
     ctx.messages = [
-        initial_messages[0],  # system
+        initial_messages[0],
+        ctx.messages[-1],  # last assistant output
         {"role": "user", "content": retry_prompt},
     ]
     logger.debug(
@@ -238,7 +247,7 @@ async def handle_fallback(
     if best_valid_item:
         return best_valid_item
 
-    for candidate in (all_fields, best_fields):
+    for candidate in (best_fields, all_fields):
         if candidate:
             if screenshot_path:
                 candidate["screenshot_path"] = screenshot_path

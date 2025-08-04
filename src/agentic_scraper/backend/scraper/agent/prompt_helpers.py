@@ -33,14 +33,11 @@ Template JSON schema (example fields):
 - company (str)
 - location (str)
 - date (str)
-- responsbilities (str)
-- qualifications (str)
-- skills (str)
 ...
 """
 
 
-def _truncate_fields(fields: dict[str, Any], limit: int = 500) -> str:
+def _truncate_fields(fields: dict[str, Any], limit: int = 700) -> str:
     raw = json.dumps(fields, indent=2)
     return raw if len(raw) <= limit else raw[:limit] + "\n... (truncated)"
 
@@ -69,14 +66,15 @@ def build_prompt(
     """
     base_message = f"""
 You are a smart web content extraction agent.
-Your goal is to extract all useful information from the web page below,
-based on the type of the web page (product, blog, job) and its context.
-Decide which fields to extract accordingly.
-Extract as much relevant information as possible.
+Your goal is to extract as much useful information
+(as structured fields) as possible, from the web page below.
+The extraction should be based on the type of the web page (product, blog, job) and its context.
+Based on the inferred page type and context, choose the most relevant fields to extract.
+
 
 Instructions:
-- Infer the page_type (e.g. product, blog, job).
-- Choose fields based on type.
+- Infer the page_type (e.g. product, blog, job) and context.
+- Decide which fields are useful to add to results, based on context.
 - If any field is unavailable or missing from the page (e.g., 'Not specified', 'N/A', etc.),
 return it as syntactic null. Do not guess or hallucinate values.
 - The following fields are especially important and should be prioritized if found:
@@ -143,7 +141,7 @@ def build_retry_prompt(
     Returns:
         str: Retry instruction combining prior output and extraction goals.
     """
-    return f"""We previously extracted the following fields:
+    return f"""We previously extracted the following fields from the URL:
 {_truncate_fields(best_fields)}
 
 However, the following important fields were missing:
@@ -156,10 +154,11 @@ Instructions:
 return it as syntactic null. Do not guess or hallucinate values.
 - If previously returned values were null and are still not available on
 the page, leave them as null.
-- Include any additional relevant or useful fields not already present.
-- Use your judgment based on the page type and context to decide which fields to add.
-- Extract as much relevant information as possible.
+- Include any additional relevant or useful fields if not already present.
+- Use your judgment based on the page type and context to
+choose the most relevant fields to extract.
 
+Your goal is to extract as much relevant information and more useful fields as possible.
 Return only a valid JSON object.
 """
 
@@ -188,8 +187,7 @@ def build_retry_or_fallback_prompt(
 Instructions:
 - Analyze the content again and extract any additional useful or contextually important fields.
 - If possible, improve or extend previously extracted fields (do not just repeat them).
-- Use your judgment based on the page type and context.
-
+- Use your judgment based on the page type and context, to add more fields.
 Return only a valid JSON object.
 """
 

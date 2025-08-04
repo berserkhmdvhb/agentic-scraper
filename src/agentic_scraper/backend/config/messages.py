@@ -302,6 +302,13 @@ MSG_DEBUG_LLM_FIELD_SCORE_DETAILS = (
     "[AGENT] [LLM] Attempt {attempt} for {url}: score={score:.2f} | field_weights={field_weights}"
 )
 
+MSG_DEBUG_EARLY_EXIT_TRIGGERED = (
+    "[AGENT] [LLM] [{url}] Early exit: no new fields added and no missing fields recovered."
+)
+MSG_DEBUG_EARLY_EXIT_SKIPPED = (
+    "[AGENT] [LLM] [{url}] Continue retry: "
+    "new_fields={new_fields}, newly_filled_missing={newly_filled_missing}"
+)
 
 # llm_fixed.py
 MSG_SYSTEM_PROMPT = """You are a web extraction assistant.
