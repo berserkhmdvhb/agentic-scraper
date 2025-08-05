@@ -26,6 +26,7 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.frontend.models import PipelineConfig
 from agentic_scraper.frontend.ui_runner_helpers import (
     attach_openai_config,
@@ -73,8 +74,8 @@ async def start_scraping(urls: list[str], config: PipelineConfig) -> tuple[list[
         "verbose": config.verbose,
         "retry_attempts": config.retry_attempts,
     }
-
-    if config.agent_mode != "rule_based" and not attach_openai_config(config, body):
+    is_llm_agent = config.agent_mode != AgentMode.RULE_BASED
+    if is_llm_agent and not attach_openai_config(config, body):
         return [], 0
 
     try:

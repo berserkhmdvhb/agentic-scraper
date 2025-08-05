@@ -33,6 +33,7 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.models import OpenAIConfig
+from agentic_scraper.backend.config.types import AgentMode
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -156,14 +157,21 @@ def fetch_openai_credentials() -> None:
         st.session_state["openai_credentials"] = openai_config
         st.success("OpenAI credentials retrieved successfully!")
 
-
-def authenticate_user() -> None:
+def authenticate_user(agent_mode: AgentMode | None = None) -> None:
     """
     Authenticate the user by extracting the JWT and fetching their profile and credentials.
+
+    Skips authentication entirely if agent_mode is rule-based.
+
+    Args:
+        agent_mode (AgentMode | None): Current agent mode to conditionally skip auth.
 
     Returns:
         None
     """
+    if agent_mode == AgentMode.RULE_BASED:
+        return
+
     if "jwt_token" in st.session_state and "user_info" in st.session_state:
         return
 
@@ -180,6 +188,7 @@ def authenticate_user() -> None:
         st.rerun()
     else:
         logger.info(MSG_INFO_NO_TOKEN_YET)
+
 
 
 def logout_user() -> None:
@@ -206,7 +215,7 @@ def login_ui(agent_mode: str) -> None:
     Returns:
         None
     """
-    requires_auth = agent_mode and agent_mode != "rule_based"
+    requires_auth = agent_mode and agent_mode != AgentMode.RULE_BASED.value
     if not requires_auth:
         return
 

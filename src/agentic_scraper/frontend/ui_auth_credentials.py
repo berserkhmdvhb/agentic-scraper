@@ -13,23 +13,31 @@ import streamlit as st
 from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.ui_auth import fetch_openai_credentials
+from agentic_scraper.backend.config.types import AgentMode
 
 settings = get_settings()
 
 
-def render_credentials_form() -> None:
+def render_credentials_form(agent_mode: AgentMode) -> None:
     """
     Display a form for the user to enter OpenAI API credentials.
 
-    Submits credentials to the backend for encrypted storage. Provides
-    feedback based on success or failure of the HTTP request.
+    This form is only shown for LLM-based agent modes. It allows a logged-in
+    user to submit their OpenAI API key and project ID to the backend for
+    secure encrypted storage. On successful submission, the credentials are
+    re-fetched and cached in session state.
+
+    Args:
+        agent_mode (AgentMode): The currently selected agent mode.
 
     Returns:
         None
 
     Raises:
-        None directly, but displays errors via Streamlit.
+        None directly, but shows errors and feedback via the Streamlit UI.
     """
+    if agent_mode == AgentMode.RULE_BASED:
+        return    
     st.markdown("### 🔑 Enter OpenAI Credentials")
 
     if "openai_saved" in st.session_state:

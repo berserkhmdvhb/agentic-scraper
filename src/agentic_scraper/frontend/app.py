@@ -27,7 +27,7 @@ from agentic_scraper.frontend.ui_display import display_results
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
 from agentic_scraper.frontend.ui_runner import run_scraper_pipeline
 from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
-
+from agentic_scraper.backend.config.types import AgentMode
 # --- WINDOWS ASYNCIO FIX ---
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -155,16 +155,16 @@ def main() -> None:
     # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
     agent_mode = controls.agent_mode
-    is_llm_mode = agent_mode != "rule_based"
+    is_llm_mode = agent_mode != AgentMode.RULE_BASED
     if is_llm_mode:
-        authenticate_user()
+        authenticate_user(agent_mode=agent_mode)
         not_logged_in = "jwt_token" not in st.session_state
         if not_logged_in and st.session_state.get("show_auth_overlay", True):
             # we can run render_login_highlight() here when it's working correctly
             pass
 
     # --- OPTIONAL REMINDER ---
-    if agent_mode.startswith("llm_") and "openai_credentials" not in st.session_state:
+    if agent_mode != AgentMode.RULE_BASED and "openai_credentials" not in st.session_state:
         st.info("👉 Submit your OpenAI API credentials in the sidebar before running extraction.")
 
     # --- SESSION STATE INIT ---

@@ -32,17 +32,14 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         SidebarConfig: Parsed sidebar configuration to drive scraper behavior.
     """
     with st.sidebar:
-        render_env_and_login(settings)
         selected_agent_mode = render_agent_mode_selector(settings)
+        render_env_and_login(settings, selected_agent_mode)
         selected_model = render_llm_controls(settings, selected_agent_mode)
         fetch_concurrency, llm_concurrency, verbose, retry_attempts, llm_schema_retries = (
             render_advanced_settings(settings, selected_agent_mode)
         )
 
     # Persist all values in session
-    st.session_state[SESSION_KEYS["screenshot_enabled"]] = st.session_state.get(
-        SESSION_KEYS["screenshot_enabled"], settings.screenshot_enabled
-    )
     st.session_state[SESSION_KEYS["fetch_concurrency"]] = fetch_concurrency
     st.session_state[SESSION_KEYS["llm_concurrency"]] = llm_concurrency
     st.session_state[SESSION_KEYS["verbose"]] = verbose
@@ -62,21 +59,28 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     )
 
 
-def render_env_and_login(settings: Settings) -> None:
+def render_env_and_login(settings: Settings, agent_mode: AgentMode) -> None:
     """
-    Display environment information, log path, and authentication UI.
+    Display environment info and render login + OpenAI credential UI.
+
+    Shows the current environment and log path, then renders the login UI
+    using the selected agent mode. If the user is authenticated, also displays
+    the OpenAI credentials input form.
 
     Args:
-        settings (Settings): Global settings to determine current environment and config.
+        settings (Settings): Global settings to determine environment and config.
+        agent_mode (AgentMode): The currently selected scraping mode, used to control
+            visibility of authentication-related UI elements.
     """
     st.markdown(f"**Environment:** `{get_environment()}`")
     st.markdown(f"**Log Path:** `{get_log_dir() / 'agentic_scraper.log'}`")
     st.markdown("---")
 
     st.markdown("## 🔐 Authentication")
+    st.info("Log in with Auth0 to enable LLM scraping and input your OpenAI credentials.")
     login_ui(settings.agent_mode.value)
     if "jwt_token" in st.session_state:
-        render_credentials_form()
+        render_credentials_form(agent_mode=agent_mode)
 
 
 def render_agent_mode_selector(settings: Settings) -> AgentMode:
@@ -105,7 +109,7 @@ def render_agent_mode_selector(settings: Settings) -> AgentMode:
             "- rule-based: Simple regex-based extraction (no LLM needed)"
         ),
     )
-    if selected_str == "rule_based":
+    if selected_str == AgentMode.RULE_BASED.value:
         st.session_state["show_auth_overlay"] = False
     else:
         st.session_state["show_auth_overlay"] = True
