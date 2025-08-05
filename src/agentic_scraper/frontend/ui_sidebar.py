@@ -32,8 +32,8 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         SidebarConfig: Parsed sidebar configuration to drive scraper behavior.
     """
     with st.sidebar:
-        render_env_and_login(settings)
         selected_agent_mode = render_agent_mode_selector(settings)
+        render_env_and_login(selected_agent_mode)
         selected_model = render_llm_controls(settings, selected_agent_mode)
         fetch_concurrency, llm_concurrency, verbose, retry_attempts, llm_schema_retries = (
             render_advanced_settings(settings, selected_agent_mode)
@@ -62,7 +62,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     )
 
 
-def render_env_and_login(settings: Settings) -> None:
+def render_env_and_login(agent_mode: AgentMode) -> None:
     """
     Display environment information, log path, and authentication UI.
 
@@ -74,9 +74,9 @@ def render_env_and_login(settings: Settings) -> None:
     st.markdown("---")
 
     st.markdown("## 🔐 Authentication")
-    login_ui(settings.agent_mode.value)
+    login_ui()
     if "jwt_token" in st.session_state:
-        render_credentials_form()
+        render_credentials_form(agent_mode=agent_mode)
 
 
 def render_agent_mode_selector(settings: Settings) -> AgentMode:
@@ -105,7 +105,7 @@ def render_agent_mode_selector(settings: Settings) -> AgentMode:
             "- rule-based: Simple regex-based extraction (no LLM needed)"
         ),
     )
-    if selected_str == "rule_based":
+    if selected_str == AgentMode.RULE_BASED.value:
         st.session_state["show_auth_overlay"] = False
     else:
         st.session_state["show_auth_overlay"] = True

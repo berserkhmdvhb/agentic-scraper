@@ -11,13 +11,14 @@ import httpx
 import streamlit as st
 
 from agentic_scraper import __api_version__ as api_version
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.ui_auth import fetch_openai_credentials
 
 settings = get_settings()
 
 
-def render_credentials_form() -> None:
+def render_credentials_form(agent_mode: AgentMode) -> None:
     """
     Display a form for the user to enter OpenAI API credentials.
 
@@ -30,6 +31,8 @@ def render_credentials_form() -> None:
     Raises:
         None directly, but displays errors via Streamlit.
     """
+    if agent_mode == AgentMode.RULE_BASED:
+        return
     st.markdown("### 🔑 Enter OpenAI Credentials")
 
     if "openai_saved" in st.session_state:

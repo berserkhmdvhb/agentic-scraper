@@ -19,6 +19,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR,
     MSG_INFO_APP_RESET_TRIGGERED,
 )
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import Settings, get_settings, log_settings
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
@@ -155,17 +156,16 @@ def main() -> None:
     # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
     agent_mode = controls.agent_mode
-    is_llm_mode = agent_mode != "rule_based"
-    if is_llm_mode:
-        authenticate_user()
-        not_logged_in = "jwt_token" not in st.session_state
-        if not_logged_in and st.session_state.get("show_auth_overlay", True):
-            # we can run render_login_highlight() here when it's working correctly
-            pass
+
+    # --- AUTHENTICATION ---
+    authenticate_user()
 
     # --- OPTIONAL REMINDER ---
-    if agent_mode.startswith("llm_") and "openai_credentials" not in st.session_state:
-        st.info("👉 Submit your OpenAI API credentials in the sidebar before running extraction.")
+    if agent_mode != AgentMode.RULE_BASED and "openai_credentials" not in st.session_state:
+        st.info(
+            "👉 Login and submit your OpenAI API credentials"
+            "in the sidebar before running extraction."
+        )
 
     # --- SESSION STATE INIT ---
     if not st.session_state.get("is_running", False):

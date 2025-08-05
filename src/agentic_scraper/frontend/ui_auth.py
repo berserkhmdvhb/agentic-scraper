@@ -196,7 +196,7 @@ def logout_user() -> None:
     st.rerun()
 
 
-def login_ui(agent_mode: str) -> None:
+def login_ui() -> None:
     """
     Render login or logout UI components based on current session state.
 
@@ -206,9 +206,6 @@ def login_ui(agent_mode: str) -> None:
     Returns:
         None
     """
-    requires_auth = agent_mode and agent_mode != "rule_based"
-    if not requires_auth:
-        return
 
     if "jwt_token" not in st.session_state:
         with st.sidebar:

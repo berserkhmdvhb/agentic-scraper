@@ -11,6 +11,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SCRAPE_CONFIG_MERGED,
     MSG_INFO_SCRAPE_REQUEST_RECEIVED,
 )
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
@@ -29,7 +30,7 @@ async def scrape(
     logger.info(MSG_INFO_SCRAPE_REQUEST_RECEIVED.format(n=len(request.urls)))
 
     creds = None
-    if request.agent_mode != "rule_based":
+    if request.agent_mode != AgentMode.RULE_BASED:
         creds = request.openai_credentials
 
         if not creds:
