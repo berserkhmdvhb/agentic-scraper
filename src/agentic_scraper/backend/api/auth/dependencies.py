@@ -22,7 +22,7 @@ Example:
 import logging
 from typing import cast
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
@@ -39,7 +39,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_JWT_VERIFICATION_FAILED,
 )
 
-__all__ = ["get_current_user"]
+__all__ = ["get_current_user", "get_optional_user"]
 
 logger = logging.getLogger(__name__)
 auth_scheme = HTTPBearer(auto_error=True)
@@ -88,3 +88,26 @@ async def get_current_user(
         "name": payload.get(CLAIM_NAME, payload.get("name")),
         "scope": payload.get("scope", ""),
     }
+
+
+async def get_optional_user(request: Request) -> AuthUser | None:
+    """
+    Try to extract user from JWT if present. Return None if missing or invalid.
+
+    Args:
+        request (Request): The HTTP request object.
+
+    Returns:
+        AuthUser | None: Authenticated user or None if not available.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.lower().startswith("bearer "):
+        return None
+
+    token = auth_header.split(" ", 1)[1].strip()
+    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+    try:
+        return await get_current_user(credentials=credentials)
+    except (HTTPException, JWTError):
+        return None
