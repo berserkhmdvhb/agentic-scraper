@@ -41,11 +41,6 @@
 - [🎥 Demo Video](#-demo-video)
 - [⚙️ Tech Stack](#️-tech-stack)
 - [🧠 Agent Modes](#-agent-modes)
-- [🔬 Scraping Architecture](#-scraping-architecture)
-  - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
-  - [🧬 Agent Extraction](#-agent-extraction-in-agent)
-- [🔌 API (FastAPI)](#-api-fastapi)
-- [🧠 Adaptive Retry Logic](#-adaptive-retry-logic-for-llm-agents)
 - [📁 Project Structure](#-project-structure)
 - [🧰 Installation](#-installation)
   - [👤 For Users](#-for-users)
@@ -57,6 +52,11 @@
 - [🔧 Environment Configuration (.env)](#-environment-configuration-env)
 - [🧪 How It Works](#-how-it-works)
 - [✨ Example Output](#-example-output)
+- [🔬 Scraping Architecture](#-scraping-architecture)
+  - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
+  - [🧬 Agent Extraction](#-agent-extraction-in-agent)
+- [🔌 API (FastAPI)](#-api-fastapi)
+- [🧠 Adaptive Retry Logic](#-adaptive-retry-logic-for-llm-agents)
 - [🚀 CI/CD & Deployment](#-cicd--deployment)
   - [🧪 Continuous Integration](#-continuous-integration)
   - [🚀 Continuous Delivery (Render)](#-continuous-delivery-render)
@@ -85,13 +85,7 @@
 
 ## 🎥 Demo Video
 
-
-
-
 https://github.com/user-attachments/assets/b342d0f3-6bed-477f-b657-8c10e0db3eaf
-
-
-
 
 ---
 
@@ -134,167 +128,6 @@ https://github.com/user-attachments/assets/b342d0f3-6bed-477f-b657-8c10e0db3eaf
 > All LLM modes use the OpenAI ChatCompletion API (`gpt-4`, `gpt-3.5-turbo`).
 
 ---
-
-## 🔬 Scraping Architecture
-
-The scraping pipeline consists of two major components:
-
-* **🔗 URL Fetching** – Responsible for retrieving raw HTML and metadata.
-* **🧠 Agent Extraction** – Parses and extracts structured data using either rules or LLMs.
-
-These stages are modular and can be extended independently.
-
----
-
-### 🔗 URL Fetching (in `fetcher.py`)
-
-The fetching stage is implemented using `httpx.AsyncClient` for concurrent HTTP requests and `tenacity` for smart retries. Each URL is fetched asynchronously and returned as a `FetchedDocument` object containing:
-
-* Original and final (redirected) URLs
-* HTTP status code and headers
-* Raw HTML content
-* Metadata such as domain and fetch timestamp
-
-**Features:**
-
-* Concurrent execution with `asyncio.gather`
-* Exponential backoff retry on failure
-* Bot-mimicking headers and timeouts
-* Optional screenshot triggering via middleware
-
-This stage feeds clean, validated inputs into the next step: agent-based extraction.
-
----
-
-### 🧬 Agent Extraction (in `agent/`)
-
-The Agent layer transforms raw HTML into structured output by selecting relevant fields and filling a JSON schema. The agent used is determined by the `AGENT_MODE` setting.
-
-Each strategy is implemented as a self-contained module and shares a common interface.
-
-#### `rule_based` (baseline benchmark)
-
-* Implements classic parsing with BeautifulSoup4.
-* Uses heuristics (e.g., heading tags, price regex) to extract fields.
-* No LLMs involved.
-* **Fastest and most deterministic.**
-* Good for simple product/job/blog pages.
-
-#### `llm_fixed`
-
-* Prompts OpenAI to extract a **predefined schema**: title, price, description, etc.
-* Always expects these fields, even if they're not present in the page.
-* Simple, schema-first design.
-* Does not retry or adapt.
-
-#### `llm_dynamic`
-
-* Gives the LLM freedom to **choose relevant fields** based on the page content.
-* Useful for heterogeneous or unknown page types.
-* Adds minor prompt conditioning to bias field detection.
-
-#### `llm_dynamic_adaptive`
-
-* Builds on `llm_dynamic` by adding:
-
-  * **Field coverage scoring** using `field_utils.py`
-  * **Retry loop** up to `LLM_SCHEMA_RETRIES`
-  * **Context hints**: page meta tags, URL segments, and expected field importance
-* Selects the best result across multiple attempts.
-* Enables **robust, schema-aware, self-healing extraction**.
-
-Each agent returns a `ScrapedItem` that conforms to the schema and may include fallback values or nulls.
-
----
-
-
-## 🔌 API (FastAPI)
-
-The AgenticScraper backend is powered by **FastAPI** and exposes a versioned REST API under the `/api/v1/` prefix. All routes use **JWT Bearer authentication** via Auth0 and enforce **scope-based access control**.
-
----
-
-### 🔐 Authentication
-
-All endpoints (except `/auth/callback`) require a valid **Bearer token** issued by Auth0:
-
-```http
-Authorization: Bearer eyJhbGciOiJ...
-```
-
-Tokens are verified using Auth0's JWKS endpoint and validated for expiration, signature, and required scopes.
-
----
-
-### 🧭 Available Routes
-
-| Endpoint                          | Method | Description                                          | Auth Scope           |
-| --------------------------------- | ------ | ---------------------------------------------------- | -------------------- |
-| `/api/v1/auth/callback`           | GET    | OAuth2 callback: exchanges Auth0 code for JWT        | public (no auth)     |
-| `/api/v1/user/me`                 | GET    | Returns authenticated user's profile                 | `read:user_profile`  |
-| `/api/v1/user/openai-credentials` | GET    | Retrieves stored OpenAI API key & project ID         | `read:user_profile`  |
-| `/api/v1/user/openai-credentials` | POST   | Stores OpenAI credentials for future scrape requests | `create:openai_credentials` |
-| `/api/v1/scrape/start`            | POST   | Launches scraping pipeline with given URL list       | `read:user_profile`  |
-
----
-
-### 🧪 Example: Scrape Request
-
-```http
-POST /api/v1/scrape/start
-Authorization: Bearer <your_token>
-Content-Type: application/json
-
-{
-  "urls": [
-    "https://example.com/page1",
-    "https://example.com/page2"
-  ],
-  "agent_mode": "llm-dynamic",
-  "llm_model": "gpt-4"
-}
-```
-
-#### Response
-
-```json
-{
-  "results": [...],
-  "stats": {
-    "total": 2,
-    "successful": 2,
-    "duration_seconds": 6.2
-  }
-}
-```
-
----
-
-### 🧩 API Design Notes
-
-* **Versioning**: All endpoints are served under `/api/v1/`
-* **Schemas**: Defined with `pydantic` in the `schemas/` module
-* **Security**: JWT validation via FastAPI dependencies (`get_current_user`)
-* **Scope Enforcement**: Done via `check_required_scopes()` helper
-* **OpenAPI UI**: Visit `/docs` (with token input) for interactive API explorer
-
-
-## 🧠 Adaptive Retry Logic (for LLM Agents)
-
-Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when critical fields (e.g. `title`, `price`, `job_title`) are missing.
-
-### How It Works:
-
-1. Performs an initial LLM extraction attempt.
-2. Evaluates field coverage using `field_utils.score_fields()`.
-3. If important fields are missing, it re-prompts with hints and context.
-4. Repeats up to `LLM_SCHEMA_RETRIES` times.
-5. Returns the best-scoring result among attempts.
-
-→ Enables **self-healing extraction** and **schema robustness** on diverse webpages.
-
----
-
 
 ## 📁 Project Structure
 ### Overview
@@ -570,6 +403,168 @@ The UI overrides `.env` if sidebar values are selected.
 }
 ```
 
+---
+
+
+## 🔬 Scraping Architecture
+
+The scraping pipeline consists of two major components:
+
+* **🔗 URL Fetching** – Responsible for retrieving raw HTML and metadata.
+* **🧠 Agent Extraction** – Parses and extracts structured data using either rules or LLMs.
+
+These stages are modular and can be extended independently.
+
+---
+
+### 🔗 URL Fetching (in `fetcher.py`)
+
+The fetching stage is implemented using `httpx.AsyncClient` for concurrent HTTP requests and `tenacity` for smart retries. Each URL is fetched asynchronously and returned as a `FetchedDocument` object containing:
+
+* Original and final (redirected) URLs
+* HTTP status code and headers
+* Raw HTML content
+* Metadata such as domain and fetch timestamp
+
+**Features:**
+
+* Concurrent execution with `asyncio.gather`
+* Exponential backoff retry on failure
+* Bot-mimicking headers and timeouts
+* Optional screenshot triggering via middleware
+
+This stage feeds clean, validated inputs into the next step: agent-based extraction.
+
+---
+
+### 🧬 Agent Extraction (in `agent/`)
+
+The Agent layer transforms raw HTML into structured output by selecting relevant fields and filling a JSON schema. The agent used is determined by the `AGENT_MODE` setting.
+
+Each strategy is implemented as a self-contained module and shares a common interface.
+
+#### `rule_based` (baseline benchmark)
+
+* Implements classic parsing with BeautifulSoup4.
+* Uses heuristics (e.g., heading tags, price regex) to extract fields.
+* No LLMs involved.
+* **Fastest and most deterministic.**
+* Good for simple product/job/blog pages.
+
+#### `llm_fixed`
+
+* Prompts OpenAI to extract a **predefined schema**: title, price, description, etc.
+* Always expects these fields, even if they're not present in the page.
+* Simple, schema-first design.
+* Does not retry or adapt.
+
+#### `llm_dynamic`
+
+* Gives the LLM freedom to **choose relevant fields** based on the page content.
+* Useful for heterogeneous or unknown page types.
+* Adds minor prompt conditioning to bias field detection.
+
+#### `llm_dynamic_adaptive`
+
+* Builds on `llm_dynamic` by adding:
+
+  * **Field coverage scoring** using `field_utils.py`
+  * **Retry loop** up to `LLM_SCHEMA_RETRIES`
+  * **Context hints**: page meta tags, URL segments, and expected field importance
+* Selects the best result across multiple attempts.
+* Enables **robust, schema-aware, self-healing extraction**.
+
+Each agent returns a `ScrapedItem` that conforms to the schema and may include fallback values or nulls.
+
+---
+
+
+## 🔌 API (FastAPI)
+
+The AgenticScraper backend is powered by **FastAPI** and exposes a versioned REST API under the `/api/v1/` prefix. All routes use **JWT Bearer authentication** via Auth0 and enforce **scope-based access control**.
+
+
+
+### 🔐 Authentication
+
+All endpoints (except `/auth/callback`) require a valid **Bearer token** issued by Auth0:
+
+```http
+Authorization: Bearer eyJhbGciOiJ...
+```
+
+Tokens are verified using Auth0's JWKS endpoint and validated for expiration, signature, and required scopes.
+
+
+
+### 🧭 Available Routes
+
+| Endpoint                          | Method | Description                                          | Auth Scope           |
+| --------------------------------- | ------ | ---------------------------------------------------- | -------------------- |
+| `/api/v1/auth/callback`           | GET    | OAuth2 callback: exchanges Auth0 code for JWT        | public (no auth)     |
+| `/api/v1/user/me`                 | GET    | Returns authenticated user's profile                 | `read:user_profile`  |
+| `/api/v1/user/openai-credentials` | GET    | Retrieves stored OpenAI API key & project ID         | `read:user_profile`  |
+| `/api/v1/user/openai-credentials` | POST   | Stores OpenAI credentials for future scrape requests | `create:openai_credentials` |
+| `/api/v1/scrape/start`            | POST   | Launches scraping pipeline with given URL list       | `read:user_profile`  |
+
+
+
+### 🧪 Example: Scrape Request
+
+```http
+POST /api/v1/scrape/start
+Authorization: Bearer <your_token>
+Content-Type: application/json
+
+{
+  "urls": [
+    "https://example.com/page1",
+    "https://example.com/page2"
+  ],
+  "agent_mode": "llm-dynamic",
+  "llm_model": "gpt-4"
+}
+```
+
+#### Response
+
+```json
+{
+  "results": [...],
+  "stats": {
+    "total": 2,
+    "successful": 2,
+    "duration_seconds": 6.2
+  }
+}
+```
+
+
+
+### 🧩 API Design Notes
+
+* **Versioning**: All endpoints are served under `/api/v1/`
+* **Schemas**: Defined with `pydantic` in the `schemas/` module
+* **Security**: JWT validation via FastAPI dependencies (`get_current_user`)
+* **Scope Enforcement**: Done via `check_required_scopes()` helper
+* **OpenAPI UI**: Visit `/docs` (with token input) for interactive API explorer
+
+
+## 🧠 Adaptive Retry Logic (for LLM Agents)
+
+Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when critical fields (e.g. `title`, `price`, `job_title`) are missing.
+
+### How It Works:
+
+1. Performs an initial LLM extraction attempt.
+2. Evaluates field coverage using `field_utils.score_fields()`.
+3. If important fields are missing, it re-prompts with hints and context.
+4. Repeats up to `LLM_SCHEMA_RETRIES` times.
+5. Returns the best-scoring result among attempts.
+
+→ Enables **self-healing extraction** and **schema robustness** on diverse webpages.
+
+--
 ---
 
 ## 🚀 CI/CD & Deployment
