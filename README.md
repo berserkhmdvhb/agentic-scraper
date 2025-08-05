@@ -38,7 +38,7 @@
 ## 📑 Table of Contents
 
 - [🚀 Features](#-features)
-- [🎥 Demo Video](#-demo)
+- [🎥 Demo Video](#-demo-video)
 - [⚙️ Tech Stack](#️-tech-stack)
 - [🧠 Agent Modes](#-agent-modes)
 - [🔬 Scraping Architecture](#-scraping-architecture)
