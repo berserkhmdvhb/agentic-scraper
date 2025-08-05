@@ -14,6 +14,7 @@ Used primarily by llm_dynamic.py, llm_dynamic_adaptive.py, and related agents.
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
@@ -93,8 +94,14 @@ def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, 
         logger.warning(MSG_ERROR_JSON_DECODING_FAILED_WITH_URL.format(exc=e, url=url))
         if settings.is_verbose_mode:
             logger.debug(MSG_ERROR_LLM_JSON_DECODE_LOG.format(exc=e, url=url))
-        return None
 
+        # Attempt repair
+        fixed = _try_fix_and_parse_json(content)
+        if fixed is not None:
+            logger.debug("[{url}] LLM output repaired and parsed after JSONDecodeError")
+            return fixed
+
+        return None
 
 async def capture_optional_screenshot(url: str, settings: Settings) -> str | None:
     """
@@ -424,3 +431,32 @@ def should_exit_early(
         )
 
     return should_stop
+
+
+def _try_fix_and_parse_json(bad_json: str) -> dict[str, Any] | None:
+    """
+    Attempt to repair common formatting issues in LLM JSON and re-parse.
+    Fixes:
+        - Single quotes to double quotes
+        - Unquoted property names
+        - Trailing commas
+        - Strips ```json markdown fences
+
+    Returns:
+        dict[str, Any] | None: Parsed JSON if successful, else None.
+    """
+    cleaned = bad_json.strip().removeprefix("```json").removesuffix("```").strip()
+
+    # Replace single quotes with double quotes
+    cleaned = cleaned.replace("'", '"')
+
+    # Remove trailing commas before object/array close
+    cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
+
+    # Quote unquoted keys
+    cleaned = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*):', r'\1"\2"\3:', cleaned)
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        return None
