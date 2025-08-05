@@ -103,6 +103,7 @@ def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, 
 
         return None
 
+
 async def capture_optional_screenshot(url: str, settings: Settings) -> str | None:
     """
     Attempt to capture a screenshot of the URL. Logs errors and returns None on failure.
@@ -454,9 +455,9 @@ def _try_fix_and_parse_json(bad_json: str) -> dict[str, Any] | None:
     cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
 
     # Quote unquoted keys
-    cleaned = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*):', r'\1"\2"\3:', cleaned)
+    cleaned = re.sub(r"([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*):", r'\1"\2"\3:', cleaned)
 
     try:
-        return json.loads(cleaned)
+        return cast("dict[str, Any]", json.loads(cleaned))
     except json.JSONDecodeError:
         return None
