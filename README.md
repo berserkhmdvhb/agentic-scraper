@@ -85,7 +85,9 @@
 ## 🎥 Demo Video
 
 
-https://github.com/user-attachments/assets/6789d783-20f3-4785-9b37-3bfa3c74b800
+
+https://github.com/user-attachments/assets/df5e139a-5636-45ae-bee7-b7b53bece5e2
+
 
 
 
