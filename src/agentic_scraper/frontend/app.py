@@ -24,6 +24,7 @@ from agentic_scraper.backend.core.settings import Settings, get_settings, log_se
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
 from agentic_scraper.frontend.ui_auth import authenticate_user
 from agentic_scraper.frontend.ui_display import display_results
+from agentic_scraper.frontend.ui_effects import render_login_highlight
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
 from agentic_scraper.frontend.ui_runner import run_scraper_pipeline
 from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
@@ -123,17 +124,15 @@ def process_pipeline(
 
 def reset_app_state(logger: logging.Logger) -> None:
     """
-    Render a reset button that clears all session state.
-
-    Args:
-        logger (logging.Logger): Logger to track reset event.
-
-    Returns:
-        None
+    Render a reset button that clears most session state,
+    but preserves login and OpenAI credentials.
     """
     if st.sidebar.button("🔄 Reset"):
         logger.info(MSG_INFO_APP_RESET_TRIGGERED)
-        st.session_state.clear()
+        preserved_keys = {"jwt_token", "user_info", "openai_credentials"}
+        keys_to_clear = [k for k in st.session_state if k not in preserved_keys]
+        for key in keys_to_clear:
+            del st.session_state[key]
         st.rerun()
 
 
@@ -150,12 +149,17 @@ def main() -> None:
     # --- SETTINGS LOAD ---
     settings = get_settings()
 
-    # --- AUTH TOKEN HANDLING ---
-    authenticate_user()
-
     # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
     agent_mode = controls.agent_mode
+
+    # --- CONDITIONAL AUTH ---
+    is_logged_in = "jwt_token" in st.session_state
+    is_llm_mode = agent_mode != "rule_based"
+    if is_llm_mode and not is_logged_in:
+        render_login_highlight()
+    if is_llm_mode:
+        authenticate_user()
 
     # --- OPTIONAL REMINDER ---
     if agent_mode.startswith("llm_") and "openai_credentials" not in st.session_state:
