@@ -24,9 +24,9 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_USING_CACHE,
 )
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.models import ScrapedItem
-from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.frontend.models import PipelineConfig
 from agentic_scraper.frontend.ui_runner_helpers import (
     attach_openai_config,

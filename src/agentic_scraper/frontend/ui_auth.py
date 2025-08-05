@@ -31,9 +31,9 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_MALFORMED_JWT,
     MSG_WARNING_NO_JWT_FOUND,
 )
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.models import OpenAIConfig
-from agentic_scraper.backend.config.types import AgentMode
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -157,6 +157,7 @@ def fetch_openai_credentials() -> None:
         st.session_state["openai_credentials"] = openai_config
         st.success("OpenAI credentials retrieved successfully!")
 
+
 def authenticate_user(agent_mode: AgentMode | None = None) -> None:
     """
     Authenticate the user by extracting the JWT and fetching their profile and credentials.
@@ -188,7 +189,6 @@ def authenticate_user(agent_mode: AgentMode | None = None) -> None:
         st.rerun()
     else:
         logger.info(MSG_INFO_NO_TOKEN_YET)
-
 
 
 def logout_user() -> None:

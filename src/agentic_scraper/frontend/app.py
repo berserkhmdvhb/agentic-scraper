@@ -19,6 +19,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR,
     MSG_INFO_APP_RESET_TRIGGERED,
 )
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import Settings, get_settings, log_settings
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
@@ -27,7 +28,7 @@ from agentic_scraper.frontend.ui_display import display_results
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
 from agentic_scraper.frontend.ui_runner import run_scraper_pipeline
 from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
-from agentic_scraper.backend.config.types import AgentMode
+
 # --- WINDOWS ASYNCIO FIX ---
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
