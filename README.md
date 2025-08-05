@@ -44,6 +44,7 @@
 - [🔬 Scraping Architecture](#-scraping-architecture)
   - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
   - [🧬 Agent Extraction](#-agent-extraction-in-agent)
+- [🔌 API (FastAPI)](#-api-fastapi)
 - [🧠 Adaptive Retry Logic](#-adaptive-retry-logic-for-llm-agents)
 - [📁 Project Structure](#-project-structure)
 - [🧰 Installation](#-installation)
@@ -205,6 +206,78 @@ Each strategy is implemented as a self-contained module and shares a common inte
 Each agent returns a `ScrapedItem` that conforms to the schema and may include fallback values or nulls.
 
 ---
+
+
+## 🔌 API (FastAPI)
+
+The AgenticScraper backend is powered by **FastAPI** and exposes a versioned REST API under the `/api/v1/` prefix. All routes use **JWT Bearer authentication** via Auth0 and enforce **scope-based access control**.
+
+---
+
+### 🔐 Authentication
+
+All endpoints (except `/auth/callback`) require a valid **Bearer token** issued by Auth0:
+
+```http
+Authorization: Bearer eyJhbGciOiJ...
+```
+
+Tokens are verified using Auth0's JWKS endpoint and validated for expiration, signature, and required scopes.
+
+---
+
+### 🧭 Available Routes
+
+| Endpoint                          | Method | Description                                          | Auth Scope           |
+| --------------------------------- | ------ | ---------------------------------------------------- | -------------------- |
+| `/api/v1/auth/callback`           | GET    | OAuth2 callback: exchanges Auth0 code for JWT        | public (no auth)     |
+| `/api/v1/user/me`                 | GET    | Returns authenticated user's profile                 | `read:user_profile`  |
+| `/api/v1/user/openai-credentials` | GET    | Retrieves stored OpenAI API key & project ID         | `read:user_profile`  |
+| `/api/v1/user/openai-credentials` | POST   | Stores OpenAI credentials for future scrape requests | `create:openai_credentials` |
+| `/api/v1/scrape/start`            | POST   | Launches scraping pipeline with given URL list       | `read:user_profile`  |
+
+---
+
+### 🧪 Example: Scrape Request
+
+```http
+POST /api/v1/scrape/start
+Authorization: Bearer <your_token>
+Content-Type: application/json
+
+{
+  "urls": [
+    "https://example.com/page1",
+    "https://example.com/page2"
+  ],
+  "agent_mode": "llm-dynamic",
+  "llm_model": "gpt-4"
+}
+```
+
+#### Response
+
+```json
+{
+  "results": [...],
+  "stats": {
+    "total": 2,
+    "successful": 2,
+    "duration_seconds": 6.2
+  }
+}
+```
+
+---
+
+### 🧩 API Design Notes
+
+* **Versioning**: All endpoints are served under `/api/v1/`
+* **Schemas**: Defined with `pydantic` in the `schemas/` module
+* **Security**: JWT validation via FastAPI dependencies (`get_current_user`)
+* **Scope Enforcement**: Done via `check_required_scopes()` helper
+* **OpenAPI UI**: Visit `/docs` (with token input) for interactive API explorer
+
 
 ## 🧠 Adaptive Retry Logic (for LLM Agents)
 
