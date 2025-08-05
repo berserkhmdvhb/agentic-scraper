@@ -105,6 +105,10 @@ def render_agent_mode_selector(settings: Settings) -> AgentMode:
             "- rule-based: Simple regex-based extraction (no LLM needed)"
         ),
     )
+    if selected_str == "rule_based":
+        st.session_state["show_auth_overlay"] = False
+    else:
+        st.session_state["show_auth_overlay"] = True
 
     return AgentMode(selected_str)
 

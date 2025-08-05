@@ -177,6 +177,7 @@ def authenticate_user() -> None:
         fetch_user_profile()
         fetch_openai_credentials()
         st.success("Logged in successfully!")
+        st.rerun()
     else:
         logger.info(MSG_INFO_NO_TOKEN_YET)
 
@@ -192,6 +193,7 @@ def logout_user() -> None:
     st.session_state.pop("user_info", None)
     st.session_state.pop("openai_credentials", None)
     st.success("Logged out successfully!")
+    st.rerun()
 
 
 def login_ui(agent_mode: str) -> None:
@@ -204,7 +206,7 @@ def login_ui(agent_mode: str) -> None:
     Returns:
         None
     """
-    requires_auth = agent_mode != "rule_based"
+    requires_auth = agent_mode and agent_mode != "rule_based"
     if not requires_auth:
         return
 
@@ -230,20 +232,22 @@ def login_ui(agent_mode: str) -> None:
 
             st.markdown(
                 f"""
-                <a href="{login_url}" target="_self">
-                    <button style="
-                        width: 100%;
-                        padding: 0.5rem 1rem;
-                        border-radius: 0.5rem;
-                        background-color: #EF476F;
-                        color: white;
-                        font-weight: bold;
-                        border: none;
-                        cursor: pointer;
-                    ">
-                        🔐 Login with Auth0
-                    </button>
-                </a>
+                <div class="auth-highlight">
+                    <a href="{login_url}" target="_self">
+                        <button style="
+                            width: 100%;
+                            padding: 0.5rem 1rem;
+                            border-radius: 0.5rem;
+                            background-color: #EF476F;
+                            color: white;
+                            font-weight: bold;
+                            border: none;
+                            cursor: pointer;
+                        ">
+                            🔐 Login with Auth0
+                        </button>
+                    </a>
+                </div>
                 """,
                 unsafe_allow_html=True,
             )

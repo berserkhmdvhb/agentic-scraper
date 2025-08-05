@@ -12,6 +12,7 @@ import streamlit as st
 
 from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.frontend.ui_auth import fetch_openai_credentials
 
 settings = get_settings()
 
@@ -64,6 +65,7 @@ def render_credentials_form() -> None:
 
                 st.success("✅ OpenAI credentials saved successfully!")
                 st.session_state["openai_saved"] = True
+                fetch_openai_credentials()
 
             except httpx.HTTPStatusError as e:
                 st.error(f"❌ Failed to save credentials: {e.response.text}")
