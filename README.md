@@ -338,7 +338,6 @@ playwright install
 
 ### 🐳 Installing via Docker (Alternative)
 You can also install the app using prebuilt Docker images from Docker Hub.
-https://hub.docker.com/r/hmdvhb/agentic-scraper-backend
 
 - 🔗 **Frontend Image:** [![](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend)
 - 🔗 **Backend Image:** [![](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-backend)
