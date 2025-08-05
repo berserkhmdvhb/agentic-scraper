@@ -4,11 +4,9 @@ FROM python:3.11-slim-bullseye
 WORKDIR /app
 ENV PYTHONPATH=/app/src
 
-# Install system dependencies (browser deps included)
+# Install system dependencies
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-    build-essential curl wget gnupg \
-    libglib2.0-0 libnss3 libatk-bridge2.0-0 libxss1 \
-    libasound2 libxshmfence-dev libgbm1 libgtk-3-0 \
+    build-essential curl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy only what's needed for deps
@@ -17,11 +15,8 @@ COPY pyproject.toml README.md ./
 # Copy full source (you use backend + some shared frontend logic)
 COPY src ./src
 
-# Install Python dependencies (dev mode for now)
+# Install dependencies (dev mode for now)
 RUN pip install --no-cache-dir ".[dev]"
-
-# Install Playwright browsers + their deps
-RUN playwright install --with-deps
 
 # Expose FastAPI port only (you're using port 10000)
 EXPOSE 10000
