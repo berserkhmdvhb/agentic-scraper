@@ -4,8 +4,8 @@
 
 
 <p align="center">
-  <em>LLM-powered web scraping, built for adaptability, structure, and concurrent performance.</em><br/>
-  <em>Modular FastAPI backend · Streamlit UI · Schema-guided agents with self-healing retries</em>
+  <em>LLM-powered web scraping with modular agents, secure Auth0 authentication, and concurrent performance</em><br/>
+  <em>FastAPI backend · Streamlit frontend · OpenAI-integrated structured extraction · Self-healing adaptive retries </em>
 </p>
 
 <p align="center">
@@ -69,21 +69,24 @@
 ## 🚀 Features
 
 * 🔗 Accepts URLs via paste or `.txt` file upload
+* 🔐 Auth0-secured API access using JWT tokens and scope-based control
+* 🔒 Encrypted OpenAI credential storage per user
 * 🌐 Multiple agent modes (`rule-based`, `llm-fixed`, `llm-dynamic`, `llm-dynamic-adaptive`)
-* 🧠 Adaptive self-healing LLM retries for missing fields
-* ⚡ Async scraping with `httpx`, `asyncio`, and retry via `tenacity`
-* ✔️ Schema validation using `pydantic v2`
-* 📸 Full-page screenshots via Playwright
-* 🔧 Advanced UI controls for concurrency, retries, and agent config
-* 📚 Export scraped data to CSV / JSON / SQLite
-* 🧰 Configurable logging, progress bars, and Ag-Grid display
-* 🧱 Modular architecture with FastAPI backend
+* 🧠 Adaptive retry logic that self-heals missing fields via prompt regeneration
+* ⚡ Concurrent scraping pipeline with `httpx`, `asyncio`, and retries via `tenacity`
+* ✔️ Structured schema validation using `pydantic v2`
+* 📸 Optional full-page screenshots via Playwright
+* 🔧 UI controls for agent config, model selection, concurrency, retries, and verbosity
+* 📤 Export scraped data to CSV, JSON, or SQLite
+* 🧱 Modular backend with FastAPI and dependency-injected authentication & settings
 
 ---
 
 ## 📸 Demo
+<img width="756" height="706" alt="website-1" src="https://github.com/user-attachments/assets/a969b269-e98b-4ba3-8973-338e139f7d81" />
+<img width="852" height="812" alt="website-2" src="https://github.com/user-attachments/assets/e687488d-ae13-476c-b1d2-1fc31ed71889" />
+<img width="1920" height="842" alt="website-3" src="https://github.com/user-attachments/assets/7756d286-3554-4ea8-83d4-bc23af1a214b" />
 
-![screenshot](assets/screenshot.png)
 
 ---
 
