@@ -94,42 +94,43 @@ https://github.com/user-attachments/assets/b342d0f3-6bed-477f-b657-8c10e0db3eaf
 
 ---
 
-## ⚙️ Tech Stack
 
-| Layer                         | Tools                                                    |
-| ----------------------------- | -------------------------------------------------------- |
-| **Async Fetching**            | `httpx`, `asyncio`, `tenacity`                           |
-| **HTML Parsing**              | `BeautifulSoup4`                                         |
-| **Screenshots**               | `playwright.async_api`                                   |
-| **Agent Logic**               | `OpenAI API`, `ChatCompletion`, schema retry loop        |
-| **Schema Validation**         | `Pydantic v2`                                            |
-| **UI Layer**                  | `Streamlit`, `streamlit-aggrid`                          |
-| **Settings & Logging**        | `.env`, `loguru`, centralized `messages.py`              |
-| **Backend API**               | `FastAPI`, `Pydantic`, `uvicorn`                         |
-| **Authentication / Security** | Auth0, OAuth2, OIDC *(in progress)*                      |
-| **Testing**                   | `pytest`, `conftest.py` fixtures                         |
-| **Linting & Typing**          | `ruff`, `mypy`                                           |
-| **Tooling & Automation**      | `Makefile`, `Docker`, `Docker Compose`                   |
-| **Deployment**                | `Render.com`, Docker Hub (`frontend` & `backend` images) |
+# ⚙️ Tech Stack
 
+| Layer                    | Tools                                                |
+| ------------------------ | ---------------------------------------------------- |
+| **Frontend (UI)**        | `Streamlit`, `streamlit-aggrid`                      |
+| **Backend API**          | `FastAPI`, `Pydantic`, `uvicorn`                     |
+| **Authentication**       | Auth0, OAuth2 (JWT, scopes, tokens)                  |
+| **LLM Integration**      | OpenAI ChatCompletion API (`gpt-4`, `gpt-3.5-turbo`) |
+| **Async Fetching**       | `httpx`, `asyncio`, `tenacity`                       |
+| **HTML Parsing**         | `BeautifulSoup4`                                     |
+| **Screenshots**          | `playwright.async_api`                               |
+| **Schema Validation**    | `pydantic v2`                                        |
+| **Settings & Logging**   | `.env`, `loguru`, centralized messages file          |
+| **Credential Storage**   | Encrypted per-user storage via `cryptography`        |
+| **Testing**              | `pytest`, fixtures, `httpx.MockTransport`            |
+| **Linting & Typing**     | `ruff`, `mypy`                                       |
+| **Tooling & Automation** | `Makefile`, `Docker`, GitHub Actions                 |
+| **Deployment**           | `Render.com`, Docker Hub (frontend & backend images) |
 
 
 ---
 
 ## 🧠 Agent Modes
 
-| Mode                   | Description                                              |
-| ---------------------- | -------------------------------------------------------- |
-| `rule-based`           | Heuristic parser using BeautifulSoup (no LLM)            |
-| `llm-fixed`            | LLM extracts fixed schema fields (e.g. title, price)     |
-| `llm-dynamic`          | LLM chooses relevant fields based on page content        |
-| `llm-dynamic-adaptive` | Adds retries, field importance, and contextual reasoning |
+| Mode                   | Description                                                                  |
+|------------------------|------------------------------------------------------------------------------|
+| `rule-based`           | Heuristic parser using BeautifulSoup — fast, LLM-free baseline               |
+| `llm-fixed`            | Extracts a fixed predefined schema (e.g. title, price)                        |
+| `llm-dynamic`          | LLM selects relevant fields based on page content and contextual hints       |
+| `llm-dynamic-adaptive` | Adds retries, field scoring, and placeholder detection for better coverage   |
 
-> Recommended: use llm-dynamic-adaptive for best results.
+> 💡 Recommended: Use `llm-dynamic` for the best balance of quality and performance.
 
+> The UI dynamically adapts to the selected mode — model selection and retry sliders appear only for LLM-based modes.
 
-
-> The UI dynamically adapts to the selected mode — retry sliders and model selectors appear only for LLM-based modes.
+> All LLM modes use the OpenAI ChatCompletion API (`gpt-4`, `gpt-3.5-turbo`).
 
 ---
 
@@ -285,60 +286,69 @@ agentic_scraper/
 │   ├── backend/core/test_settings.py
 │   ├── manual/screenshotter_test.py
 │   └── manual/validators_test.py
-├── src/                         # Source code (main application)
-│   └── agentic_scraper/
-│       ├── backend/
-│       │   ├── api/
-│       │   │   ├── lifecycle.py                  # Manages lifecycle of requests
-│       │   │   ├── main.py                       # FastAPI app entrypoint
-│       │   │   ├── openapi.py                    # Defines OpenAPI schema
-│       │   │   ├── user_store.py                 # User data management
-│       │   │   ├── __init__.py                   # Initializes the API package
-│       │   │   ├── auth/
-│       │   │   │   ├── auth0_helpers.py          # Auth0 integration helpers
-│       │   │   │   ├── dependencies.py           # Authentication dependencies
-│       │   │   │   └── __init__.py               # Initializes the auth package
-│       │   │   ├── routes/
-│       │   │   │   ├── scrape.py                 # Scrape endpoint logic
-│       │   │   │   ├── user.py                   # User-related routes
-│       │   │   │   └── __init__.py               # Initializes the routes package
-│       │   │   └── schemas/
-│       │   │       ├── scrape.py                 # Scrape-related data schemas
-│       │   │       ├── user.py                   # User-related data schemas
-│       │   │       └── __init__.py               # Initializes the schemas package
-│       │   ├── config/
-│       │   │   ├── aliases.py                    # Input aliases, enums
-│       │   │   ├── constants.py                  # Default values
-│       │   │   ├── messages.py                   # All log/UI messages
-│       │   │   └── types.py                      # Strongly-typed enums
-│       │   ├── core/
-│       │   │   ├── logger_helpers.py             # Logging formatter utilities
-│       │   │   ├── logger_setup.py               # Loguru setup
-│       │   │   ├── settings.py                   # Global settings model
-│       │   │   └── settings_helpers.py           # Validation, resolution helpers
-│       │   ├── scraper/
-│       │   │   ├── fetcher.py                    # HTML fetching with retries
-│       │   │   ├── models.py                     # Scraped item schema
-│       │   │   ├── parser.py                     # HTML parsing logic
-│       │   │   ├── pipeline.py                   # Orchestration pipeline
-│       │   │   ├── screenshotter.py              # Playwright screenshot logic
-│       │   │   ├── worker_pool.py                # Async task concurrency manager
-│       │   │   └── agent/
-│       │   │       ├── agent_helpers.py          # Agent utils
-│       │   │       ├── field_utils.py            # Field scoring, synonyms
-│       │   │       ├── llm_dynamic.py            # LLM agent: dynamic fields
-│       │   │       ├── llm_dynamic_adaptive.py   # LLM agent: retries, context
-│       │   │       ├── llm_fixed.py              # LLM agent: fixed schema
-│       │   │       ├── prompt_helpers.py         # Prompt generation
-│       │   │       └── rule_based.py             # Rule-based parser
-│       │   └── utils/
-│       │       └── validators.py                 # Input validators
-│       └── frontend/
-│           ├── app.py                           # Streamlit UI entrypoint
-│           ├── models.py                        # Shared data schemas
-│           ├── ui_core.py                       # Sidebar + config widgets
-│           ├── ui_display.py                    # Table, chart, image display
-│           └── ui_runner.py                     # Async scrape runner + hooks
+src/
+└── agentic_scraper/
+    ├── __init__.py                    # Project version + API version
+    ├── backend/
+    │   ├── api/
+    │   │   ├── lifecycle.py           # Lifespan hooks and shutdown events
+    │   │   ├── main.py                # FastAPI app factory and router registration
+    │   │   ├── models.py              # Internal shared models
+    │   │   ├── openapi.py             # Custom OpenAPI schema and JWT support
+    │   │   ├── user_store.py          # Secure OpenAI credential storage
+    │   │   ├── auth/
+    │   │   │   ├── auth0_helpers.py   # JWKS fetching, token decoding, Auth0 utilities
+    │   │   │   ├── dependencies.py    # FastAPI auth dependencies (e.g. get_current_user)
+    │   │   │   ├── scope_helpers.py   # Scope validation logic for API access control
+    │   │   ├── routes/
+    │   │   │   └── v1/
+    │   │   │       ├── auth.py        # Endpoint for token and session verification
+    │   │   │       ├── scrape.py      # Main scraping initiation endpoint
+    │   │   │       ├── user.py        # User profile, credential, and config routes
+    │   │   ├── schemas/
+    │   │   │   ├── scrape.py          # Pydantic models for scrape requests/responses
+    │   │   │   ├── user.py            # Pydantic models for user authentication and config
+    │   │   ├── utils/
+    │   │   │   ├── log_helpers.py     # Logging utilities for API events
+    │   ├── config/
+    │   │   ├── aliases.py             # Field alias mappings
+    │   │   ├── constants.py           # Global default values and limits
+    │   │   ├── messages.py            # Centralized UI/logging message constants
+    │   │   ├── types.py               # Enums and strong-typed field definitions
+    │   ├── core/
+    │   │   ├── logger_helpers.py      # Helpers for structured log output
+    │   │   ├── logger_setup.py        # Loguru configuration and rotation
+    │   │   ├── settings.py            # Pydantic settings model with env validation
+    │   │   ├── settings_helpers.py    # Custom parsing, coercion, and default resolution
+    │   ├── scraper/
+    │   │   ├── fetcher.py             # HTML fetcher with `httpx`, headers, and retry logic
+    │   │   ├── models.py              # Shared `ScrapedItem` schema
+    │   │   ├── parser.py              # HTML cleanup and content distillation
+    │   │   ├── pipeline.py            # Orchestration logic for full scrape flow
+    │   │   ├── screenshotter.py       # Playwright screenshot capture (optional)
+    │   │   ├── worker_pool.py         # Async scraping task manager using asyncio.Queue
+    │   │   └── agent/
+    │   │       ├── agent_helpers.py   # Agent-level utilities (scoring, error handling)
+    │   │       ├── field_utils.py     # Field normalization, scoring, placeholder detection
+    │   │       ├── llm_dynamic.py     # LLM agent for context-based dynamic field extraction
+    │   │       ├── llm_dynamic_adaptive.py  # LLM agent with retries and field prioritization
+    │   │       ├── llm_fixed.py       # Fixed-schema extractor using a static prompt
+    │   │       ├── prompt_helpers.py  # Prompt construction for first and retry passes
+    │   │       ├── rule_based.py      # Fast, deterministic parser without LLMs
+    │   ├── utils/
+    │       ├── crypto.py              # AES encryption/decryption of user credentials
+    │       ├── validators.py          # URL and input validation logic
+    └── frontend/
+        ├── app.py                     # Streamlit entrypoint for launching the UI
+        ├── models.py                  # Sidebar config model and pipeline config
+        ├── ui_auth.py                 # Auth0 login + token management
+        ├── ui_auth_credentials.py     # OpenAI credential input and validation
+        ├── ui_display.py              # Grid/table visualization of extracted results
+        ├── ui_effects.py              # UI effects: spinners, banners, toasts
+        ├── ui_page_config.py          # Layout, environment badge, log path config
+        ├── ui_runner.py               # Async scrape runner using backend API
+        ├── ui_runner_helpers.py       # URL deduplication, fetch pre-processing, display
+        ├── ui_sidebar.py              # Full sidebar rendering: model, agent, retries, etc.
 ```
 
 
@@ -447,7 +457,6 @@ The app prompts you for an OpenAI API key and URLs to scrape.
 ## 🔧 Environment Configuration (.env)
 
 ```ini
-OPENAI_API_KEY=sk-...
 LOG_LEVEL=INFO
 AGENT_MODE=llm-dynamic-adaptive
 LLM_MODEL=gpt-4
@@ -538,9 +547,9 @@ These images are automatically published on every versioned release and push to 
 * [x] FastAPI backend (in progress)
 * [x] Docker container deployment
 * [ ] Multilingual support + auto-translation
-* [ ] User authentication with Auth0
-* [ ] Authentication protocol with OAuth2 + OIDC
-
+* [ ] Increase test coverage
+* [x] User authentication with Auth0
+* [x] Authentication protocol with OAuth2 and JWT
 
 ---
 
