@@ -334,34 +334,29 @@ playwright install
 >  Screenshots require installing Playwright separately. [Install docs →](https://playwright.dev/python/docs/intro)
 
 
-#### 🐳 Run via Docker
+#### 🐳 Installing with Docker (Alternative)
+You can also install the app using prebuilt Docker images from Docker Hub.
+https://hub.docker.com/r/hmdvhb/agentic-scraper-backend
 
-To launch both frontend and backend locally using Docker Compose:
+- 🔗 **Frontend Image:** [![](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend)
+- 🔗 **Backend Image:** [![](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-backend)
+
+Pull the images manually:
 
 ```bash
-docker-compose up --build
+docker pull hmdvhb/agentic-scraper-backend
+docker pull hmdvhb/agentic-scraper-frontend
 ```
-Or use the Makefile shortcuts:
-
-```bash
-make docker-up
-make docker-build
-```
-
-Then visit:
-
-- Frontend: http://localhost:8501
-- Backend: http://localhost:8000
-
 
 
 ---
+
 ## ▶️ Running the App
+Note that when the app is launched, it shows you button for login (redirects to Auth0 page) on sidebar, and then prompts an OpenAI API key and Project key.
+Whe these are provided, you could enter URLs to scrape.
 
 ### Online
- Visit the hosted version domains here: 
-
- 
+ Visit the hosted version domains here:  
 
 - 🔗 **Frontend (Streamlit UI):** [![CD: Frontend Deploy](https://img.shields.io/badge/frontend-render-blueviolet?logo=render)](https://agenticscraper.onrender.com)
 - 🔗 **Backend (FastAPI API):** [![CD: Backend Deploy](https://img.shields.io/badge/backend-render-blueviolet?logo=render)](https://api-agenticscraper.onrender.com)
@@ -380,9 +375,31 @@ Or, use the shortcut:
 python run.py
 ```
 
-The app prompts you for an OpenAI API key and URLs to scrape.
+
+### 🐳 Run via Docker
+
+To launch both frontend and backend locally using Docker Compose:
+
+```bash
+docker-compose up --build
+```
+Or use the Makefile shortcuts:
+
+```bash
+make docker-up
+make docker-build
+```
+
+Then visit:
+
+- Frontend: http://localhost:8501
+- Backend: http://localhost:8000
+
+> ⚙️ Ensure you have `.env` configured before running containers.The backend requires Auth0 and OpenAI credentials at runtime.You can mount volumes or use env_file: in docker-compose.yml to inject secrets.
+
 
 ---
+
 
 ## 🔧 Environment Configuration (.env)
 
