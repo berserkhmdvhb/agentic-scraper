@@ -38,7 +38,7 @@
 ## 📑 Table of Contents
 
 - [🚀 Features](#-features)
-- [📸 Demo](#-demo)
+- [🎥 Demo Video](#-demo)
 - [⚙️ Tech Stack](#️-tech-stack)
 - [🧠 Agent Modes](#-agent-modes)
 - [🔬 Scraping Architecture](#-scraping-architecture)
@@ -82,10 +82,11 @@
 
 ---
 
-## 📸 Demo
-<img width="756" height="706" alt="website-1" src="https://github.com/user-attachments/assets/a969b269-e98b-4ba3-8973-338e139f7d81" />
-<img width="852" height="812" alt="website-2" src="https://github.com/user-attachments/assets/e687488d-ae13-476c-b1d2-1fc31ed71889" />
-<img width="1920" height="842" alt="website-3" src="https://github.com/user-attachments/assets/7756d286-3554-4ea8-83d4-bc23af1a214b" />
+## 🎥 Demo Video
+
+
+https://github.com/user-attachments/assets/6789d783-20f3-4785-9b37-3bfa3c74b800
+
 
 
 ---
