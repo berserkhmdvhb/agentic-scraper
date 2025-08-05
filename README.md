@@ -564,6 +564,44 @@ Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when cri
 
 → Enables **self-healing extraction** and **schema robustness** on diverse webpages.
 
+```
+[LLM Response] ──> parse_llm_response() ──┐
+                                         ↓
+                              check missing fields (raw)
+                                         ↓
+                           retry missing fields if needed
+                                         ↓
+                          choose best or fallback candidate
+                                         ↓
+                            normalize_fields() final only
+                                         ↓
+                          validate with ScrapedItem schema
+
+
+[LLM Response] ──> parse_llm_response() ──┐
+                                         ↓
+               extract raw_fields, evaluate new content
+                                         ↓
+       update all_fields with new non-empty / non-placeholder values
+                                         ↓
+  check: did we fill all required fields? → Yes → skip further retries
+                                         ↓
+  if score improved or new fields appeared → update best_fields
+                                         ↓
+             generate retry prompt for next missing or weak fields
+                                         ↓
+     ┌──────────┐        ...next pass...        ┌────────────┐
+     │ Retry N+1│ ─────────────────────────────> │ Retry N+2 …│
+     └──────────┘                               └────────────┘
+                                         ↓
+             fallback to best_fields or best_valid_item
+                                         ↓
+               normalize_fields() ← on final best only
+                                         ↓
+             validate with ScrapedItem schema (final)
+```
+
+
 --
 ---
 
