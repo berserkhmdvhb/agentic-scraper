@@ -24,7 +24,6 @@ from agentic_scraper.backend.core.settings import Settings, get_settings, log_se
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
 from agentic_scraper.frontend.ui_auth import authenticate_user
 from agentic_scraper.frontend.ui_display import display_results
-from agentic_scraper.frontend.ui_effects import render_login_highlight
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
 from agentic_scraper.frontend.ui_runner import run_scraper_pipeline
 from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
@@ -161,7 +160,8 @@ def main() -> None:
         authenticate_user()
         not_logged_in = "jwt_token" not in st.session_state
         if not_logged_in and st.session_state.get("show_auth_overlay", True):
-            render_login_highlight()
+            # we can run render_login_highlight() here when it's working correctly
+            pass
 
     # --- OPTIONAL REMINDER ---
     if agent_mode.startswith("llm_") and "openai_credentials" not in st.session_state:
