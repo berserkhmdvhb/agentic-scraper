@@ -45,7 +45,7 @@
 - [🧰 Installation](#-installation)
   - [👤 For Users](#-for-users)
   - [💼 For Developers](#-for-developers)
-  - [🐳 Installing with Docker](#-installing-with-docker-alternative)
+  - [🐳 Installing via Docker](#-installing-via-docker-alternative)
 - [▶️ Running the App](#%EF%B8%8F-running-the-app)
   - [Online](#online)
   - [Local](#local)
@@ -334,8 +334,9 @@ playwright install
 
 >  Screenshots require installing Playwright separately. [Install docs →](https://playwright.dev/python/docs/intro)
 
+---
 
-#### 🐳 Installing with Docker (Alternative)
+### 🐳 Installing via Docker (Alternative)
 You can also install the app using prebuilt Docker images from Docker Hub.
 https://hub.docker.com/r/hmdvhb/agentic-scraper-backend
 
@@ -348,7 +349,6 @@ Pull the images manually:
 docker pull hmdvhb/agentic-scraper-backend
 docker pull hmdvhb/agentic-scraper-frontend
 ```
-
 
 ---
 
