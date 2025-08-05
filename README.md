@@ -266,29 +266,42 @@ src/
 ### 👤 For Users
 
 
-**Install from GitHub (Recommended):**
+**Recommended: Clone and install:**
+
+```bash
+git clone https://github.com/berserkhmdvhb/agentic-scraper.git
+cd agentic-scraper
+make install
+```
+
+Or manually:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -e .
+```
+> This installs the app in editable mode with runtime-only dependencies from `pyproject.toml`.
+
+
+**Alternative: Install from GitHub without cloning**
 
 ```bash
 pip install git+https://github.com/berserkhmdvhb/agentic-scraper.git
 ```
 
-> 📦 This installs all dependencies defined in `pyproject.toml`.
+> Useful for trying the package without cloning. Not needed if using `make install`
 
-**Playwright Setup (for screenshots):**
 
-```bash
-playwright install
-```
-
->  Screenshots require installing Playwright separately. [Install docs →](https://playwright.dev/python/docs/intro)
-
-**Alternative (pip + requirements.txt):**
+**If required to use `requirements.txt`**:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-> ⚠️ `requirements.txt` is auto-generated via `poetry export`. Keep it synced.
+> ⚠️ `requirements.txt` is auto-generated via `poetry export`.
+> Commits check automatically if it's synched with `pyproject.toml`
+
 
 ---
 
@@ -307,8 +320,19 @@ Or manually:
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-poetry install
+pip install -e .[dev]
 ```
+
+> This installs the app in developer mode with `[dev]` dependencies from `pyproject.toml`.
+
+#### **Setup Playwright (for screenshots):**
+
+```bash
+playwright install
+```
+
+>  Screenshots require installing Playwright separately. [Install docs →](https://playwright.dev/python/docs/intro)
+
 
 #### 🐳 Run via Docker
 
