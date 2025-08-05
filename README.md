@@ -345,8 +345,8 @@ You can also install the app using prebuilt Docker images from Docker Hub.
 Pull the images manually:
 
 ```bash
-docker pull hmdvhb/agentic-scraper-backend
 docker pull hmdvhb/agentic-scraper-frontend
+docker pull hmdvhb/agentic-scraper-backend
 ```
 
 ---
