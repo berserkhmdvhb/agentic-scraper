@@ -177,6 +177,7 @@ def authenticate_user() -> None:
         fetch_user_profile()
         fetch_openai_credentials()
         st.success("Logged in successfully!")
+        st.rerun()
     else:
         logger.info(MSG_INFO_NO_TOKEN_YET)
 
@@ -192,6 +193,7 @@ def logout_user() -> None:
     st.session_state.pop("user_info", None)
     st.session_state.pop("openai_credentials", None)
     st.success("Logged out successfully!")
+    st.rerun()
 
 
 def login_ui(agent_mode: str) -> None:

@@ -3,16 +3,16 @@ import streamlit as st
 
 def render_login_highlight() -> None:
     """
-    Render CSS overlay and arrow to highlight login button if required.
+    Render a full-screen dim overlay and animated arrow to highlight the login button.
     """
     st.markdown(
         """
         <style>
-        /* Dim background */
-        .block-container:before {
-            content: "";
+        /* Full-screen dark overlay */
+        .login-overlay {
             position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
             background: rgba(0, 0, 0, 0.4);
             z-index: 9998;
         }
@@ -32,10 +32,10 @@ def render_login_highlight() -> None:
             100% { box-shadow: 0 0 10px #EF476F; }
         }
 
-        /* Bouncing arrow */
+        /* Bouncing arrow pointing at login */
         .login-arrow {
             position: fixed;
-            top: 180px;  /* Adjust if needed */
+            top: 180px;
             left: 10px;
             z-index: 10000;
             font-size: 2rem;
@@ -49,6 +49,7 @@ def render_login_highlight() -> None:
         }
         </style>
 
+        <div class="login-overlay"></div>
         <div class="login-arrow">⬅️</div>
         """,
         unsafe_allow_html=True,

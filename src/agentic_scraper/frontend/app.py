@@ -149,17 +149,21 @@ def main() -> None:
     # --- SETTINGS LOAD ---
     settings = get_settings()
 
+    # --- Init overlay state early ---
+    if "show_auth_overlay" not in st.session_state:
+        st.session_state["show_auth_overlay"] = False
+
     # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
     agent_mode = controls.agent_mode
 
     # --- CONDITIONAL AUTH ---
-    is_logged_in = "jwt_token" in st.session_state
     is_llm_mode = agent_mode != "rule_based"
-    if is_llm_mode and not is_logged_in:
-        render_login_highlight()
     if is_llm_mode:
         authenticate_user()
+        is_logged_in = "jwt_token" in st.session_state  # ← Move here
+        if not is_logged_in:
+            render_login_highlight()
 
     # --- OPTIONAL REMINDER ---
     if agent_mode.startswith("llm_") and "openai_credentials" not in st.session_state:
