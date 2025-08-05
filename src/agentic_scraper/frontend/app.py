@@ -155,14 +155,12 @@ def main() -> None:
 
     # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
-    agent_mode = controls.agent_mode
-
-    # --- CONDITIONAL AUTH ---
+    agent_mode = st.session_state.get("agent_mode_select", "rule_based")
     is_llm_mode = agent_mode != "rule_based"
     if is_llm_mode:
         authenticate_user()
-        is_logged_in = "jwt_token" in st.session_state  # ← Move here
-        if not is_logged_in:
+        not_logged_in = "jwt_token" not in st.session_state
+        if not_logged_in and st.session_state.get("show_auth_overlay", True):
             render_login_highlight()
 
     # --- OPTIONAL REMINDER ---

@@ -37,7 +37,7 @@ def render_login_highlight() -> None:
             position: fixed;
             top: 180px;
             left: 10px;
-            z-index: 10000;
+            z-index: 2147483647;
             font-size: 2rem;
             animation: bounce 1s infinite;
             color: #EF476F;
