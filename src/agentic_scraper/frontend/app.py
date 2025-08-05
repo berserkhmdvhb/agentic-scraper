@@ -155,7 +155,7 @@ def main() -> None:
 
     # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
-    agent_mode = st.session_state.get("agent_mode_select", "rule_based")
+    agent_mode = controls.agent_mode
     is_llm_mode = agent_mode != "rule_based"
     if is_llm_mode:
         authenticate_user()

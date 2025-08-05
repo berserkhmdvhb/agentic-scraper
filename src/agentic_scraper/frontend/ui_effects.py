@@ -32,21 +32,16 @@ def render_login_highlight() -> None:
             100% { box-shadow: 0 0 10px #EF476F; }
         }
 
-        /* Arrow that slides in from left */
+        /* Arrow that adjusts position via custom property */
         .login-arrow {
             position: fixed;
             top: 180px;
-            left: 10px;
+            left: var(--arrow-left, 10px);
             z-index: 2147483647;
             font-size: 2rem;
             animation: bounce 1s infinite;
             color: #EF476F;
             transition: left 0.4s ease;
-        }
-
-        /* After delay, move arrow to account for sidebar */
-        body.sidebar-open .login-arrow {
-            left: 260px;
         }
 
         @keyframes bounce {
@@ -56,10 +51,18 @@ def render_login_highlight() -> None:
         </style>
 
         <script>
-        // Add class to body after small delay (simulates sidebar opening)
+        // Use ResizeObserver to detect sidebar visibility
         setTimeout(() => {
-            document.body.classList.add('sidebar-open');
-        }, 300);
+            const arrow = document.querySelector('.login-arrow');
+            const sidebar = document.querySelector('[data-testid="stSidebar"]');
+            if (arrow && sidebar) {
+                const observer = new ResizeObserver(() => {
+                    const isVisible = window.getComputedStyle(sidebar).width !== '0px';
+                    arrow.style.setProperty('--arrow-left', isVisible ? '260px' : '10px');
+                });
+                observer.observe(sidebar);
+            }
+        }, 500);
         </script>
 
         <div class="login-overlay"></div>
