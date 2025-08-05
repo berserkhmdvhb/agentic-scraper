@@ -3,12 +3,12 @@ import streamlit as st
 
 def render_login_highlight() -> None:
     """
-    Render a full-screen dim overlay and animated arrow to highlight the login button.
+    Render a dim overlay and animated arrow that shifts position depending on sidebar state.
     """
     st.markdown(
         """
         <style>
-        /* Full-screen dark overlay */
+        /* Overlay to dim entire screen */
         .login-overlay {
             position: fixed;
             top: 0; left: 0;
@@ -17,7 +17,7 @@ def render_login_highlight() -> None:
             z-index: 9998;
         }
 
-        /* Glow animation on login button */
+        /* Highlight login button */
         .auth-highlight button {
             animation: pulse 1.5s infinite;
             border: 2px solid #EF476F !important;
@@ -32,7 +32,7 @@ def render_login_highlight() -> None:
             100% { box-shadow: 0 0 10px #EF476F; }
         }
 
-        /* Bouncing arrow pointing at login */
+        /* Arrow that slides in from left */
         .login-arrow {
             position: fixed;
             top: 180px;
@@ -41,6 +41,12 @@ def render_login_highlight() -> None:
             font-size: 2rem;
             animation: bounce 1s infinite;
             color: #EF476F;
+            transition: left 0.4s ease;
+        }
+
+        /* After delay, move arrow to account for sidebar */
+        body.sidebar-open .login-arrow {
+            left: 260px;
         }
 
         @keyframes bounce {
@@ -48,6 +54,13 @@ def render_login_highlight() -> None:
             50% { transform: translateY(-8px); }
         }
         </style>
+
+        <script>
+        // Add class to body after small delay (simulates sidebar opening)
+        setTimeout(() => {
+            document.body.classList.add('sidebar-open');
+        }, 300);
+        </script>
 
         <div class="login-overlay"></div>
         <div class="login-arrow">⬅️</div>
