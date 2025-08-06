@@ -468,7 +468,7 @@ https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
      * **JSON**
      * **CSV**
      * **SQLite**
-   * Export options are available from the frontend UI.
+   * Export options are available from the extracted JSON of results.
 
 ---
 
