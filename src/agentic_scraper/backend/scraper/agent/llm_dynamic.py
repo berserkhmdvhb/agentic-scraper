@@ -28,6 +28,7 @@ from tenacity import (
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
     MSG_INFO_FIELD_DISCOVERY_SCORE,
+    MSG_DEBUG_LLM_PROMPT_WITH_URL,
 )
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent.agent_helpers import (
@@ -117,7 +118,7 @@ async def _extract_impl(
         prompt_style="enhanced",
         context_hints=request.context_hints,
     )
-
+    logger.debug(MSG_DEBUG_LLM_PROMPT_WITH_URL.format(url=request.url, prompt=prompt))
     messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
     api_key, project_id = retrieve_openai_credentials(request.openai)
 

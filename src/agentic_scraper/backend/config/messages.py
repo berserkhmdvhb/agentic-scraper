@@ -235,8 +235,8 @@ MSG_DEBUG_WORKER_PROGRESS = (
 MSG_DEBUG_WORKER_PICKED_URL = "[WORKER {worker_id}] Picked up URL: {url}"
 MSG_DEBUG_WORKER_CREATED_REQUEST = "[WORKER {worker_id}] Created ScrapeRequest for {url}"
 MSG_DEBUG_WORKER_GOT_ITEM = "[WORKER {worker_id}] extract_structured_data returned: {item}"
-MSG_DEBUG_WORKER_ITEM_APPENDED = "[WORKER {worker_id}] ✅ Item appended for URL: {url}"
-MSG_DEBUG_WORKER_NO_ITEM = "[WORKER {worker_id}] ⚠️ No item returned for URL: {url}"
+MSG_DEBUG_WORKER_ITEM_APPENDED = "[WORKER {worker_id}] Item appended for URL: {url}"
+MSG_DEBUG_WORKER_NO_ITEM = "[WORKER {worker_id}] No item returned for URL: {url}"
 MSG_DEBUG_WORKER_CANCELLED = "[WORKER {worker_id}] Cancelled during shutdown."
 
 MSG_DEBUG_POOL_ENQUEUED_URL = "[POOL] Enqueued URL: {url}"
@@ -377,6 +377,7 @@ MSG_INFO_FIELD_DISCOVERY_SCORE = (
     "[AGENT] [LLM] [{url}] Field discovery score: "
     "{score:.2f} (excluding {num_unavailable} unavailable)"
 )
+MSG_DEBUG_LLM_PROMPT_WITH_URL = "[AGENT] [LLM] [{url}] Prompt sent to OpenAI:\n{prompt}"
 
 
 # llm_dynamic_adaptive.py
