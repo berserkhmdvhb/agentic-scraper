@@ -458,6 +458,10 @@ The UI overrides `.env` if sidebar values are selected.
 
 ## 🔬 Scraping Architecture
 
+![Uploading scraping pipeline.PNG…]()
+
+
+
 The scraping pipeline consists of two major components:
 
 * **🔗 URL Fetching** – Responsible for retrieving raw HTML and metadata.
