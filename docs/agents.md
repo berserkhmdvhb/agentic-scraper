@@ -7,6 +7,8 @@ The Agent layer (in `backend/scraper/agents/`) transforms raw HTML into structur
 
 Each strategy is implemented as a self-contained module and shares a common interface.
 
+---
+
 ## Agent Modes 
 
 #### `rule_based` (baseline benchmark)
@@ -60,12 +62,110 @@ Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when cri
 → Enables **self-healing extraction** and **schema robustness** on diverse webpages.
 
 
+---
 
-# Diagrams
-## LLM-dynamic-adaptive
+## Diagrams
 
 
-### Flow Overview
+
+### LLM-dynamic
+
+#### Flow Overview
+
+```
+[LLM Prompt]
+   |
+   v
+build_prompt()  → system + user message
+   |
+   v
+Send to LLM → run_llm_with_retries()
+   |
+   v
+LLM Response → parse_llm_response()
+   |
+   v
+Extract raw_data (unnormalized)
+→ normalize_keys()
+→ inject request.url
+   |
+   v
+Detect:
+- unavailable fields (e.g. "N/A")
+- score coverage → score_nonempty_fields()
+   |
+   v
+normalize_fields() → prepare final output
+   |
+   v
+(Optional) capture screenshot → add to normalized
+   |
+   v
+try_validate_scraped_item()
+→ ✅ StructuredItem if valid
+→ ❌ None if parsing or validation fails
+
+```
+
+### Flow Detailed
+
+```
+START: extract_structured_data()
+    |
+    v
+Retry wrapper:
+→ AsyncRetrying on OpenAIError (exponential backoff)
+    |
+    v
+_call → _extract_impl()
+    |
+    v
+Build dynamic prompt
+→ build_prompt(text, url, context_hints)
+    |
+    v
+Send message to LLM
+→ client.chat.completions.create()
+    |
+    v
+If response content is empty:
+→ log warning, return None
+    |
+    v
+Parse JSON content
+→ parse_llm_response(content)
+    |
+    └── If parsing fails → return None
+    |
+    v
+Post-processing:
+→ normalize_keys(raw_data)
+→ inject "url" into raw_data
+→ detect_unavailable_fields()
+→ score_nonempty_fields()
+    |
+    v
+normalize_fields()
+→ prepare for final schema validation
+    |
+    v
+(Optional) capture_screenshot()
+→ if successful: attach screenshot_path
+    |
+    v
+Validate schema
+→ try_validate_scraped_item(normalized)
+    |
+    ├─ Valid → return ScrapedItem ✅
+    └─ Invalid → return None ❌
+```
+
+---
+
+### LLM-dynamic-adaptive
+
+
+#### Flow Overview
 
 
 ```
@@ -104,7 +204,8 @@ validate with ScrapedItem schema → ✅ final structured output
 
 ```
 
-### Flow Detailed
+#### Flow Detailed
+
 ```
 START: extract_adaptive_data()
     |
@@ -185,98 +286,5 @@ Should exit early?
 
 ```
 
-
-
-## LLM-dynamic
-
-## Flow Overview
-
-```
-[LLM Prompt]
-   |
-   v
-build_prompt()  → system + user message
-   |
-   v
-Send to LLM → run_llm_with_retries()
-   |
-   v
-LLM Response → parse_llm_response()
-   |
-   v
-Extract raw_data (unnormalized)
-→ normalize_keys()
-→ inject request.url
-   |
-   v
-Detect:
-- unavailable fields (e.g. "N/A")
-- score coverage → score_nonempty_fields()
-   |
-   v
-normalize_fields() → prepare final output
-   |
-   v
-(Optional) capture screenshot → add to normalized
-   |
-   v
-try_validate_scraped_item()
-→ ✅ StructuredItem if valid
-→ ❌ None if parsing or validation fails
-
-```
-
-## Flow Detailed
-
-```
-START: extract_structured_data()
-    |
-    v
-Retry wrapper:
-→ AsyncRetrying on OpenAIError (exponential backoff)
-    |
-    v
-_call → _extract_impl()
-    |
-    v
-Build dynamic prompt
-→ build_prompt(text, url, context_hints)
-    |
-    v
-Send message to LLM
-→ client.chat.completions.create()
-    |
-    v
-If response content is empty:
-→ log warning, return None
-    |
-    v
-Parse JSON content
-→ parse_llm_response(content)
-    |
-    └── If parsing fails → return None
-    |
-    v
-Post-processing:
-→ normalize_keys(raw_data)
-→ inject "url" into raw_data
-→ detect_unavailable_fields()
-→ score_nonempty_fields()
-    |
-    v
-normalize_fields()
-→ prepare for final schema validation
-    |
-    v
-(Optional) capture_screenshot()
-→ if successful: attach screenshot_path
-    |
-    v
-Validate schema
-→ try_validate_scraped_item(normalized)
-    |
-    ├─ Valid → return ScrapedItem ✅
-    └─ Invalid → return None ❌
-```
 
 
