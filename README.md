@@ -135,6 +135,8 @@ https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
 
 > All LLM modes use the OpenAI ChatCompletion API (`gpt-4`, `gpt-3.5-turbo`).
 
+See [`agents.md`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/docs/agents.md) 
+
 ---
 
 ## 📁 Project Structure
