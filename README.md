@@ -40,8 +40,6 @@
 - [🚀 Features](#-features)
 - [🎥 Demo Video](#-demo-video)
 - [⚙️ Tech Stack](#️-tech-stack)
-- [📐 Architecture Diagram](#-architecture-diagram)
-- [🧠 Agent Modes](#-agent-modes)
 - [📁 Project Structure](#-project-structure)
 - [🧰 Installation](#-installation)
   - [👤 For Users](#-for-users)
@@ -52,8 +50,10 @@
   - [Local](#local)
   - [🐳 Run via Docker](#-run-via-docker)
 - [🔧 Environment Configuration (.env)](#-environment-configuration-env)
+- [📐 Architecture Diagram](#-architecture-diagram)
 - [🧪 How It Works](#-how-it-works)
 - [✨ Example Output](#-example-output)
+- [🧠 Agent Modes](#-agent-modes)
 - [🔬 Scraping Pipeline](#-scraping-pipeline)
   - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
   - [🧬 Agent Extraction](#-agent-extraction-in-agent)
@@ -111,33 +111,7 @@ https://github.com/user-attachments/assets/b342d0f3-6bed-477f-b657-8c10e0db3eaf
 | **Deployment**           | `Render.com`, Docker Hub (frontend & backend images) |
 
 ---
-## 📐 Architecture Diagram
 
-https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
-
-<img width="6563" height="6563" alt="diagram" src="https://github.com/user-attachments/assets/128f4fac-711e-4463-9b25-04c257ef50a9" />
-
-
----
-
-## 🧠 Agent Modes
-
-| Mode                   | Description                                                                  |
-|------------------------|------------------------------------------------------------------------------|
-| `rule-based`           | Heuristic parser using BeautifulSoup — fast, LLM-free baseline               |
-| `llm-fixed`            | Extracts a fixed predefined schema (e.g. title, price)                        |
-| `llm-dynamic`          | LLM selects relevant fields based on page content and contextual hints       |
-| `llm-dynamic-adaptive` | Adds retries, field scoring, and placeholder detection for better coverage   |
-
-> 💡 Recommended: Use `llm-dynamic` for the best balance of quality and performance.
-
-> The UI dynamically adapts to the selected mode — model selection and retry sliders appear only for LLM-based modes.
-
-> All LLM modes use the OpenAI ChatCompletion API (`gpt-4`, `gpt-3.5-turbo`).
-
-See [`agents.md`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/docs/agents.md) 
-
----
 
 ## 📁 Project Structure
 ### Overview
@@ -426,32 +400,140 @@ The UI overrides `.env` if sidebar values are selected.
 
 ---
 
-## 🧪 How It Works
 
-1. **Input**: URLs from user (via paste or file)
-2. **Fetch**: HTML pages with retries
-3. **Parse**: HTML content with `BeautifulSoup`
-4. **Extract**: Structured info via LLM or rule-based parser
-5. **Validate**: Output with `pydantic` schema
-6. **Retry** (LLM only): Re-prompt if fields are missing
-7. **Screenshot**: Page saved via Playwright
-8. **Display**: Results shown in Streamlit with Ag-Grid
-9. **Export**: JSON, CSV, or SQLite output
+## 📐 Architecture Diagram
+
+https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
+
+<img width="6563" height="6563" alt="diagram" src="https://github.com/user-attachments/assets/128f4fac-711e-4463-9b25-04c257ef50a9" />
+
 
 ---
 
-## ✨ Example Output
+
+## 🧪 How It Works
+
+1. **User Input**
+
+   * URLs are provided via Streamlit UI (paste or `.txt` file).
+   * OpenAI credentials are securely stored using encrypted local store.
+   * User must authenticate via Auth0 (JWT token required for API access).
+
+2. **API Request (FastAPI)**
+
+   * Frontend sends a scrape request to the FastAPI backend (`/api/v1/scrape/start`) with the list of URLs and user config.
+   * Backend validates JWT token and user scopes.
+
+3. **Fetch HTML**
+
+   * Backend fetches page content using `httpx` with retry logic.
+   * Optionally stores raw HTML if needed for debugging.
+
+4. **Extract Structured Data**
+
+   * [The Scraping Pipeline](#-scraping-pipeline) runs agents per URL:
+
+     * `rule_based`: uses `BeautifulSoup` heuristics.
+     * `llm_fixed`: strict schema LLM extraction.
+     * `llm_dynamic`: free-form LLM extraction.
+     * `llm_dynamic_adaptive`: retry-aware LLM with field scoring + self-healing.
+   * Agents are configurable via sidebar in the frontend.
+
+5. **Validate Output**
+
+   * Extracted output is validated using a `ScrapedItem` Pydantic schema.
+   * If invalid, adaptive agents retry with refined prompts.
+
+6. **Retry (Adaptive Agent Only)**
+
+   * If required fields are missing or placeholders are returned (e.g. "N/A"),
+
+     * The agent retries up to `LLM_SCHEMA_RETRIES` times.
+     * Prompts adapt based on previously missing fields.
+
+7. **Screenshot (Optional)**
+
+   * If enabled, Playwright captures a screenshot for each page.
+   * Screenshots are saved and included in the final output.
+
+8. **Display in Streamlit**
+
+   * Results are shown in the frontend using Ag-Grid.
+   * Users can filter, sort, and inspect structured data and screenshots.
+
+9. **Export Results**
+
+   * Scraped data can be exported as:
+
+     * **JSON**
+     * **CSV**
+     * **SQLite**
+   * Export options are available from the frontend UI.
+
+---
+
+
+### ✨ Example Output
 
 ```json
-{
-  "title": "The Future of AI Agents",
-  "author": "Jane Doe",
-  "price": 19.99,
-  "description": "An in-depth look at LLM-powered web automation.",
-  "url": "https://example.com/future-of-agents",
-  "screenshot_path": "screenshots/example-f3d4c2a1.png"
-}
+[
+  {
+    "title":"Beats Solo 4 - Wireless Bluetooth On-Ear Headphones, Apple & Android Compatible, Up to 50 Hours of Battery Life - Matte Black",
+    "description":null,
+    "price":null,
+    "author":"Beats",
+    "date_published":null,
+    "page_type":"product",
+    "summary":"Wireless Bluetooth On-Ear Headphones, Apple & Android Compatible, Up to 50 Hours of Battery Life - Matte Black",
+    "company":"Amazon.com",
+    "location":"Deliver to Germany",
+    "date":null,
+    "product_features":{
+      "Compatibility":"Apple & Android Compatible",
+      "Battery Life":"Up to 50 Hours",
+      "Color":"Matte Black",
+      "Wireless":"Bluetooth"
+    },
+    "product_specifications":{
+      "Brand":"Beats",
+      "Type":"On-Ear Headphones",
+      "Connectivity":"Wireless Bluetooth"
+    },
+    "ratings":"4.6 out of 5 stars",
+    "reviews_count":"15,382",
+    "return_policy":"FREE returns, 30-day refund\/replacement",
+    "shipping_info":"Ships from and sold by Amazon.com",
+    "seller":"Amazon.com",
+    "quantity_available":"30",
+    "product_support_included":true,
+    "secure_transaction":true,
+    "gift_options_available":true,
+    "other_sellers_on_amazon":true,
+    "new_and_used_offers":"New & Used (9) from $122.46 & FREE Shipping",
+    "url":"https:\/\/www.amazon.com\/Beats-Solo-Wireless-Headphones-Matte\/dp\/B0CZPLV566\/"
+  }
+]
 ```
+
+---
+
+## 🧠 Agent Modes
+
+| Mode                   | Description                                                                  |
+|------------------------|------------------------------------------------------------------------------|
+| `rule-based`           | Heuristic parser using BeautifulSoup — fast, LLM-free baseline               |
+| `llm-fixed`            | Extracts a fixed predefined schema (e.g. title, price)                        |
+| `llm-dynamic`          | LLM selects relevant fields based on page content and contextual hints       |
+| `llm-dynamic-adaptive` | Adds retries, field scoring, and placeholder detection for better coverage   |
+
+> 💡 Recommended: Use `llm-dynamic` for the best balance of quality and performance.
+
+> The UI dynamically adapts to the selected mode — model selection and retry sliders appear only for LLM-based modes.
+
+> All LLM modes use the OpenAI ChatCompletion API (`gpt-4`, `gpt-3.5-turbo`).
+
+See [`agents.md`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/docs/agents.md) 
+
 
 ---
 
