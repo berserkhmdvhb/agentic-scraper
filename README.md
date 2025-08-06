@@ -338,7 +338,8 @@ docker pull hmdvhb/agentic-scraper-backend
 Note that when the app is launched, it shows you button for login (redirects to Auth0 page) on sidebar, and then prompts an OpenAI API key and Project key.
 Whe these are provided, you could enter URLs to scrape.
 
-> Before running, ensure you have `.env` file filled with required values. See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
+> ⚙️ Ensure you have `.env` configured before running. The backend requires Auth0 and domain values at runtime. You can create a `.env` file.
+>  See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
 
 ### Online
  Visit the hosted version domains here:  
@@ -348,7 +349,7 @@ Whe these are provided, you could enter URLs to scrape.
 
 ### Local
 
-Start the Streamlit UI:
+To launch the frontend, start the Streamlit UI:
 
 ```bash
 streamlit run src/agentic_scraper/frontend/app.py
@@ -360,10 +361,18 @@ Or, use the shortcut:
 python run.py
 ```
 
+To launch the backend, run the Uvicorn server:
+
+```bash
+ uvicorn src.agentic_scraper.backend.api.main:app --reload
+```
+
+
+> ⚙️ Ensure you have `.env` configured before running containers. The backend requires Auth0 and domain values at runtime. You can mount volumes or use env_file: in `docker-compose.yml` to inject secrets.
+>  See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
+
 
 ### 🐳 Run via Docker
-
-> Before running, ensure you have `.env` file filled with required values. See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
 
 To launch both frontend and backend locally using Docker Compose:
 
@@ -382,7 +391,8 @@ Then visit:
 - Frontend: http://localhost:8501
 - Backend: http://localhost:8000
 
-> ⚙️ Ensure you have `.env` configured before running containers.The backend requires Auth0 and OpenAI credentials at runtime.You can mount volumes or use env_file: in docker-compose.yml to inject secrets.
+> ⚙️ Ensure you have `.env` configured before running containers. The backend requires Auth0 and OpenAI credentials at runtime. You can mount volumes or use env_file: in `docker-compose.yml` to inject secrets.
+>  See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
 
 
 ---
