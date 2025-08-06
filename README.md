@@ -110,6 +110,10 @@ https://github.com/user-attachments/assets/b342d0f3-6bed-477f-b657-8c10e0db3eaf
 | **Tooling & Automation** | `Makefile`, `Docker`, GitHub Actions                 |
 | **Deployment**           | `Render.com`, Docker Hub (frontend & backend images) |
 
+---
+## 📐 Architecture Diagram
+
+https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95
 
 ---
 
