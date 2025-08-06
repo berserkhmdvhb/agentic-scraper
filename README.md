@@ -613,41 +613,124 @@ Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when cri
 
 → Enables **self-healing extraction** and **schema robustness** on diverse webpages.
 
+### Flow - Overview
+
+
 ```
-[LLM Response] ──> parse_llm_response() ──┐
-                                         ↓
-                              check missing fields (raw)
-                                         ↓
-                           retry missing fields if needed
-                                         ↓
-                          choose best or fallback candidate
-                                         ↓
-                            normalize_fields() final only
-                                         ↓
-                          validate with ScrapedItem schema
+[LLM Response]
+   |
+   v
+parse_llm_response()
+→ Extract raw fields (unnormalized JSON)
+   |
+   v
+Detect:
+- non-empty fields
+- missing required fields (based on page_type)
+- explicitly unavailable fields ("N/A", "Not specified", etc.)
+   |
+   v
+Evaluate:
+- Is result valid? (try_validate_scraped_item)
+- Is it complete? (no required fields missing)
+- Should we exit early? (no new fields, no improvement)
+   |
+   v
+If retry needed:
+→ build_retry_or_fallback_prompt(best_fields, missing_fields)
+→ add to ctx.messages for next LLM call
+   |
+   v
+After all retries:
+→ Choose best_valid_item or best_fields
+   |
+   v
+normalize_fields()  (applied once to final candidate)
+   |
+   v
+validate with ScrapedItem schema → ✅ final structured output
 
+```
 
-[LLM Response] ──> parse_llm_response() ──┐
-                                         ↓
-               extract raw_fields, evaluate new content
-                                         ↓
-       update all_fields with new non-empty / non-placeholder values
-                                         ↓
-  check: did we fill all required fields? → Yes → skip further retries
-                                         ↓
-  if score improved or new fields appeared → update best_fields
-                                         ↓
-             generate retry prompt for next missing or weak fields
-                                         ↓
-     ┌──────────┐        ...next pass...        ┌────────────┐
-     │ Retry N+1│ ─────────────────────────────> │ Retry N+2 …│
-     └──────────┘                               └────────────┘
-                                         ↓
-             fallback to best_fields or best_valid_item
-                                         ↓
-               normalize_fields() ← on final best only
-                                         ↓
-             validate with ScrapedItem schema (final)
+### Flow - Detailed
+```
+START: extract_adaptive_data()
+    |
+    v
+Build initial prompt
+→ build_prompt(text, context_hints)
+    |
+    v
+LLM Call (Attempt 1)
+→ run_llm_with_retries(messages = initial system + user)
+    |
+    v
+Parse LLM response
+→ parse_llm_response(content) → raw_data
+    |
+    v
+Evaluate raw_data:
+→ extract non-empty fields, detect placeholders ("N/A", "Not specified")
+→ get missing required fields (get_required_fields(page_type) - seen - unavailable)
+    |
+    v
+Validate structured item
+→ try_validate_scraped_item(normalized raw_data) → item (valid or None)
+    |
+    v
+Score fields and update context
+→ score_and_log_fields()
+→ update best_fields, best_valid_item, all_fields
+    |
+    v
+Is item valid AND no required fields missing AND discovery not yet done?
+    |
+    ├─ Yes ─► Trigger 1 final discovery retry (to explore optional fields)
+    |          |
+    |          v
+    |     LLM Call (Discovery Retry)
+    |     → with previous messages (no prompt change)
+    |          |
+    |          v
+    |     Parse, score, validate again → continue
+    |
+    v
+Should exit early?
+→ should_exit_early(): No new fields + no missing fields filled?
+    |
+    ├─ Yes ─► RETURN best_valid_item ✅
+    |
+    └─ No
+        |
+        v
+    Build retry prompt
+    → build_retry_or_fallback_prompt(best_fields, missing_fields)
+        |
+        v
+    Update ctx.messages:
+    → [system, last assistant, new retry prompt]
+        |
+        v
+    LLM Call Retry N
+    → run_llm_with_retries(ctx.messages)
+        |
+        v
+    Parse, score, validate again
+        |
+        v
+    Update context if improved
+    → best_valid_item, best_fields, all_fields
+        |
+        v
+    Are max retries reached?
+        |
+        ├─ Yes ─► handle_fallback()
+        |           |
+        |           ├─ Try best_valid_item ✅
+        |           └─ Else try best_fields → validate again
+        |
+        └─ No ─► loop: Build next retry prompt
+
 ```
 
 
