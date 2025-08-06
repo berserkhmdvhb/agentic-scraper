@@ -40,6 +40,7 @@
 - [🚀 Features](#-features)
 - [🎥 Demo Video](#-demo-video)
 - [⚙️ Tech Stack](#️-tech-stack)
+- [📐 Architecture Diagram](#-architecture-diagram)
 - [🧠 Agent Modes](#-agent-modes)
 - [📁 Project Structure](#-project-structure)
 - [🧰 Installation](#-installation)
