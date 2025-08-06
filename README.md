@@ -468,12 +468,16 @@ https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
      * **JSON**
      * **CSV**
      * **SQLite**
-   * Export options are available from the extracted JSON of results.
+   * Export options are available from the UI.
 
 ---
 
 
 ### ✨ Example Output
+
+<img width="1505" height="537" alt="display" src="https://github.com/user-attachments/assets/31f5ff36-6885-48c8-bedf-5da595c5c000" />
+
+
 
 ```json
 [
