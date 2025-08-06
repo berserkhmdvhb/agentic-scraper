@@ -116,7 +116,7 @@ https://github.com/user-attachments/assets/b342d0f3-6bed-477f-b657-8c10e0db3eaf
 
 https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
 
-<img width="6563" height="6563" alt="image" src="https://github.com/user-attachments/assets/55fd8f79-a204-47ec-90ab-cfeaf8046577" />
+<img width="6563" height="6563" alt="diagram" src="https://github.com/user-attachments/assets/128f4fac-711e-4463-9b25-04c257ef50a9" />
 
 
 ---
