@@ -338,6 +338,8 @@ docker pull hmdvhb/agentic-scraper-backend
 Note that when the app is launched, it shows you button for login (redirects to Auth0 page) on sidebar, and then prompts an OpenAI API key and Project key.
 Whe these are provided, you could enter URLs to scrape.
 
+> Before running, ensure you have `.env` file filled with required values. See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
+
 ### Online
  Visit the hosted version domains here:  
 
@@ -360,6 +362,8 @@ python run.py
 
 
 ### 🐳 Run via Docker
+
+> Before running, ensure you have `.env` file filled with required values. See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
 
 To launch both frontend and backend locally using Docker Compose:
 
@@ -385,6 +389,8 @@ Then visit:
 
 
 ## 🔧 Environment Configuration (.env)
+
+See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
 
 ```ini
 LOG_LEVEL=INFO
