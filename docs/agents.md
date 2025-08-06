@@ -74,71 +74,34 @@ Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when cri
 
 
 ```
-[Page Content + URL]
-   |
-   v
-Prompt Construction (f-string with embedded URL + content[:4000])
-   |
-   v
-LLM Request → AsyncOpenAI.chat.completions.create()
-   |
-   v
-LLM Response (content)
-   |
-   v
-parse_llm_response(content, url, settings)
-   |
-   v
-→ raw_data (JSON dict)
-   |
-   v
-Inject:
-- url
-- (optional) screenshot_path → capture_optional_screenshot()
-   |
-   v
-try:
-   ScrapedItem.model_validate(raw_data)
-   |
-   v
-   log_structured_data(item) + log success
-   → ✅ Return ScrapedItem
-except ValidationError:
-   → ❌ Log warning and return None
-```
-
-```
-[LLM Prompt]
-   |
-   v
-build_prompt()  → system + user message
-   |
-   v
-Send to LLM → run_llm_with_retries()
-   |
-   v
-LLM Response → parse_llm_response()
-   |
-   v
-Extract raw_data (unnormalized)
-→ normalize_keys()
-→ inject request.url
-   |
-   v
-Detect:
-- unavailable fields (e.g. "N/A")
-- score coverage → score_nonempty_fields()
-   |
-   v
-normalize_fields() → prepare final output
-   |
-   v
-(Optional) capture screenshot → add to normalized
-   |
-   v
-try_validate_scraped_item()
-→ ✅ StructuredItem if valid
-→ ❌ None if parsing or validation fails
+[Page Text + URL + Context]
+        |
+        v
+Generate Prompt → build_prompt()
+        |
+        v
+Send to LLM with Retry → AsyncOpenAI().chat.completions.create()
+        |
+        v
+Parse LLM Response → parse_llm_response()
+        |
+        v
+Preprocess Output
+- Normalize keys
+- Inject metadata (URL)
+- Detect unavailable fields
+- Score field coverage
+        |
+        v
+Normalize & Validate
+- Convert types
+- Add screenshot (optional)
+- Schema validation
+        |
+        v
+✅ Return ScrapedItem
+or
+❌ Return None (on failure)
 
 ```
 
