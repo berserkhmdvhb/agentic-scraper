@@ -54,7 +54,7 @@
 - [🔧 Environment Configuration (.env)](#-environment-configuration-env)
 - [🧪 How It Works](#-how-it-works)
 - [✨ Example Output](#-example-output)
-- [🔬 Scraping Architecture](#-scraping-architecture)
+- [🔬 Scraping Pipeline](#-scraping-pipeline)
   - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
   - [🧬 Agent Extraction](#-agent-extraction-in-agent)
 - [🔌 API (FastAPI)](#-api-fastapi)
@@ -456,9 +456,9 @@ The UI overrides `.env` if sidebar values are selected.
 ---
 
 
-## 🔬 Scraping Architecture
+## 🔬 Scraping Pipeline
 
-![Uploading scraping pipeline.PNG…]()
+<img width="815" height="538" alt="pipeline" src="https://github.com/user-attachments/assets/11940f42-b1e4-4889-a1a7-49e694f1c793" />
 
 
 
