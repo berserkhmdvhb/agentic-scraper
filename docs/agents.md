@@ -72,6 +72,41 @@ Only the `llm-dynamic-adaptive` agent supports **field-aware retrying** when cri
 
 #### Flow Overview
 
+
+```
+[Page Content + URL]
+   |
+   v
+Prompt Construction (f-string with embedded URL + content[:4000])
+   |
+   v
+LLM Request → AsyncOpenAI.chat.completions.create()
+   |
+   v
+LLM Response (content)
+   |
+   v
+parse_llm_response(content, url, settings)
+   |
+   v
+→ raw_data (JSON dict)
+   |
+   v
+Inject:
+- url
+- (optional) screenshot_path → capture_optional_screenshot()
+   |
+   v
+try:
+   ScrapedItem.model_validate(raw_data)
+   |
+   v
+   log_structured_data(item) + log success
+   → ✅ Return ScrapedItem
+except ValidationError:
+   → ❌ Log warning and return None
+```
+
 ```
 [LLM Prompt]
    |
