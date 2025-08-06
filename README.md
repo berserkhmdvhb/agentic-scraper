@@ -475,6 +475,8 @@ https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
 
 ### ✨ Example Output
 
+Input URL: https://www.amazon.com/Beats-Solo-Wireless-Headphones-Matte/dp/B0CZPLV566
+
 <img width="1505" height="537" alt="display" src="https://github.com/user-attachments/assets/31f5ff36-6885-48c8-bedf-5da595c5c000" />
 
 
