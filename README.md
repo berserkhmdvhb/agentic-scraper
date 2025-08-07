@@ -700,8 +700,7 @@ Production deployments are triggered automatically when changes are pushed to `m
 To see the hosted domains, visit [Running the App](#%EF%B8%8F-running-the-app)
 
 ### 📦 Docker Support
-
-We’ve added production-ready Docker configuration:
+Production-ready Docker configuration are provided as following files:
 - `Dockerfile.backend` – builds the FastAPI backend
 - `Dockerfile.frontend` – builds the Streamlit frontend
 - `docker-compose.yml` – orchestrates both services for local dev or deployment
