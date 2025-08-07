@@ -46,6 +46,7 @@
   - [💼 For Developers](#-for-developers)
   - [🐳 Installing via Docker](#-installing-via-docker-alternative)
 - [▶️ Running the App](#%EF%B8%8F-running-the-app)
+  - [Prerequisites](#prerequisites)  
   - [Online](#online)
   - [Local](#local)
   - [🐳 Run via Docker](#-run-via-docker)
@@ -373,10 +374,6 @@ To launch the backend, run the Uvicorn server:
 
 
 ### 🐳 Run via Docker
-
-
-> ⚙️ Ensure you have `.env` configured before running. See [🔧 Environment Configuration (.env)](#-environment-configuration-env).
-
 
 To launch both frontend and backend locally using Docker Compose:
 
