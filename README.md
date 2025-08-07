@@ -416,7 +416,7 @@ httpx.HTTPStatusError: Client error '404 Not Found' for url 'https://dev-xxxxxx.
 
 The file [`src\backend\api\auth\auth0_helpers.py`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/src/agentic_scraper/backend/api/auth/auth0_helpers.py) is responsible for fetching JWKS.
 
-
+Example of `.env` values:
 
 ```ini
 LOG_LEVEL=INFO
