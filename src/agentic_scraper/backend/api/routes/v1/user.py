@@ -3,8 +3,9 @@ User-related API routes for authentication, profile, and OpenAI credential manag
 
 This module exposes the following endpoints:
 - `GET /me`: Returns the authenticated user's profile.
-- `POST /openai-credentials`: Stores the user's OpenAI API key and project ID securely.
 - `GET /openai-credentials`: Retrieves previously saved OpenAI credentials for the user.
+- `PUT /openai-credentials`: Creates or updates the user's OpenAI API key and project ID.
+- `DELETE /openai-credentials`: Deletes the stored OpenAI credentials for the user.
 
 All routes require authentication via JWT and are protected by scope-based access control
 enforced using Auth0-issued scopes and the `check_required_scopes` helper.
@@ -14,7 +15,7 @@ Usage:
 """
 
 import logging
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
@@ -27,14 +28,19 @@ from agentic_scraper.backend.api.schemas.user import (
     UserCredentialsOut,
     UserProfile,
 )
-from agentic_scraper.backend.api.user_store import load_user_credentials, save_user_credentials
+from agentic_scraper.backend.api.user_store import (
+    delete_user_credentials,
+    has_user_credentials,
+    load_user_credentials,
+    save_user_credentials,
+)
 from agentic_scraper.backend.config.messages import (
     MSG_INFO_CREDENTIALS_LOADED,
     MSG_INFO_CREDENTIALS_SAVED,
     MSG_WARNING_NO_CREDENTIALS_FOUND,
 )
 
-__all__ = ["get_credentials", "get_me", "post_credentials"]
+__all__ = ["delete_credentials", "get_credentials", "get_me", "put_credentials"]
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -66,52 +72,6 @@ async def get_me(user: CurrentUser) -> UserProfile:
         email=user.get("email"),
         name=user.get("name"),
     )
-
-
-@router.post("/openai-credentials", status_code=status.HTTP_201_CREATED, tags=["User"])
-async def post_credentials(user: CurrentUser, creds: UserCredentialsIn) -> UserCredentialsOut:
-    """
-    Save the user's OpenAI credentials to persistent storage.
-
-    Args:
-        user (AuthUser): The current authenticated user.
-        creds (UserCredentialsIn): User's OpenAI API key and project ID.
-
-    Returns:
-        UserCredentialsOut: Echoes back the stored credentials.
-
-    Raises:
-        HTTPException (400): If the input data is invalid.
-        HTTPException (500): On internal storage or validation errors.
-    """
-    check_required_scopes(user, {RequiredScopes.CREATE_OPENAI_CREDENTIALS})
-
-    try:
-        save_user_credentials(
-            user_id=user["sub"],
-            api_key=creds.api_key,
-            project_id=creds.project_id,
-        )
-        logger.info(MSG_INFO_CREDENTIALS_SAVED.format(user_id=user["sub"]))
-        return UserCredentialsOut(api_key=creds.api_key, project_id=creds.project_id)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid data format for credentials.",
-            headers={"X-Error": str(e)},
-        ) from e
-    except OSError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error with the database or file storage.",
-            headers={"X-Error": str(e)},
-        ) from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save user credentials due to internal error.",
-            headers={"X-Error": str(e)},
-        ) from e
 
 
 @router.get("/openai-credentials", tags=["User"])
@@ -155,3 +115,89 @@ async def get_credentials(user: CurrentUser) -> UserCredentialsOut:
             detail="Unexpected error while processing credentials.",
             headers={"X-Error": str(e)},
         ) from e
+
+
+@router.put("/openai-credentials", status_code=status.HTTP_200_OK, tags=["User"])
+async def put_credentials(user: CurrentUser, creds: UserCredentialsIn) -> UserCredentialsOut:
+    """
+    Create or update the user's OpenAI credentials in persistent storage.
+
+    Args:
+        user (AuthUser): The current authenticated user.
+        creds (UserCredentialsIn): User's OpenAI API key and project ID.
+
+    Returns:
+        UserCredentialsOut: Echoes back the stored credentials.
+
+    Raises:
+        HTTPException (400): If the input data is invalid.
+        HTTPException (500): On internal storage or validation errors.
+    """
+    check_required_scopes(user, {RequiredScopes.CREATE_OPENAI_CREDENTIALS})
+
+    try:
+        save_user_credentials(
+            user_id=user["sub"],
+            api_key=creds.api_key,
+            project_id=creds.project_id,
+        )
+        logger.info(MSG_INFO_CREDENTIALS_SAVED.format(user_id=user["sub"]))
+        return UserCredentialsOut(api_key=creds.api_key, project_id=creds.project_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid data format for credentials.",
+            headers={"X-Error": str(e)},
+        ) from e
+    except OSError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error with the database or file storage.",
+            headers={"X-Error": str(e)},
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save user credentials due to internal error.",
+            headers={"X-Error": str(e)},
+        ) from e
+
+
+@router.delete("/openai-credentials", status_code=status.HTTP_204_NO_CONTENT, tags=["User"])
+async def delete_credentials(user: CurrentUser) -> None:
+    """
+    Delete the stored OpenAI credentials for the authenticated user.
+
+    Raises:
+        HTTPException (404): If no credentials exist.
+        HTTPException (500): On internal deletion errors.
+    """
+
+    def raise_not_found() -> NoReturn:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No credentials found to delete.",
+        )
+
+    try:
+        success = delete_user_credentials(user["sub"])  # You'd define this in `user_store.py`
+        if not success:
+            raise_not_found()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete credentials.",
+            headers={"X-Error": str(e)},
+        ) from e
+
+
+@router.get("/openai-credentials/status", tags=["User"])
+async def credentials_status(user: CurrentUser) -> dict[str, bool]:
+    """
+    Check if the user has stored OpenAI credentials.
+
+    Returns:
+        {"has_credentials": true} or {"has_credentials": false}
+    """
+
+    return {"has_credentials": has_user_credentials(user["sub"])}

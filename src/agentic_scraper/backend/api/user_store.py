@@ -22,6 +22,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_CREDENTIALS,
     MSG_ERROR_LOADING_USER_STORE,
     MSG_ERROR_SAVING_USER_STORE,
+    MSG_INFO_CREDENTIALS_DELETED,
     MSG_WARNING_CREDENTIALS_NOT_FOUND,
 )
 from agentic_scraper.backend.core.logger_setup import get_logger
@@ -35,6 +36,13 @@ USER_STORE.parent.mkdir(parents=True, exist_ok=True)
 
 if not USER_STORE.exists():
     USER_STORE.write_text("{}")
+
+__all__ = [
+    "delete_user_credentials",
+    "has_user_credentials",
+    "load_user_credentials",
+    "save_user_credentials",
+]
 
 
 def _load_store() -> dict[str, dict[str, str]]:
@@ -64,7 +72,7 @@ def _save_store(store: dict[str, dict[str, str]]) -> None:
         store (dict[str, dict[str, str]]): Encrypted credentials mapped by user ID.
 
     Raises:
-        OSError: If saving fails, wraps and raises the underlying error.
+        OSError: If saving fails due to file system errors or encoding issues.
     """
     try:
         with tempfile.NamedTemporaryFile("w", dir=USER_STORE.parent, delete=False) as tmp:
@@ -77,6 +85,7 @@ def _save_store(store: dict[str, dict[str, str]]) -> None:
         logger.exception(error_message, exc_info=e)
         raise OSError(error_message) from e
     except Exception as e:
+        # Catch-all for unexpected serialization or write errors
         error_message = MSG_ERROR_SAVING_USER_STORE.format(error=str(e))
         logger.exception(error_message, exc_info=e)
         raise OSError(error_message) from e
@@ -134,3 +143,48 @@ def load_user_credentials(user_id: str) -> OpenAIConfig | None:
         error_message = MSG_ERROR_DECRYPTION_FAILED.format(user_id=user_id, error=str(e))
         logger.exception(error_message, exc_info=e)
         return None
+
+
+def delete_user_credentials(user_id: str) -> bool:
+    """
+    Delete stored OpenAI credentials for the given user.
+
+    Args:
+        user_id (str): The user's Auth0 subject ID.
+
+    Returns:
+        bool: True if credentials were deleted, False if not found.
+
+    Raises:
+        OSError: If deletion or saving fails due to file I/O issues.
+    """
+    store = _load_store()
+
+    if user_id not in store:
+        logger.warning(MSG_WARNING_CREDENTIALS_NOT_FOUND.format(user_id=user_id))
+        return False
+
+    try:
+        del store[user_id]
+        _save_store(store)
+        logger.info(MSG_INFO_CREDENTIALS_DELETED.format(user_id=user_id))
+    except Exception as e:
+        error_message = MSG_ERROR_SAVING_USER_STORE.format(error=str(e))
+        logger.exception(error_message, exc_info=e)
+        raise OSError(error_message) from e
+    else:
+        return True
+
+
+def has_user_credentials(user_id: str) -> bool:
+    """
+    Check if the given user has stored OpenAI credentials.
+
+    Args:
+        user_id (str): The user's Auth0 subject ID.
+
+    Returns:
+        bool: True if credentials exist, False otherwise.
+    """
+    store = _load_store()
+    return user_id in store
