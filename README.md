@@ -58,6 +58,7 @@
   - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
   - [🧬 Agent Extraction](#-agent-extraction-in-agent)
 - [🔌 API (FastAPI)](#-api-fastapi)
+- [🔐 Security & Authentication](#security-&-autehntication)
 - [🚀 CI/CD & Deployment](#-cicd--deployment)
   - [🧪 Continuous Integration](#-continuous-integration)
   - [🚀 Continuous Delivery (Render)](#-continuous-delivery-render)
@@ -335,10 +336,13 @@ docker pull hmdvhb/agentic-scraper-backend
 ---
 
 ## ▶️ Running the App
-Note that when the app is launched, it shows you button for login (redirects to Auth0 page) on sidebar, and then prompts an OpenAI API key and Project key.
-When these are provided, you could enter URLs to scrape.
+
+### Prerequisites
+
 
 > ⚙️ Ensure you have `.env` configured before running. See [🔧 Environment Configuration (.env)](#-environment-configuration-env).
+
+> Some `.env` variables are available after you setup auth0. Authenticating users, submitting openai-credentials, and feeding URLs to start the scraping requires to setup auth0, see [Setup Auth0](#setup-auth0).
 
 ### Online
  Visit the hosted version domains here:  
@@ -415,6 +419,17 @@ httpx.HTTPStatusError: Client error '404 Not Found' for url 'https://dev-xxxxxx.
 ```
 
 The file [`src\backend\api\auth\auth0_helpers.py`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/src/agentic_scraper/backend/api/auth/auth0_helpers.py) is responsible for fetching JWKS.
+Although providing `ENCRYPTION_SECRET` and `AUTH0_ISSUER` will be enough for both frontend and backend to launch, but the following operations require auth0 proper setup:
+- Authenticate users on auth0
+- Authenticated users log in on the frontend domain.
+- Authenticated users submit their openai-credentials.
+- Authenticated users with saved openai-credentials could now feed URLs and perform scraping.
+
+
+To setup auth0, see [Setup Auth0](#setup-auth0)
+
+
+After filling these two, the frontend and backend will run, but you need to setup auth0.
 
 Example of `.env` values:
 
@@ -684,6 +699,16 @@ Content-Type: application/json
 * **Security**: JWT validation via FastAPI dependencies (`get_current_user`)
 * **Scope Enforcement**: Done via `check_required_scopes()` helper
 * **OpenAPI UI**: Visit `/docs` (with token input) for interactive API explorer
+
+
+
+## 🔐 Security & Authentication 
+
+### Setup Auth0
+To 
+...
+
+
 
 
 ---
