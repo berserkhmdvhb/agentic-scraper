@@ -58,7 +58,7 @@
   - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
   - [🧬 Agent Extraction](#-agent-extraction-in-agent)
 - [🔌 API (FastAPI)](#-api-fastapi)
-- [🔐 Security & Authentication](#security-&-autehntication)
+- [🔐 Security & Authentication](#-security--authentication)
 - [🚀 CI/CD & Deployment](#-cicd--deployment)
   - [🧪 Continuous Integration](#-continuous-integration)
   - [🚀 Continuous Delivery (Render)](#-continuous-delivery-render)
