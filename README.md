@@ -426,7 +426,6 @@ Although providing `ENCRYPTION_SECRET` and `AUTH0_ISSUER` will be enough for bot
 To setup auth0, see [Setup Auth0](#setup-auth0)
 
 
-After filling these two, the frontend and backend will run, but you need to setup auth0.
 
 Example of `.env` values:
 
