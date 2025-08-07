@@ -416,14 +416,14 @@ httpx.HTTPStatusError: Client error '404 Not Found' for url 'https://dev-xxxxxx.
 ```
 
 The file [`src\backend\api\auth\auth0_helpers.py`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/src/agentic_scraper/backend/api/auth/auth0_helpers.py) is responsible for fetching JWKS.
-Although providing `ENCRYPTION_SECRET` and `AUTH0_ISSUER` will be enough for both frontend and backend to launch, but the following operations require auth0 proper setup:
+Although providing `ENCRYPTION_SECRET` and `AUTH0_ISSUER` will be enough for both frontend and backend to launch, but the following operations require proper setup of auth0:
 - Authenticate users on auth0
 - Authenticated users log in on the frontend domain.
 - Authenticated users submit their openai-credentials.
 - Authenticated users with saved openai-credentials could now feed URLs and perform scraping.
 
 
-To setup auth0, see [Setup Auth0](#setup-auth0)
+To setup auth0, see [Setup Auth0](#setup-auth0).
 
 
 
