@@ -340,6 +340,7 @@ Whe these are provided, you could enter URLs to scrape.
 
 > ⚙️ Ensure you have `.env` configured before running. The backend requires Auth0 and domain values at runtime. You can create a `.env` file.
 >  See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
+> Ensure you generate the `ENCRYPTION_SECRET` value using the `cryptography.fernet` command provided in `sample.env` and replace it with the command. You should run `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
 
 ### Online
  Visit the hosted version domains here:  
@@ -368,11 +369,14 @@ To launch the backend, run the Uvicorn server:
 ```
 
 
-> ⚙️ Ensure you have `.env` configured before running containers. The backend requires Auth0 and domain values at runtime. You can mount volumes or use env_file: in `docker-compose.yml` to inject secrets.
->  See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
-
 
 ### 🐳 Run via Docker
+
+
+> ⚙️ Ensure you have `.env` configured before running. The backend requires Auth0 and domain values at runtime. You can create a `.env` file.
+>  See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
+> Ensure you generate the `ENCRYPTION_SECRET` value using the `cryptography.fernet` command provided in `sample.env` and replace it with the command. You should run `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+
 
 To launch both frontend and backend locally using Docker Compose:
 
@@ -391,8 +395,7 @@ Then visit:
 - Frontend: http://localhost:8501
 - Backend: http://localhost:8000
 
-> ⚙️ Ensure you have `.env` configured before running containers. The backend requires Auth0 and OpenAI credentials at runtime. You can mount volumes or use env_file: in `docker-compose.yml` to inject secrets.
->  See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
+
 
 
 ---
