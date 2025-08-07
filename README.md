@@ -760,6 +760,7 @@ These images are automatically published on every versioned release and push to 
 * [ ] Add agentic workflow to classify and contextualize input URLs and feed that to other models
 * [ ] Add DELETE, POST, and PATCH operatoins on FastAPI for the route `user/openai-credentails`
 * [ ] In scraping pipeline, fetching and scraping are sequential operations, find a robust and clean way to parallelize them.
+* [ ] Use Playwright do explore the page and add more content before feeding to scraping pipeline.
 * [x] User authentication with Auth0
 * [x] Authentication protocol with OAuth2 and JWT
 
