@@ -336,11 +336,9 @@ docker pull hmdvhb/agentic-scraper-backend
 
 ## ▶️ Running the App
 Note that when the app is launched, it shows you button for login (redirects to Auth0 page) on sidebar, and then prompts an OpenAI API key and Project key.
-Whe these are provided, you could enter URLs to scrape.
+When these are provided, you could enter URLs to scrape.
 
-> ⚙️ Ensure you have `.env` configured before running. The backend requires Auth0 and domain values at runtime. You can create a `.env` file.
->  See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
-> Ensure you generate the `ENCRYPTION_SECRET` value using the `cryptography.fernet` command provided in `sample.env` and replace it with the command. You should run `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+> ⚙️ Ensure you have `.env` configured before running. See [🔧 Environment Configuration (.env)](#-environment-configuration-env).
 
 ### Online
  Visit the hosted version domains here:  
@@ -373,9 +371,7 @@ To launch the backend, run the Uvicorn server:
 ### 🐳 Run via Docker
 
 
-> ⚙️ Ensure you have `.env` configured before running. The backend requires Auth0 and domain values at runtime. You can create a `.env` file.
->  See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
-> Ensure you generate the `ENCRYPTION_SECRET` value using the `cryptography.fernet` command provided in `sample.env` and replace it with the command. You should run `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+> ⚙️ Ensure you have `.env` configured before running. See [🔧 Environment Configuration (.env)](#-environment-configuration-env).
 
 
 To launch both frontend and backend locally using Docker Compose:
@@ -404,15 +400,31 @@ Then visit:
 ## 🔧 Environment Configuration (.env)
 
 See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
+Two values are mandatory for backend to run:
+
+1. `ENCRYPTION_SECRET`: Ensure you generate the `ENCRYPTION_SECRET` value using the `cryptography.fernet` command provided in `sample.env` and replace it with the command. The command to generate is following:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+2. `AUTH0_ISSUER`: In `sample.env` the value is `https://dev-xxxxxx.us.auth0.com/`. But it should be replaced with a correct one, otherwise FastAPI will raise following error:
+   
+```
+httpx.HTTPStatusError: Client error '404 Not Found' for url 'https://dev-xxxxxx.us.auth0.com/.well-known/jwks.json'
+```
+
+The file [`src\backend\api\auth\auth0_helpers.py`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/src/agentic_scraper/backend/api/auth/auth0_helpers.py) is responsible for fetching JWKS.
+
+
 
 ```ini
 LOG_LEVEL=INFO
 AGENT_MODE=llm-dynamic-adaptive
-LLM_MODEL=gpt-4
-LLM_SCHEMA_RETRIES=2
-MAX_CONCURRENCY=10
-LOG_MAX_BYTES=500000
-LOG_BACKUP_COUNT=2
+BACKEND_DOMAIN=https://api-agenticscraper.onrender.com
+FRONTEND_DOMAIN=https://agenticscraper.onrender.com
+ENCRYPTION_SECRET=<python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+...
 ```
 
 The UI overrides `.env` if sidebar values are selected.
