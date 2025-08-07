@@ -758,6 +758,9 @@ These images are automatically published on every versioned release and push to 
 * [x] Docker container deployment
 * [ ] Multilingual support + auto-translation
 * [ ] Increase test coverage
+* [ ] Add agentic workflow to classify and contextualize input URLs and feed that to other models
+* [ ] Add DELETE, POST, and PATCH operatoins on FastAPI for the route `user/openai-credentails`
+* [ ] In scraping pipeline, fetching and scraping are sequential operations, find a robust and clean way to parallelize them.
 * [x] User authentication with Auth0
 * [x] Authentication protocol with OAuth2 and JWT
 
