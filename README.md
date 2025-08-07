@@ -409,6 +409,11 @@ Two values are mandatory for backend to run:
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
+If you haven't installed the dependencies (from ), you need at least the package `cryptography` to produce the command above. It can be installed as following;
+
+```bash
+pip install cryptography
+```
 2. `AUTH0_ISSUER`: In `sample.env` the value is `https://dev-xxxxxx.us.auth0.com/`. But it should be replaced with a correct one, otherwise FastAPI will raise following error:
    
 ```
