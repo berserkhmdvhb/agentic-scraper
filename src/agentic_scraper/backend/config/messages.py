@@ -81,6 +81,8 @@ MSG_ERROR_DECRYPTION_FAILED = (
 MSG_ERROR_LOADING_USER_STORE = "[API] [USERSTORE] Failed to load user store"
 MSG_ERROR_SAVING_USER_STORE = "[API] [USERSTORE] Failed to save user store: {error}"
 MSG_WARNING_CREDENTIALS_NOT_FOUND = "[API] [USERSTORE] Credentials not found for user {user_id}"
+MSG_INFO_CREDENTIALS_DELETED = "Deleted credentials for user: {user_id}"
+
 
 # auth/dependencies.py
 # ruff: noqa: S105
