@@ -103,14 +103,14 @@ async def scrape_urls(
     if job_hooks and hasattr(job_hooks, "on_started"):
         with contextlib.suppress(Exception):
             job_hooks.on_started(len(scrape_inputs))
-    
+
     # early exit if no valid scrape inputs
     if not scrape_inputs:
         if job_hooks and hasattr(job_hooks, "on_completed"):
             with contextlib.suppress(Exception):
                 job_hooks.on_completed(success=0, failed=len(urls), duration_sec=0.0)
         return []
-    
+
     if cancel_event and cancel_event.is_set():
         if job_hooks and hasattr(job_hooks, "on_failed"):
             with contextlib.suppress(Exception):
