@@ -28,7 +28,7 @@ from agentic_scraper.backend.api.schemas.user import (
     UserCredentialsOut,
     UserProfile,
 )
-from agentic_scraper.backend.api.user_store import (
+from agentic_scraper.backend.api.stores.user_store import (
     delete_user_credentials,
     has_user_credentials,
     load_user_credentials,

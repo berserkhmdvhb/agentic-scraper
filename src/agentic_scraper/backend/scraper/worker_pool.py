@@ -32,7 +32,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_WORKER_CANCELLED,
     MSG_INFO_WORKER_POOL_START,
 )
-from agentic_scraper.backend.scraper.agent import extract_structured_data
+from agentic_scraper.backend.scraper.agents import extract_structured_data
 from agentic_scraper.backend.scraper.models import (
     ScrapeRequest,
     WorkerPoolConfig,

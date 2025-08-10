@@ -35,6 +35,8 @@ logger = get_logger()
 settings = get_settings()
 log_settings(settings)
 
+common_prefix = f"{API_PREFIX}/{api_version}"
+
 # FastAPI app instance
 app = FastAPI(
     title="Agentic Scraper API",
@@ -43,15 +45,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware (domains from settings + common local dev hosts)
+cors_origins = {
+    settings.frontend_domain,
+    settings.backend_domain,
+}
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_domain,
-        "http://localhost:8501",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8085",
-    ],
+    allow_origins=[o for o in cors_origins if o],  # drop None/empty strings
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -101,7 +102,8 @@ async def root() -> dict[str, str]:
     }
 
 
-# Register routers with /api/v1/ prefix
-app.include_router(user_router, prefix=f"{API_PREFIX}/{api_version}/user", tags=["User"])
-app.include_router(scrape_router, prefix=f"{API_PREFIX}/{api_version}/scrape", tags=["Scrape"])
-app.include_router(auth_router, prefix=f"{API_PREFIX}/{api_version}/auth", tags=["Auth"])
+# Register routers under /api/<version>; each router declares its own path segment
+# e.g., scrape router exposes "/scrapes", auth router exposes "/auth/*"
+app.include_router(user_router, prefix=common_prefix, tags=["User"])
+app.include_router(scrape_router, prefix=common_prefix, tags=["Scrape"])
+app.include_router(auth_router, prefix=common_prefix, tags=["Auth"])

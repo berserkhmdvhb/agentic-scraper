@@ -162,6 +162,15 @@ MSG_ERROR_MISSING_FIELDS_FOR_AGENT = (
     "Missing required fields for agent_mode '{agent_mode}': {missing_fields}."
 )
 
+MSG_JOB_CREATED = "[API] [ROUTE] [SCRAPE] job created: {job_id}"
+MSG_JOB_STARTED = "[API] [ROUTE] [SCRAPE] job started: {job_id}"
+MSG_JOB_PROGRESS = "[API] [ROUTE] [SCRAPE] job progress update: {job_id} {progress}"
+MSG_JOB_SUCCEEDED = "[API] [ROUTE] [SCRAPE] job succeeded: {job_id}"
+MSG_JOB_FAILED = "[API] [ROUTE] [SCRAPE] job failed: {job_id} error={error}"
+MSG_JOB_NOT_FOUND = "[API] [ROUTE] [SCRAPE] job not found: {job_id}"
+MSG_JOB_CANCELED = "[API] [ROUTE] [SCRAPE] job canceled: {job_id}"
+MSG_ROUTE_DEPRECATED = "[API] [ROUTE] [SCRAPE] Deprecatedendpoint called: {route}. Use {successor}."
+MSG_ERROR_INVALID_JOB_STATUS = "Invalid job status: {status}"
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------

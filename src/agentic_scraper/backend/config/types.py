@@ -38,3 +38,11 @@ class LogFormat(str, Enum):
 
 class Auth0Algs(str, Enum):
     RS256 = "RS256"
+
+
+class JobStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELED = "canceled"

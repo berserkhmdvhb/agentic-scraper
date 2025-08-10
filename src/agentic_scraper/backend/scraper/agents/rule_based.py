@@ -36,7 +36,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_RULE_BASED_EXTRACTION_FAILED,
 )
 from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.agent.agent_helpers import (
+from agentic_scraper.backend.scraper.agents.agent_helpers import (
     capture_optional_screenshot,
     log_structured_data,
 )
