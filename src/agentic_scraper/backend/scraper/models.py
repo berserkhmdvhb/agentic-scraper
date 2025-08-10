@@ -1,9 +1,14 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
+from agentic_scraper.backend.config.aliases import (
+    OnErrorCallback,
+    OnSuccessCallback,
+)
 from agentic_scraper.backend.utils.validators import (
     clean_price,
     validate_optional_str,
@@ -71,3 +76,31 @@ class RetryContext:
     best_valid_item: ScrapedItem | None
     all_fields: dict[str, Any]
     has_done_discovery: bool = False
+
+
+@dataclass
+class WorkerPoolConfig:
+    """
+    Configuration for running a concurrent scraping worker pool.
+
+    Args:
+        take_screenshot (bool): Whether to capture screenshots during scraping.
+        openai (OpenAIConfig | None): Optional OpenAI credentials.
+        concurrency (int): Number of concurrent worker tasks.
+        max_queue_size (int | None): Optional limit on input queue size.
+        on_item_processed (OnSuccessCallback | None): Callback on successful extraction.
+        on_error (OnErrorCallback | None): Callback on error during extraction.
+        on_progress (Callable[[int, int], None] | None): Progress callback with
+            (processed, total) counts, invoked after each item completes.
+        preserve_order (bool): If True, results are returned in input order.
+            Defaults to False (completion order).
+    """
+
+    take_screenshot: bool
+    openai: OpenAIConfig | None = None
+    concurrency: int = 10
+    max_queue_size: int | None = None
+    on_item_processed: OnSuccessCallback | None = None
+    on_error: OnErrorCallback | None = None
+    on_progress: Callable[[int, int], None] | None = None
+    preserve_order: bool = False

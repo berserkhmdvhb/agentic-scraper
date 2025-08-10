@@ -229,22 +229,46 @@ MSG_ERROR_INVALID_SCREENSHOT_URL = "[SCREENSHOT] Invalid URL passed to capture_s
 
 
 # worker_pool.py
-MSG_ERROR_WORKER_FAILED = "[WORKER] failed for URL: {url}"
-MSG_WARNING_WORKER_FAILED_SHORT = "[WORKER] failed for URL: {url}: {error}"
-MSG_DEBUG_WORKER_PROGRESS = (
-    "[Worker-{worker_id}] Processed: {url} | Remaining in queue: {remaining}"
-)
-MSG_DEBUG_WORKER_PICKED_URL = "[WORKER {worker_id}] Picked up URL: {url}"
-MSG_DEBUG_WORKER_CREATED_REQUEST = "[WORKER {worker_id}] Created ScrapeRequest for {url}"
-MSG_DEBUG_WORKER_GOT_ITEM = "[WORKER {worker_id}] extract_structured_data returned: {item}"
-MSG_DEBUG_WORKER_ITEM_APPENDED = "[WORKER {worker_id}] Item appended for URL: {url}"
-MSG_DEBUG_WORKER_NO_ITEM = "[WORKER {worker_id}] No item returned for URL: {url}"
-MSG_DEBUG_WORKER_CANCELLED = "[WORKER {worker_id}] Cancelled during shutdown."
+WORKER_PREFIX = "[POOL] "
+WORKER_ID_PREFIX = "[POOL] [WORKER {worker_id}] "
 
-MSG_DEBUG_POOL_ENQUEUED_URL = "[POOL] Enqueued URL: {url}"
-MSG_DEBUG_POOL_SPAWNED_WORKERS = "[POOL] Spawned {count} workers."
-MSG_DEBUG_POOL_CANCELLING_WORKERS = "[POOL] All tasks completed. Cancelling workers..."
-MSG_DEBUG_POOL_DONE = "[POOL] Worker pool finished. Total results: {count}"
+MSG_ERROR_WORKER_FAILED = WORKER_PREFIX + "failed for URL: {url}"
+MSG_WARNING_WORKER_FAILED_SHORT = WORKER_PREFIX + "failed for URL: {url}: {error}"
+MSG_DEBUG_WORKER_PROGRESS = WORKER_ID_PREFIX + "Processed: {url} | Remaining in queue: {remaining}"
+
+MSG_DEBUG_WORKER_PICKED_URL = WORKER_ID_PREFIX + "Picked up URL: {url}"
+MSG_DEBUG_WORKER_CREATED_REQUEST = WORKER_ID_PREFIX + "Created ScrapeRequest for {url}"
+MSG_DEBUG_WORKER_GOT_ITEM = WORKER_ID_PREFIX + "extract_structured_data returned: {item}"
+MSG_DEBUG_WORKER_ITEM_APPENDED = WORKER_ID_PREFIX + "Item appended for URL: {url}"
+MSG_DEBUG_WORKER_NO_ITEM = WORKER_ID_PREFIX + "No item returned for URL: {url}"
+MSG_DEBUG_WORKER_CANCELLED = WORKER_ID_PREFIX + "Cancelled during shutdown."
+
+MSG_DEBUG_POOL_ENQUEUED_URL = WORKER_PREFIX + "Enqueued URL: {url}"
+MSG_DEBUG_POOL_SPAWNED_WORKERS = WORKER_PREFIX + "Spawned {count} workers."
+MSG_DEBUG_POOL_CANCELLING_WORKERS = WORKER_PREFIX + "All tasks completed. Cancelling workers..."
+MSG_DEBUG_POOL_DONE = WORKER_PREFIX + "Worker pool finished. Total results: {count} in {time:.2f}s"
+
+MSG_WARNING_TASK_DONE_FAILED = (
+    WORKER_PREFIX + "failed to acknowledge task_done() for URL {url}: {error}"
+)
+
+MSG_WARNING_PROGRESS_COUNTER_FAILED = (
+    WORKER_PREFIX + "failed updating processed counter for URL {url}: {error}"
+)
+MSG_WARNING_PROGRESS_LOG_FAILED = (
+    WORKER_PREFIX + "failed during progress logging for URL {url}: {error}"
+)
+MSG_WARNING_PROGRESS_CALLBACK_FAILED = WORKER_PREFIX + "on_progress callback raised: {error}"
+MSG_WARNING_PROGRESS_CALLBACK_FAILED_BUBBLE = (
+    WORKER_PREFIX + "caught bubbled on_progress exception for URL {url}: {error}"
+)
+MSG_WARNING_ON_ITEM_CALLBACK_FAILED = (
+    WORKER_PREFIX + "on_item_processed callback raised for URL {url}: {error}"
+)
+
+MSG_WARNING_ON_ITEM_PROCESSED_FAILED = WORKER_PREFIX + "on_item_processed callback failed: {error}"
+MSG_WARNING_ON_ERROR_CALLBACK_FAILED = WORKER_PREFIX + "on_error callback failed: {error}"
+
 
 # pipeline.py
 MSG_DEBUG_SCRAPE_STATS_START = (
@@ -268,6 +292,13 @@ MSG_DEBUG_PIPELINE_WORKER_POOL_START = (
 )
 
 MSG_DEBUG_PIPELINE_FETCH_START = "[PIPELINE] Starting HTML fetch for {count} URLs..."
+
+# In backend/config/messages.py
+
+MSG_DEBUG_JOB_HOOK_ON_STARTED_ERROR = "job_hooks.on_started raised an exception; ignoring."
+MSG_DEBUG_JOB_HOOK_ON_COMPLETED_ERROR = "job_hooks.on_completed raised an exception; ignoring."
+MSG_DEBUG_JOB_HOOK_ON_FAILED_ERROR = "job_hooks.on_failed raised an exception; ignoring."
+
 
 # ---------------------------------------------------------------------
 # scraper/agent/

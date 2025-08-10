@@ -8,76 +8,79 @@ preprocessed input using either LLM-based or rule-based agents.
 The core pipeline:
 1. Inputs (ScrapeInput) are enqueued.
 2. Workers consume and process them concurrently.
-3. Each item is parsed and appended to results.
+3. Each item is parsed and appended to results (completion order by default).
 4. Optional callbacks can be used for progress/error tracking.
 
 Used by the scraping pipeline to scale up parallel scraping.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
-from dataclasses import dataclass
+import time
+from collections import deque
+from collections.abc import Callable
+from contextlib import suppress
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from agentic_scraper.backend.config.aliases import (
-    OnErrorCallback,
-    OnSuccessCallback,
-    ScrapeInput,
-)
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_POOL_CANCELLING_WORKERS,
     MSG_DEBUG_POOL_DONE,
-    MSG_DEBUG_POOL_ENQUEUED_URL,
     MSG_DEBUG_POOL_SPAWNED_WORKERS,
     MSG_DEBUG_WORKER_CANCELLED,
-    MSG_DEBUG_WORKER_CREATED_REQUEST,
-    MSG_DEBUG_WORKER_GOT_ITEM,
-    MSG_DEBUG_WORKER_ITEM_APPENDED,
-    MSG_DEBUG_WORKER_NO_ITEM,
-    MSG_DEBUG_WORKER_PICKED_URL,
-    MSG_DEBUG_WORKER_PROGRESS,
-    MSG_ERROR_WORKER_FAILED,
     MSG_INFO_WORKER_POOL_START,
-    MSG_WARNING_WORKER_FAILED_SHORT,
 )
-from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agent import extract_structured_data
-from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem, ScrapeRequest
+from agentic_scraper.backend.scraper.models import (
+    ScrapeRequest,
+    WorkerPoolConfig,
+)
+from agentic_scraper.backend.scraper.worker_pool_helpers import (
+    _await_join_with_optional_cancel,
+    _prepare_queue_and_ordering,
+    build_request,
+    call_progress_callback,
+    dequeue_next,
+    early_cancel_or_raise,
+    handle_failure,
+    handle_success_item,
+    log_progress_verbose,
+    place_ordered_result,
+)
 
-logger = logging.getLogger(__name__)
-
-
-@dataclass
-class WorkerPoolConfig:
-    """
-    Configuration for running a concurrent scraping worker pool.
-    Args:
-        take_screenshot (bool): Whether to capture screenshots during scraping.
-        openai (OpenAIConfig | None): Optional OpenAI credentials.
-        concurrency (int): Number of concurrent worker tasks.
-        max_queue_size (int | None): Optional limit on input queue size.
-        on_item_processed (OnSuccessCallback | None): Callback on successful extraction.
-        on_error (OnErrorCallback | None): Callback on error during extraction.
-    """
-
-    take_screenshot: bool
-    openai: OpenAIConfig | None = None
-    concurrency: int = 10
-    max_queue_size: int | None = None
-    on_item_processed: OnSuccessCallback | None = None
-    on_error: OnErrorCallback | None = None
+if TYPE_CHECKING:
+    from agentic_scraper.backend.config.aliases import (
+        OnErrorCallback,
+        OnSuccessCallback,
+        ScrapeInput,
+    )
+    from agentic_scraper.backend.core.settings import Settings
+    from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
 
 
 @dataclass
 class _WorkerContext:
-    """
-    Internal runtime context shared by each worker instance.
-    """
+    """Internal runtime context shared by each worker instance."""
 
     settings: Settings
     take_screenshot: bool
+    total_inputs: int
+    processed_count: int = 0
+    processed_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     openai: OpenAIConfig | None = None
     on_item_processed: OnSuccessCallback | None = None
     on_error: OnErrorCallback | None = None
+    on_progress: Callable[[int, int], None] | None = None
+    cancel_event: asyncio.Event | None = None
+    preserve_order: bool = False
+    ordered_results: list[ScrapedItem | None] | None = None
+    url_to_indices: dict[str, deque[int]] | None = None
+    order_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
+logger = logging.getLogger(__name__)
 
 
 async def worker(
@@ -90,61 +93,82 @@ async def worker(
     """
     Worker coroutine that consumes ScrapeInput items and performs extraction.
 
-    Args:
-        worker_id (int): Unique ID for logging/debugging.
-        queue (asyncio.Queue[ScrapeInput]): Task queue to pull from.
-        results (list[ScrapedItem]): Shared list to store valid scraped items.
-        context (_WorkerContext): Context containing runtime config and callbacks.
-
-    Raises:
-        asyncio.CancelledError: Raised when the worker is cancelled.
+    Note:
+        - Result order is completion-order by default (non-deterministic).
+        - If `context.preserve_order` is True, results are also placed into
+          `context.ordered_results` according to the first-come index map.
     """
     try:
         while True:
-            url, text = await queue.get()
-            logger.debug(MSG_DEBUG_WORKER_PICKED_URL.format(worker_id=worker_id, url=url))
+            # Early cancel before blocking on the queue.
+            early_cancel_or_raise(context.cancel_event)
+
+            url, text = await dequeue_next(queue, worker_id=worker_id)
+
             try:
-                request_kwargs = {
-                    "text": text,
-                    "url": url,
-                    "take_screenshot": context.take_screenshot,
-                }
-                if context.openai is not None:
-                    request_kwargs["openai"] = context.openai
+                # Check cancellation again immediately after we dequeue, but keep it inside
+                # the try/finally so task_done() will always be called.
+                early_cancel_or_raise(context.cancel_event)
 
-                request = ScrapeRequest(**request_kwargs)
-                logger.debug(MSG_DEBUG_WORKER_CREATED_REQUEST.format(worker_id=worker_id, url=url))
+                request = build_request(
+                    scrape_input=(url, text),
+                    take_screenshot=context.take_screenshot,
+                    openai=context.openai,
+                    worker_id=worker_id,
+                    scrape_request_cls=ScrapeRequest,
+                )
 
-                item = await extract_structured_data(request, settings=context.settings)
-                logger.debug(MSG_DEBUG_WORKER_GOT_ITEM.format(worker_id=worker_id, item=item))
-
-                if item is not None:
-                    results.append(item)
-                    logger.debug(
-                        MSG_DEBUG_WORKER_ITEM_APPENDED.format(worker_id=worker_id, url=url)
+                # Per-item timeout if configured on settings (in seconds).
+                timeout_s = getattr(context.settings, "scrape_timeout_s", None)
+                if isinstance(timeout_s, (int, float)) and timeout_s > 0:
+                    item = await asyncio.wait_for(
+                        extract_structured_data(request, settings=context.settings),
+                        timeout=timeout_s,
                     )
-                    if context.on_item_processed:
-                        context.on_item_processed(item)
                 else:
-                    logger.debug(MSG_DEBUG_WORKER_NO_ITEM.format(worker_id=worker_id, url=url))
+                    item = await extract_structured_data(request, settings=context.settings)
 
-            except Exception as e:
+                # Success handling + callbacks
+                handle_success_item(
+                    item=item,
+                    results=results,
+                    url=url,
+                    worker_id=worker_id,
+                    context=context,
+                )
+
+                # Optional: place into ordered results (extracted helper reduces branching).
+                await place_ordered_result(context=context, url=url, item=item)
+
+            except (AssertionError, AttributeError, TypeError) as e:
+                # Likely programming/internal errors. Log and re-raise in verbose mode
+                # so they don't masquerade as routine scrape failures during debugging.
+                handle_failure(url=url, error=e, context=context)
                 if context.settings.is_verbose_mode:
-                    logger.exception(MSG_ERROR_WORKER_FAILED.format(url=url))
-                else:
-                    logger.warning(MSG_WARNING_WORKER_FAILED_SHORT.format(url=url, error=e))
-                if context.on_error:
-                    context.on_error(url, e)
+                    raise
+            except Exception as e:  # noqa: BLE001 - log failure then continue
+                handle_failure(url=url, error=e, context=context)
             finally:
-                if context.settings.is_verbose_mode:
-                    logger.debug(
-                        MSG_DEBUG_WORKER_PROGRESS.format(
-                            worker_id=worker_id,
-                            url=url,
-                            remaining=queue.qsize() - 1,
-                        )
-                    )
-                queue.task_done()
+                # 1) Acknowledge the task first to avoid join deadlocks.
+                with suppress(ValueError):
+                    # Only ValueError is expected here (too many task_done calls).
+                    queue.task_done()
+
+                # 2) Update processed counter (atomic-ish via lock in asyncio context).
+                async with context.processed_lock:
+                    context.processed_count += 1
+
+                # 3) Verbose progress log (safe to call directly).
+                log_progress_verbose(
+                    worker_id=worker_id,
+                    url=url,
+                    queue=queue,
+                    context=context,
+                )
+
+                # 4) Progress callback is internally guarded in the helper.
+                call_progress_callback(context=context)
+
     except asyncio.CancelledError:
         logger.debug(MSG_DEBUG_WORKER_CANCELLED.format(worker_id=worker_id))
 
@@ -154,35 +178,52 @@ async def run_worker_pool(
     *,
     settings: Settings,
     config: WorkerPoolConfig,
+    cancel_event: asyncio.Event | None = None,
 ) -> list[ScrapedItem]:
     """
     Launch and manage a pool of workers to process scraping inputs concurrently.
-
-    Args:
-        inputs (list[ScrapeInput]): List of (url, text) tuples to scrape.
-        settings (Settings): Global runtime settings.
-        config (WorkerPoolConfig): Pool configuration and optional callbacks.
-
-    Returns:
-        list[ScrapedItem]: List of structured items successfully extracted.
     """
-    queue: asyncio.Queue[ScrapeInput] = asyncio.Queue(maxsize=config.max_queue_size or 0)
-    results: list[ScrapedItem] = []
+    start_t = time.perf_counter()
+    total = len(inputs)
+
+    # Early exit: nothing to do
+    if total == 0:
+        if config.on_progress:
+            with suppress(Exception):
+                config.on_progress(0, 0)
+        return []
+
+    # Initial progress for UIs
+    if config.on_progress:
+        with suppress(Exception):
+            config.on_progress(0, total)
+
+    # Prepare queue, results, and ordering structures
+    (
+        queue,
+        results,
+        ordered_results,
+        url_to_indices,
+    ) = await _prepare_queue_and_ordering(inputs, config)
 
     if settings.is_verbose_mode:
         logger.info(MSG_INFO_WORKER_POOL_START.format(enabled=config.take_screenshot))
 
-    for input_item in inputs:
-        url = input_item[0]
-        await queue.put(input_item)
-        logger.debug(MSG_DEBUG_POOL_ENQUEUED_URL.format(url=url))
+    # Cap worker count to available work (at least 1)
+    worker_count = min(config.concurrency, max(1, total))
 
     context = _WorkerContext(
         settings=settings,
         take_screenshot=config.take_screenshot,
+        total_inputs=total,
         openai=config.openai,
         on_item_processed=config.on_item_processed,
         on_error=config.on_error,
+        on_progress=config.on_progress,
+        cancel_event=cancel_event,
+        preserve_order=config.preserve_order,
+        ordered_results=ordered_results,
+        url_to_indices=url_to_indices,
     )
 
     workers = [
@@ -192,19 +233,31 @@ async def run_worker_pool(
                 queue=queue,
                 results=results,
                 context=context,
-            )
+            ),
+            name=f"worker-{i}",
         )
-        for i in range(config.concurrency)
+        for i in range(worker_count)
     ]
 
     logger.debug(MSG_DEBUG_POOL_SPAWNED_WORKERS.format(count=len(workers)))
 
-    await queue.join()
-    logger.debug(MSG_DEBUG_POOL_CANCELLING_WORKERS)
+    try:
+        await _await_join_with_optional_cancel(queue, cancel_event)
+    finally:
+        logger.debug(MSG_DEBUG_POOL_CANCELLING_WORKERS)
+        for w in workers:
+            w.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
 
-    for w in workers:
-        w.cancel()
-    await asyncio.gather(*workers, return_exceptions=True)
+    if config.on_progress:
+        with suppress(Exception):
+            config.on_progress(total, total)
 
-    logger.debug(MSG_DEBUG_POOL_DONE.format(count=len(results)))
+    elapsed = time.perf_counter() - start_t
+    if config.preserve_order and context.ordered_results is not None:
+        final_results = [it for it in context.ordered_results if it is not None]
+        logger.debug(MSG_DEBUG_POOL_DONE.format(count=len(final_results), time=elapsed))
+        return final_results
+
+    logger.debug(MSG_DEBUG_POOL_DONE.format(count=len(results), time=elapsed))
     return results
