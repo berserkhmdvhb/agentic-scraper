@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from agentic_scraper import __api_version__ as api_version  # PEP8-compliant lowercase
+from agentic_scraper import __api_version__ as api_version
 from agentic_scraper import __version__ as version
 from agentic_scraper.backend.api.lifecycle import lifespan
 from agentic_scraper.backend.api.openapi import custom_openapi

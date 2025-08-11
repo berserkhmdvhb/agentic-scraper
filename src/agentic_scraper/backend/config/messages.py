@@ -62,6 +62,7 @@ MSG_DEBUG_SCRAPE_CONFIG_MERGED = "[FRONTEND] [PIPELINE] config values before cal
 # main.py
 MSG_INFO_SCRAPE_REQUEST_RECEIVED = "[API] Received scrape request for {n} URL(s)"
 
+
 # lifecycle.py
 MSG_INFO_SHUTDOWN_LOG = "[API] [LIFECYCLE] Shutdown complete, cleaning up resources..."
 MSG_INFO_PRELOADING_JWKS = "[API] [LIFECYCLE] Preloading JWKS from Auth0..."
@@ -69,6 +70,13 @@ MSG_DEBUG_LIFESPAN_STARTED = "[API] [LIFECYCLE] Lifespan started for app: {app}"
 MSG_INFO_JWKS_PRELOAD_SUCCESSFUL = (
     "[API] [LIFECYCLE] JWKS preload successful. The app is ready to handle requests."
 )
+MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY = (
+    "[API] [LIFECYCLE] JWKS preload failed;continuing startup and fetching JWKS lazily."
+)
+
+# models.py
+MSG_ERROR_OWNER_SUB_TYPE = "[API] owner_sub must be a string"
+MSG_ERROR_OWNER_SUB_FORMAT = "[API] Invalid owner_sub format: {value!r}"
 
 
 # user_store.py
@@ -81,7 +89,7 @@ MSG_ERROR_DECRYPTION_FAILED = (
 MSG_ERROR_LOADING_USER_STORE = "[API] [USERSTORE] Failed to load user store"
 MSG_ERROR_SAVING_USER_STORE = "[API] [USERSTORE] Failed to save user store: {error}"
 MSG_WARNING_CREDENTIALS_NOT_FOUND = "[API] [USERSTORE] Credentials not found for user {user_id}"
-MSG_INFO_CREDENTIALS_DELETED = "Deleted credentials for user: {user_id}"
+MSG_INFO_CREDENTIALS_DELETED = "[API] [USERSTORE] Deleted credentials for user: {user_id}"
 
 
 # auth/dependencies.py
@@ -98,7 +106,7 @@ MSG_ERROR_MISSING_SCOPES = (
 )
 MSG_DEBUG_VERIFYING_JWT_TOKEN = "[API] [AUTH] [DEP] Verifying JWT token: {token}"
 MSG_WARNING_JWT_VERIFICATION_FAILED = "[API] [AUTH] [DEP] JWT verification failed"
-
+MSG_ERROR_MISSING_SUB_CLAIM = "[API] [AUTH] [DEP] Missing 'sub' in token payload"
 
 # auth/auth0_helpers.py
 MSG_INFO_FETCHING_JWKS = "[API] [AUTH] [AUTH0] Fetching JWKS from {url}..."
@@ -166,11 +174,31 @@ MSG_JOB_CREATED = "[API] [ROUTE] [SCRAPE] job created: {job_id}"
 MSG_JOB_STARTED = "[API] [ROUTE] [SCRAPE] job started: {job_id}"
 MSG_JOB_PROGRESS = "[API] [ROUTE] [SCRAPE] job progress update: {job_id} {progress}"
 MSG_JOB_SUCCEEDED = "[API] [ROUTE] [SCRAPE] job succeeded: {job_id}"
-MSG_JOB_FAILED = "[API] [ROUTE] [SCRAPE] job failed: {job_id} error={error}"
+MSG_JOB_FAILED = "[API] [ROUTE] [SCRAPE] job failed: {job_id}"
 MSG_JOB_NOT_FOUND = "[API] [ROUTE] [SCRAPE] job not found: {job_id}"
 MSG_JOB_CANCELED = "[API] [ROUTE] [SCRAPE] job canceled: {job_id}"
 MSG_ROUTE_DEPRECATED = "[API] [ROUTE] [SCRAPE] Deprecatedendpoint called: {route}. Use {successor}."
 MSG_ERROR_INVALID_JOB_STATUS = "Invalid job status: {status}"
+
+MSG_HTTP_JOB_NOT_FOUND_DETAIL = "[API] [ROUTE] [SCRAPE] Job not found."
+MSG_HTTP_FORBIDDEN_JOB_ACCESS = (
+    "[API] [ROUTE] [SCRAPE] User {user_sub} does not have permission to access job {job_id}."
+)
+MSG_HTTP_MISSING_OPENAI_CREDS = (
+    "[API] [ROUTE] [SCRAPE] OpenAI credentials not found for the authenticated user."
+)
+
+MSG_JOB_LIST_REQUESTED = (
+    "[API] [ROUTE] [SCRAPE] List jobs requested: status={status}, limit={limit}, cursor={cursor}"
+)
+MSG_JOB_CANCEL_REQUESTED = "[API] [ROUTE] [SCRAPE] Cancel requested for job_id={job_id}"
+MSG_JOB_CANCELED = "[API] [ROUTE] [SCRAPE] Job canceled: {job_id}"
+MSG_HTTP_JOB_NOT_CANCELABLE = (
+    "[API] [ROUTE] [SCRAPE] Job cannot be canceled in its current status: {status}."
+)
+MSG_JOB_CANCELED_BY_USER = "[API] [ROUTE] [SCRAPE] Job canceled: {job_id}, by user: {user_sub}"
+MSG_HTTP_LOCATION_HEADER_SET = "Location header set for scrape job: {url}"
+
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------
@@ -521,4 +549,4 @@ MSG_ERROR_USER_SCOPES_TYPE = (
 )
 
 
-MSG_ERROR_PRELOADING_JWKS = "[VALIDATION] Error occurred while preloading JWKS from Auth0: {error}"
+MSG_ERROR_PRELOADING_JWKS = "[VALIDATION] Error occurred while preloading JWKS from Auth0"

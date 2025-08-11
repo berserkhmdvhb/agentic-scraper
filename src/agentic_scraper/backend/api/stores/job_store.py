@@ -4,9 +4,12 @@ import threading
 import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
-from typing import TypedDict, Unpack
+from typing import TYPE_CHECKING, Required, TypedDict, Unpack
 
-from agentic_scraper.backend.config.messages import MSG_ERROR_INVALID_JOB_STATUS
+from agentic_scraper.backend.config.messages import (
+    MSG_ERROR_INVALID_JOB_STATUS,
+    MSG_JOB_CANCELED_BY_USER,
+)
 from agentic_scraper.backend.config.types import JobStatus
 
 # ----- Types -----------------------------------------------------------------
@@ -17,16 +20,21 @@ JSONObj = dict[str, object]
 JobResult = JSONObj
 JobRequest = JSONObj
 
+if TYPE_CHECKING:
+    from agentic_scraper.backend.api.models import OwnerSub
 
-class ScrapeJob(TypedDict):
+
+class ScrapeJobRecord(TypedDict):
     id: str
     status: JobStatus
+    owner_sub: Required[OwnerSub]
     created_at: datetime
     updated_at: datetime
     progress: float
     error: str | None
     result: JobResult | None
     _request: JobRequest
+    canceled_by: OwnerSub | None
 
 
 class JobUpdateFields(TypedDict, total=False):
@@ -47,8 +55,8 @@ class JobUpdateFields(TypedDict, total=False):
 
 # ----- Internal in-memory store ----------------------------------------------
 
-# Keys are job IDs; values are job dicts shaped like ScrapeJob.
-_STORE: dict[str, ScrapeJob] = {}
+# Keys are job IDs; values are job dicts shaped like ScrapeJobRecord.
+_STORE: dict[str, ScrapeJobRecord] = {}
 _LOCK = threading.RLock()
 
 DEFAULT_LIMIT = 50
@@ -76,7 +84,7 @@ def _coerce_status(value: JobStatus | str) -> JobStatus:
         raise ValueError(MSG_ERROR_INVALID_JOB_STATUS.format(status=value)) from err
 
 
-def _job_snapshot(job: ScrapeJob) -> ScrapeJob:
+def _job_snapshot(job: ScrapeJobRecord) -> ScrapeJobRecord:
     """
     Return a deep copy snapshot of the job dict to avoid external mutation.
     """
@@ -86,7 +94,7 @@ def _job_snapshot(job: ScrapeJob) -> ScrapeJob:
 # ----- Public API -------------------------------------------------------------
 
 
-def create_job(request_payload: JobRequest) -> ScrapeJob:
+def create_job(request_payload: JobRequest, owner_sub: OwnerSub) -> ScrapeJobRecord:
     """
     Create a new scrape job in 'queued' status.
 
@@ -95,14 +103,15 @@ def create_job(request_payload: JobRequest) -> ScrapeJob:
             (e.g., ScrapeCreate.model_dump()).
 
     Returns:
-        ScrapeJob: A job dict shaped for ScrapeJob response
+        ScrapeJobRecord: A job dict shaped for response
         (id, status, timestamps, progress, error, result, _request).
     """
     job_id = str(uuid.uuid4())
     now = _utcnow()
-    job: ScrapeJob = {
+    job: ScrapeJobRecord = {
         "id": job_id,
         "status": JobStatus.QUEUED,
+        "owner_sub": owner_sub,
         "created_at": now,
         "updated_at": now,
         "progress": 0.0,
@@ -110,13 +119,14 @@ def create_job(request_payload: JobRequest) -> ScrapeJob:
         "result": None,
         # Optionally keep a copy of the payload for audit/debug (not exposed publicly).
         "_request": deepcopy(request_payload),
+        "canceled_by": None,
     }
     with _LOCK:
         _STORE[job_id] = job
         return _job_snapshot(job)
 
 
-def get_job(job_id: str) -> ScrapeJob | None:
+def get_job(job_id: str) -> ScrapeJobRecord | None:
     """
     Retrieve a job by its ID.
 
@@ -124,14 +134,14 @@ def get_job(job_id: str) -> ScrapeJob | None:
         job_id (str): The job identifier.
 
     Returns:
-        ScrapeJob | None: The job snapshot if found; otherwise None.
+        ScrapeJobRecord | None: The job snapshot if found; otherwise None.
     """
     with _LOCK:
         job = _STORE.get(job_id)
         return _job_snapshot(job) if job is not None else None
 
 
-def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJob | None:
+def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJobRecord | None:
     """
     Update a job with the provided fields.
 
@@ -147,7 +157,7 @@ def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJob | No
         **fields: Arbitrary fields to update (validated by JobUpdateFields).
 
     Returns:
-        ScrapeJob | None: The updated job snapshot, or None if not found.
+        ScrapeJobRecord | None: The updated job snapshot, or None if not found.
     """
     with _LOCK:
         job = _STORE.get(job_id)
@@ -181,7 +191,7 @@ def list_jobs(
     status: JobStatus | None = None,
     limit: int = DEFAULT_LIMIT,
     cursor: str | None = None,
-) -> tuple[list[ScrapeJob], str | None]:
+) -> tuple[list[ScrapeJobRecord], str | None]:
     """
     List jobs with optional status filtering and a simple cursor for pagination.
 
@@ -191,7 +201,7 @@ def list_jobs(
         cursor (str | None): A job_id to start *after* (exclusive).
 
     Returns:
-        tuple[list[ScrapeJob], str | None]:
+        tuple[list[ScrapeJobRecord], str | None]:
             - A list of job snapshots.
             - A next_cursor (job_id) if more results remain; otherwise None.
     """
@@ -220,7 +230,7 @@ def list_jobs(
         return ([_job_snapshot(j) for j in sliced], next_cursor)
 
 
-def cancel_job(job_id: str) -> bool:
+def cancel_job(job_id: str, user_sub: OwnerSub) -> bool:
     """
     Best-effort cancel of a job. Marks as 'canceled' if it's in 'queued' or 'running'.
 
@@ -241,6 +251,7 @@ def cancel_job(job_id: str) -> bool:
         if job["status"] in {JobStatus.QUEUED, JobStatus.RUNNING}:
             job["status"] = JobStatus.CANCELED
             job["updated_at"] = _utcnow()
-            job.setdefault("error", None)
+            job["canceled_by"] = user_sub
+            job["error"] = MSG_JOB_CANCELED_BY_USER.format(job_id=job_id, user_sub=user_sub)
             return True
         return False

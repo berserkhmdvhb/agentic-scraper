@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated
 
-from pydantic import BaseModel, Field, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from agentic_scraper.backend.config.messages import MSG_ERROR_MISSING_FIELDS_FOR_AGENT
 
@@ -112,6 +112,8 @@ class ScrapeJob(BaseModel):
         result (ScrapeResult | None): Final result when status == 'succeeded'.
     """
 
+    model_config = ConfigDict(extra="ignore")
+
     id: str
     status: JobStatus
     created_at: datetime
@@ -125,33 +127,6 @@ class ScrapeJob(BaseModel):
     )
 
 
-class ScrapeJobList(BaseModel):
-    """
-    Paginated list of scrape jobs.
-
-    Args:
-        items (list[ScrapeJob]): Jobs in the current page.
-        next_cursor (str | None): Cursor to fetch the next page or None.
-    """
-
-    items: list[ScrapeJob] = Field(..., description="Jobs in the current page.")
-    next_cursor: str | None = Field(
-        None,
-        description="Opaque cursor to fetch the next page, or null if no more results.",
-    )
-
-
-class LegacyScrapeResponse(BaseModel):
-    """
-    DEPRECATED: synchronous response shape used by /api/v1/scrape/start.
-    Retained temporarily to support a deprecation window.
-
-    Args:
-        results (list[ScrapedItem]): Extracted items from all URLs.
-        stats (dict[str, object]): Execution metadata such as time, errors, counts.
-    """
-
-    results: list[ScrapedItem] = Field(..., description="List of extracted items from all URLs")
-    stats: dict[str, object] = Field(
-        ..., description="Metadata such as execution time, errors, and item counts"
-    )
+class ScrapeList(BaseModel):
+    items: list[ScrapeJob]
+    next_cursor: str | None = None

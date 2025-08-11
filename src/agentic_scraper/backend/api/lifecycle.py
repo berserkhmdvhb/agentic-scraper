@@ -12,7 +12,7 @@ The `lifespan` function is passed into the FastAPI app instance.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from httpx import TimeoutException
 
 from agentic_scraper.backend.api.auth.auth0_helpers import jwks_cache_instance
@@ -22,6 +22,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_JWKS_PRELOAD_SUCCESSFUL,
     MSG_INFO_PRELOADING_JWKS,
     MSG_INFO_SHUTDOWN_LOG,
+    MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY,
 )
 from agentic_scraper.backend.core.logger_setup import get_logger
 
@@ -36,29 +37,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Preload JWKS from Auth0 during app startup and perform cleanup on shutdown.
 
+    Startup behavior is non-fatal for production readiness: if JWKS preload fails,
+    the app will still start and JWKS will be fetched lazily on the first
+    authenticated request.
+
     Args:
         app (FastAPI): The FastAPI app instance being managed by this context manager.
 
-    Yields:
+    Returns:
         None: Indicates that the app is now ready to serve requests.
-
-    Raises:
-        HTTPException: If the JWKS preload times out or fails.
     """
+    # ─── Startup Logic ───
+    logger.info(MSG_INFO_PRELOADING_JWKS)
     try:
-        # ─── Startup Logic ───
-        logger.info(MSG_INFO_PRELOADING_JWKS)
-        try:
-            await jwks_cache_instance.get_jwks()
-        except TimeoutException as exc:
-            logger.exception(MSG_ERROR_PRELOADING_JWKS, exc_info=exc)
-            raise HTTPException(status_code=503, detail="Timeout fetching JWKS") from exc
-
+        await jwks_cache_instance.get_jwks()
         logger.info(MSG_INFO_JWKS_PRELOAD_SUCCESSFUL)
-        logger.debug(MSG_DEBUG_LIFESPAN_STARTED.format(app=app))
+    except TimeoutException:
+        # Non-fatal: log and proceed; JWKS will be fetched lazily on demand
+        logger.exception(MSG_ERROR_PRELOADING_JWKS)
+        logger.warning(MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY)
+    except Exception:
+        logger.exception(MSG_ERROR_PRELOADING_JWKS)
+        logger.warning(MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY)
 
+    logger.debug(MSG_DEBUG_LIFESPAN_STARTED.format(app=app))
+
+    try:
         yield
-
     finally:
         # ─── Shutdown Logic ───
         logger.info(MSG_INFO_SHUTDOWN_LOG)
