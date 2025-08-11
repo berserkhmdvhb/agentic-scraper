@@ -5,6 +5,7 @@ import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, TypedDict
+
 from typing_extensions import Required, Unpack
 
 from agentic_scraper.backend.config.messages import (
