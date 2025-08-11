@@ -162,12 +162,27 @@ MSG_WARNING_NO_CREDENTIALS_FOUND = (
 MSG_INFO_CREDENTIALS_SAVED = "[API] [ROUTE] [USER] OpenAI credentials saved for user: {user_id}"
 MSG_INFO_CREDENTIALS_LOADED = "[API] [ROUTE] [USER] OpenAI credentials loaded for user: {user_id}"
 
+MSG_ERROR_NO_CREDENTIALS_FOR_USER = "[API] [ROUTE] [USER] No credentials stored for this user."
+MSG_ERROR_PARSING_CREDENTIALS = "[API] [ROUTE] [USER] Error while parsing credentials data."
+MSG_ERROR_UNEXPECTED_CREDENTIALS = (
+    "[API] [ROUTE] [USER] Unexpected errorwhile processing credentials."
+)
+MSG_ERROR_INVALID_CREDENTIALS_FORMAT = "Invalid data format for credentials."
+MSG_ERROR_CREDENTIALS_STORAGE = "[API] [ROUTE] [USER] Error with the database or file storage."
+MSG_ERROR_CREDENTIALS_SAVE_INTERNAL = (
+    "[API] [ROUTE] [USER] Failed tosave user credentials due to internal error."
+)
+MSG_ERROR_NO_CREDENTIALS_TO_DELETE = "[API] [ROUTE] [USER] No credentials found to delete."
+MSG_ERROR_CREDENTIALS_DELETE_FAILED = "[API] [ROUTE] [USER] Failed to delete credentials."
+
+
 # routes/scrape.py
 MSG_DEBUG_SCRAPE_CONFIG_MERGED = (
     "[API] [ROUTE] [SCRAPE] Backend config values merged with settings: {config}"
 )
 MSG_ERROR_MISSING_FIELDS_FOR_AGENT = (
-    "Missing required fields for agent_mode '{agent_mode}': {missing_fields}."
+    "[API] [ROUTE] [SCRAPE] Missing required "
+    "fields for agent_mode '{agent_mode}': {missing_fields}."
 )
 
 MSG_JOB_CREATED = "[API] [ROUTE] [SCRAPE] job created: {job_id}"
@@ -178,7 +193,7 @@ MSG_JOB_FAILED = "[API] [ROUTE] [SCRAPE] job failed: {job_id}"
 MSG_JOB_NOT_FOUND = "[API] [ROUTE] [SCRAPE] job not found: {job_id}"
 MSG_JOB_CANCELED = "[API] [ROUTE] [SCRAPE] job canceled: {job_id}"
 MSG_ROUTE_DEPRECATED = "[API] [ROUTE] [SCRAPE] Deprecatedendpoint called: {route}. Use {successor}."
-MSG_ERROR_INVALID_JOB_STATUS = "Invalid job status: {status}"
+MSG_ERROR_INVALID_JOB_STATUS = "[API] [ROUTE] [SCRAPE] Invalid job status: {status}"
 
 MSG_HTTP_JOB_NOT_FOUND_DETAIL = "[API] [ROUTE] [SCRAPE] Job not found."
 MSG_HTTP_FORBIDDEN_JOB_ACCESS = (
@@ -197,7 +212,7 @@ MSG_HTTP_JOB_NOT_CANCELABLE = (
     "[API] [ROUTE] [SCRAPE] Job cannot be canceled in its current status: {status}."
 )
 MSG_JOB_CANCELED_BY_USER = "[API] [ROUTE] [SCRAPE] Job canceled: {job_id}, by user: {user_sub}"
-MSG_HTTP_LOCATION_HEADER_SET = "Location header set for scrape job: {url}"
+MSG_HTTP_LOCATION_HEADER_SET = "[API] [ROUTE] [SCRAPE] Location header set for scrape job: {url}"
 
 # ---------------------------------------------------------------------
 # core/
