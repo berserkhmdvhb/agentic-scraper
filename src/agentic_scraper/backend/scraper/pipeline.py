@@ -30,7 +30,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_SCRAPE_STATS_COMPLETE,
     MSG_INFO_VALID_SCRAPE_INPUTS,
 )
-from agentic_scraper.backend.config.types import AgentMode
+from agentic_scraper.backend.config.types import AgentMode, OpenAIConfig
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import WorkerPoolConfig
 from agentic_scraper.backend.scraper.parser import extract_main_text
@@ -39,7 +39,7 @@ from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
 if TYPE_CHECKING:
     from agentic_scraper.backend.config.aliases import ScrapeInput
     from agentic_scraper.backend.core.settings import Settings
-    from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
+    from agentic_scraper.backend.scraper.models import ScrapedItem
 
 logger = logging.getLogger(__name__)
 

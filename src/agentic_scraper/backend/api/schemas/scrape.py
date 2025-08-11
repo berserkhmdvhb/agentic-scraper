@@ -8,8 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 from agentic_scraper.backend.config.messages import MSG_ERROR_MISSING_FIELDS_FOR_AGENT
 
 if TYPE_CHECKING:
-    from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIModel
-    from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
+    from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIConfig, OpenAIModel
+    from agentic_scraper.backend.scraper.models import ScrapedItem
 
 
 # Reusable type for URL lists with validation and examples

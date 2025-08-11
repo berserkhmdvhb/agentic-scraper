@@ -9,6 +9,7 @@ from agentic_scraper.backend.config.aliases import (
     OnErrorCallback,
     OnSuccessCallback,
 )
+from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.utils.validators import (
     clean_price,
     validate_optional_str,
@@ -59,19 +60,6 @@ class ScrapedItem(BaseModel):
 
     # Pydantic v2 configuration: allow extra fields returned by the LLM.
     model_config = ConfigDict(extra="allow")
-
-
-class OpenAIConfig(BaseModel):
-    """
-    Container for OpenAI credential configuration used by agents.
-
-    Fields:
-        api_key (str | None): API key if provided per-request.
-        project_id (str | None): Project ID if provided per-request.
-    """
-
-    api_key: str | None = None
-    project_id: str | None = None
 
 
 class ScrapeRequest(BaseModel):

@@ -30,8 +30,8 @@ from agentic_scraper.backend.config.messages import (
 
 if TYPE_CHECKING:
     from agentic_scraper.backend.config.aliases import ScrapeInput
+    from agentic_scraper.backend.config.types import OpenAIConfig
     from agentic_scraper.backend.scraper.models import (
-        OpenAIConfig,
         ScrapedItem,
         ScrapeRequest,
         WorkerPoolConfig,

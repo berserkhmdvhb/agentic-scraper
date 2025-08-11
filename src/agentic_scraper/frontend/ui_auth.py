@@ -31,8 +31,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_MALFORMED_JWT,
     MSG_WARNING_NO_JWT_FOUND,
 )
+from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.core.settings import get_settings
-from agentic_scraper.backend.scraper.models import OpenAIConfig
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

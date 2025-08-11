@@ -56,8 +56,9 @@ if TYPE_CHECKING:
         OnSuccessCallback,
         ScrapeInput,
     )
+    from agentic_scraper.backend.config.types import OpenAIConfig
     from agentic_scraper.backend.core.settings import Settings
-    from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
+    from agentic_scraper.backend.scraper.models import ScrapedItem
 
 
 @dataclass

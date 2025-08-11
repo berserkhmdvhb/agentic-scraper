@@ -52,10 +52,10 @@ from agentic_scraper.backend.config.types import (
     Environment,
     LogFormat,
     LogLevel,
+    OpenAIConfig,
     OpenAIModel,
 )
 from agentic_scraper.backend.core.settings_helpers import validated_settings
-from agentic_scraper.backend.scraper.models import OpenAIConfig
 from agentic_scraper.backend.utils.validators import (
     validate_backoff_range,
     validate_log_rotation_config,
