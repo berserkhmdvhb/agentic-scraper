@@ -124,9 +124,9 @@ async def create_scrape_job(urls: list[str], config: PipelineConfig) -> tuple[st
         MSG_DEBUG_SCRAPE_CONFIG_MERGED.format(config={k: body[k] for k in body if k != "urls"})
     )
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
         resp = await client.post(
-            f"{settings.backend_domain}/api/{api_version}/scrapes",
+            f"{settings.backend_domain}/api/{api_version}/scrapes/",
             json=body,
             headers=headers,
             timeout=60,
@@ -160,7 +160,7 @@ async def poll_scrape_job(job_id: str, *, interval_sec: float = 1.2) -> dict[str
     """
     headers = await _auth_headers()
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
         while True:
             resp = await client.get(
                 f"{settings.backend_domain}/api/{api_version}/scrapes/{job_id}",
@@ -189,7 +189,7 @@ async def cancel_scrape_job(job_id: str) -> bool:
     headers = await _auth_headers()
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
             resp = await client.delete(
                 f"{settings.backend_domain}/api/{api_version}/scrapes/{job_id}",
                 headers=headers,
