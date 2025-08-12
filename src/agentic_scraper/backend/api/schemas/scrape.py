@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
-from agentic_scraper.backend.config.messages import MSG_ERROR_MISSING_FIELDS_FOR_AGENT
-
 from agentic_scraper.backend.api.schemas.items import ScrapedItemDTO
-from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIConfig, OpenAIModel
+from agentic_scraper.backend.config.messages import MSG_ERROR_MISSING_FIELDS_FOR_AGENT
+from agentic_scraper.backend.config.types import (
+    AgentMode,
+    JobStatus,
+    OpenAIConfig,
+    OpenAIModel,
+)
 
 # Reusable type for URL lists with validation and examples
 UrlsType = Annotated[
