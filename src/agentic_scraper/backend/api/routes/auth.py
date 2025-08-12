@@ -37,7 +37,7 @@ from agentic_scraper.backend.core.settings import get_settings
 
 __all__ = ["auth_callback"]
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["Auth"])
 settings = get_settings()
 logger = logging.getLogger(__name__)
 

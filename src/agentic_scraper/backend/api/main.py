@@ -20,9 +20,9 @@ from agentic_scraper import __api_version__ as api_version
 from agentic_scraper import __version__ as version
 from agentic_scraper.backend.api.lifecycle import lifespan
 from agentic_scraper.backend.api.openapi import custom_openapi
-from agentic_scraper.backend.api.routes.v1.auth import router as auth_router
-from agentic_scraper.backend.api.routes.v1.scrape import router as scrape_router
-from agentic_scraper.backend.api.routes.v1.user import router as user_router
+from agentic_scraper.backend.api.routes.auth import router as auth_router
+from agentic_scraper.backend.api.routes.scrape import router as scrape_router
+from agentic_scraper.backend.api.routes.user import router as user_router
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import get_settings, log_settings
 
@@ -49,6 +49,8 @@ app = FastAPI(
 cors_origins = {
     settings.frontend_domain,
     settings.backend_domain,
+    "http://localhost:8501",
+    "http://127.0.0.1:8501",
 }
 app.add_middleware(
     CORSMiddleware,
@@ -104,6 +106,6 @@ async def root() -> dict[str, str]:
 
 # Register routers under /api/<version>; each router declares its own path segment
 # e.g., scrape router exposes "/scrapes", auth router exposes "/auth/*"
-app.include_router(user_router, prefix=common_prefix, tags=["User"])
-app.include_router(scrape_router, prefix=common_prefix, tags=["Scrape"])
-app.include_router(auth_router, prefix=common_prefix, tags=["Auth"])
+app.include_router(user_router, prefix=common_prefix)
+app.include_router(scrape_router, prefix=common_prefix)
+app.include_router(auth_router, prefix=common_prefix)

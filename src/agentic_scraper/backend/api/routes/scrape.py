@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status, Request
 
 from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
@@ -45,7 +45,7 @@ from agentic_scraper.backend.config.types import JobStatus
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
-router = APIRouter()
+router = APIRouter(prefix="/scrapes", tags=["Scrape"])
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
@@ -103,15 +103,15 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
 
 
 @router.post(
-    "/scrapes",
+    "/",
     status_code=status.HTTP_202_ACCEPTED,
-    tags=["Scrape"],
 )
 async def create_scrape_job(
     payload: ScrapeCreate,
     response: Response,
     background: BackgroundTasks,
     user: CurrentUser,
+    request: Request,
 ) -> ScrapeJob:
     """
     Create a new scrape job. Returns 202 Accepted with Location to poll the job.
@@ -130,7 +130,7 @@ async def create_scrape_job(
     background.add_task(_run_scrape_job, job["id"], payload, user)
 
     # Set Location header for polling (absolute)
-    response_url = f"{settings.backend_domain}/api/{api_version}/scrapes/{job['id']}"
+    response_url = str(request.url_for("get_scrape_job", job_id=job["id"]))
     response.headers["Location"] = response_url
     logger.info(MSG_HTTP_LOCATION_HEADER_SET.format(url=response_url))
 
@@ -138,8 +138,7 @@ async def create_scrape_job(
 
 
 @router.get(
-    "/scrapes/{job_id}",
-    tags=["Scrape"],
+    "/{job_id}",
 )
 async def get_scrape_job(job_id: str, user: CurrentUser) -> ScrapeJob:
     """
@@ -165,8 +164,7 @@ async def get_scrape_job(job_id: str, user: CurrentUser) -> ScrapeJob:
 
 
 @router.get(
-    "/scrapes",
-    tags=["Scrape"],
+    "/",
 )
 async def list_scrape_jobs(
     user: CurrentUser,
@@ -210,9 +208,8 @@ async def list_scrape_jobs(
 
 
 @router.delete(
-    "/scrapes/{job_id}",
+    "/{job_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    tags=["Scrape"],
 )
 async def cancel_scrape_job(job_id: str, user: CurrentUser) -> Response:
     """

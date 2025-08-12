@@ -63,7 +63,7 @@ __all__ = [
     "put_credentials",
 ]
 
-router = APIRouter()
+router = APIRouter(prefix="/user", tags=["User"])
 logger = logging.getLogger(__name__)
 
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
@@ -79,7 +79,7 @@ def _mask_secret(value: str | SecretStr | None, show_last: int = 4) -> str | Non
     return "*" * (len(value) - show_last) + value[-show_last:]
 
 
-@router.get("/me", tags=["User"])
+@router.get("/me")
 async def get_me(user: CurrentUser) -> UserProfile:
     """
     Retrieve the current user's profile.
@@ -104,7 +104,7 @@ async def get_me(user: CurrentUser) -> UserProfile:
     )
 
 
-@router.get("/openai-credentials", tags=["User"])
+@router.get("/openai-credentials")
 async def get_credentials(user: CurrentUser) -> UserCredentialsOut:
     """
     Retrieve the stored OpenAI credentials for the authenticated user.
@@ -154,7 +154,6 @@ async def get_credentials(user: CurrentUser) -> UserCredentialsOut:
 @router.put(
     "/openai-credentials",
     status_code=status.HTTP_200_OK,
-    tags=["User"],
 )
 async def put_credentials(user: CurrentUser, creds: UserCredentialsIn) -> UserCredentialsOut:
     """
@@ -203,7 +202,7 @@ async def put_credentials(user: CurrentUser, creds: UserCredentialsIn) -> UserCr
         ) from e
 
 
-@router.delete("/openai-credentials", status_code=status.HTTP_204_NO_CONTENT, tags=["User"])
+@router.delete("/openai-credentials", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_credentials(user: CurrentUser) -> None:
     """
     Delete the stored OpenAI credentials for the authenticated user.
@@ -235,7 +234,7 @@ async def delete_credentials(user: CurrentUser) -> None:
         ) from e
 
 
-@router.get("/openai-credentials/status", response_model=UserCredentialsStatus, tags=["User"])
+@router.get("/openai-credentials/status", response_model=UserCredentialsStatus)
 async def credentials_status(user: CurrentUser) -> dict[str, bool]:
     """
     Check if the user has stored OpenAI credentials.
