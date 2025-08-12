@@ -2,7 +2,7 @@
 UI runner for triggering and monitoring scraping via the backend REST API (job-based).
 
 Changes in this version:
-- Create jobs via POST /scrapes (202 + Location header)
+- Create jobs via POST /scrapes/ (202 + Location header)
 - Poll job status via GET /scrapes/{id} until terminal state
 - Optional cancel via DELETE /scrapes/{id}
 - Removed legacy synchronous /scrape/start flow and local pipeline hooks
@@ -36,6 +36,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_USING_CACHE,
     MSG_WARNING_JOB_NOT_FOUND,
 )
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.ui_runner_helpers import (
     attach_openai_config,
@@ -98,7 +99,7 @@ async def _auth_headers() -> dict[str, str]:
 
 
 async def create_scrape_job(urls: list[str], config: PipelineConfig) -> tuple[str, str | None]:
-    """POST /scrapes to create a job. Returns (job_id, location_header)."""
+    """POST /scrapes/ to create a job. Returns (job_id, location_header)."""
     headers = await _auth_headers()
 
     # Build request body (only fields allowed by backend), stripping None values
@@ -115,15 +116,22 @@ async def create_scrape_job(urls: list[str], config: PipelineConfig) -> tuple[st
     body = {k: v for k, v in body.items() if v is not None}
 
     # Attach inline OpenAI creds ONLY if overriding stored ones (optional UX choice)
-    if (
-        getattr(config, "agent_mode", "rule_based") or ""
-    ).lower() != "rule_based" and st.session_state.get("openai_credentials"):
-        attach_openai_config(config, body)
+    agent_mode = getattr(config, "agent_mode", AgentMode.RULE_BASED)
+    if isinstance(agent_mode, str):
+        try:
+            agent_mode = AgentMode(agent_mode)
+        except ValueError:
+            agent_mode = AgentMode.RULE_BASED
 
+    if agent_mode != AgentMode.RULE_BASED and st.session_state.get("openai_credentials"):
+        attach_openai_config(config, body)
+    else:
+        # Rule-based: make sure no LLM-only fields sneak in
+        for k in ("llm_concurrency", "llm_schema_retries", "openai_model"):
+            body.pop(k, None)
     logger.debug(
         MSG_DEBUG_SCRAPE_CONFIG_MERGED.format(config={k: body[k] for k in body if k != "urls"})
     )
-
     async with httpx.AsyncClient(follow_redirects=True) as client:
         resp = await client.post(
             f"{settings.backend_domain}/api/{api_version}/scrapes/",

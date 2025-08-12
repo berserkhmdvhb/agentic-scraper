@@ -23,6 +23,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_NO_TOKEN_YET,
     MSG_INFO_TOKEN_SESSION_LENGTH,
 )
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.ui_auth_helpers import (
     ensure_https,
@@ -68,7 +69,8 @@ def logout_user() -> None:
 
 def login_ui(agent_mode: str) -> None:
     """Render login or logout UI components based on current session state."""
-    requires_auth = agent_mode and agent_mode != "rule_based"
+    requires_auth = agent_mode and agent_mode != AgentMode.RULE_BASED
+
     if not requires_auth:
         return
 

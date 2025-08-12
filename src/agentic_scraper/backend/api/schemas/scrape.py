@@ -64,7 +64,7 @@ class ScrapeCreate(BaseModel):
         """
         # Works whether AgentMode is an Enum or Literal[str]
         mode_value = getattr(self.agent_mode, "value", self.agent_mode)
-        if mode_value == "rule_based":
+        if mode_value == AgentMode.RULE_BASED:
             return self
 
         missing: list[str] = []

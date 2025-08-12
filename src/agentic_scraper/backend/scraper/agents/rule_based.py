@@ -12,7 +12,7 @@ Key Features:
 - Optionally captures a screenshot via Playwright.
 - Returns a validated `ScrapedItem`, or None if validation fails.
 
-Used in: scraper agent registry when `agent_mode="rule_based"` is selected.
+Used in: scraper agent registry when `agent_mode=AgentMode.RULE_BASED` is selected.
 """
 
 import logging

@@ -40,7 +40,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_JOB_STARTED,
     MSG_JOB_SUCCEEDED,
 )
-from agentic_scraper.backend.config.types import JobStatus
+from agentic_scraper.backend.config.types import AgentMode, JobStatus
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
@@ -58,8 +58,9 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
         logger.info(MSG_JOB_STARTED.format(job_id=job_id))
 
         # Resolve OpenAI creds (if agent requires them)
+        needs_llm = payload.agent_mode != AgentMode.RULE_BASED
         creds = payload.openai_credentials or load_user_credentials(user["sub"])
-        if not creds:
+        if needs_llm and not creds:
             # Fail early if creds are missing for LLM modes
             update_job(
                 job_id,

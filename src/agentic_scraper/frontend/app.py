@@ -20,12 +20,13 @@ from agentic_scraper.backend.config.messages import (
     MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR,
     MSG_INFO_APP_RESET_TRIGGERED,
 )
+from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import Settings, get_settings, log_settings
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
 from agentic_scraper.frontend.ui_auth import authenticate_user
 from agentic_scraper.frontend.ui_display import display_results
-from agentic_scraper.frontend.ui_jobs import render_jobs_tab  # <-- NEW
+from agentic_scraper.frontend.ui_jobs import render_jobs_tab
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
 from agentic_scraper.frontend.ui_runner import run_scraper_pipeline
 from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
@@ -131,7 +132,7 @@ def main() -> None:
     # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
     agent_mode = controls.agent_mode
-    is_llm_mode = agent_mode != "rule_based"
+    is_llm_mode = agent_mode != AgentMode.RULE_BASED
 
     # --- AUTH (LLM modes only) ---
     can_run = True
