@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.auth.scope_helpers import check_required_scopes
 from agentic_scraper.backend.api.models import AuthUser, RequiredScopes
+from agentic_scraper.backend.api.schemas.items import ScrapedItemDTO
 from agentic_scraper.backend.api.schemas.scrape import (
     ScrapeCreate,
     ScrapeJob,
@@ -43,7 +44,6 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.config.types import AgentMode, JobStatus
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
-from agentic_scraper.backend.api.schemas.items import ScrapedItemDTO
 
 router = APIRouter(prefix="/scrapes", tags=["Scrape"])
 logger = logging.getLogger(__name__)
