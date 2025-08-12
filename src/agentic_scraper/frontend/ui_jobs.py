@@ -76,6 +76,7 @@ def _safe_message(resp: httpx.Response) -> str:
     except (TypeError, ValueError):
         return resp.text
 
+
 def fetch_jobs(
     status_filter: str | None,
     limit: int,
