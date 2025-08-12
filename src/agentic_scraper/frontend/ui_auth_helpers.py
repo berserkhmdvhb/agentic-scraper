@@ -31,6 +31,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_EXCEPTION_USER_PROFILE_NETWORK,
     MSG_INFO_CREDENTIALS_SUCCESS,
     MSG_INFO_USER_PROFILE_SUCCESS,
+    MSG_LOG_TOKEN_FROM_SESSION_STATE,
     MSG_WARNING_MALFORMED_JWT,
     MSG_WARNING_NO_JWT_FOUND,
 )
@@ -83,7 +84,7 @@ def get_jwt_token_from_url_or_session() -> str | None:
 
     token_from_session = st.session_state.get("jwt_token")
     if isinstance(token_from_session, str):
-        logger.debug("Token from session state (not URL)")
+        logger.debug(MSG_LOG_TOKEN_FROM_SESSION_STATE)
         return token_from_session
 
     logger.warning(MSG_WARNING_NO_JWT_FOUND)
@@ -140,7 +141,8 @@ def fetch_user_profile(on_unauthorized: Callable[[], None] | None = None) -> Non
 
 def fetch_openai_credentials(on_unauthorized: Callable[[], None] | None = None) -> None:
     """
-    Fetch /user/openai-credentials and stash an OpenAIConfig in session_state['openai_credentials'].
+    Fetch /user/openai-credentials and stash a **masked preview** in
+    session_state['openai_credentials_preview'] (do not overwrite real creds).
     If 401, optionally call `on_unauthorized()` (e.g., logout) and return.
     """
     try:
@@ -176,5 +178,5 @@ def fetch_openai_credentials(on_unauthorized: Callable[[], None] | None = None) 
         api_key=data.get("api_key"),
         project_id=data.get("project_id"),
     )
-    st.session_state["openai_credentials"] = openai_config
+    st.session_state["openai_credentials_preview"] = openai_config
     logger.info(MSG_INFO_CREDENTIALS_SUCCESS)

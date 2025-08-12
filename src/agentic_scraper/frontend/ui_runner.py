@@ -143,7 +143,9 @@ def _prepare_llm_fields(
     if not attach_openai_config(config, body):
         raise RuntimeError(MSG_ERROR_MISSING_OPENAI_CREDENTIALS)
 
-    missing = [k for k in REQUIRED_CONFIG_FIELDS_FOR_LLM if k not in body]
+    # Inline creds are optional when stored on backend; don't require them here.
+    must_have = [k for k in REQUIRED_CONFIG_FIELDS_FOR_LLM if k != "openai_credentials"]
+    missing = [k for k in must_have if k not in body]
     if missing:
         raise RuntimeError(MSG_ERROR_MISSING_LLM_FIELDS.format(fields=", ".join(missing)))
 

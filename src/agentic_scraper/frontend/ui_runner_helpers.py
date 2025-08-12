@@ -20,17 +20,17 @@ from typing import TYPE_CHECKING, Any
 import streamlit as st
 from pydantic import ValidationError
 
+from agentic_scraper.backend.config.constants import REQUIRED_CONFIG_FIELDS_FOR_LLM
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_CACHE_DECISION,  # reused for short summary lines
+    MSG_DEBUG_CACHE_DECISION,
     MSG_DEBUG_LLM_FIELDS_ATTACHED,
-    MSG_DEBUG_PARSE_RESULT_SUMMARY,  # add if missing
+    MSG_DEBUG_PARSE_RESULT_SUMMARY,
     MSG_DEBUG_PIPELINE_INPUT,
-    MSG_DEBUG_RESPONSE_BODY_COMPACT,  # reused for compact value dumps
-    MSG_ERROR_MISSING_OPENAI_CREDENTIALS,
+    MSG_DEBUG_RESPONSE_BODY_COMPACT,
+    MSG_INFO_INLINE_KEY_MASKED_FALLBACK,
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_VALID_URLS_FOUND,
-    MSG_WARNING_LLM_FIELDS_MISSING,  # reused to flag missing creds
-    MSG_WARNING_PARSE_ITEM_SKIPPED,  # add if missing
+    MSG_WARNING_PARSE_ITEM_SKIPPED,
 )
 from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
@@ -60,7 +60,24 @@ DOMAIN_EMOJIS = {
     "google.com": "🔎",
 }
 
+MASK_CHARS: set[str] = {"*", "•", "●", "·"}
+MASK_WORDS: set[str] = {"redacted", "masked", "hidden"}
+
+
 PREVIEW_LIMIT = 10
+
+
+def _looks_masked(s: str | None) -> bool:
+    """
+    Heuristically detect redacted/masked secrets.
+    Flags common mask characters (*, •, ●, ·) or placeholder words.
+    """
+    if not isinstance(s, str) or not s:
+        return False
+    if any(ch in s for ch in MASK_CHARS):
+        return True
+    ls = s.lower()
+    return any(w in ls for w in MASK_WORDS)
 
 
 def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]:
@@ -144,29 +161,28 @@ def render_valid_url_feedback(urls: list[str]) -> None:
 
 def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     """
-    Inject OpenAI credentials and LLM parameters into the request body.
-
-    Returns:
-        bool: True if credentials were attached; False if missing (and shows a UI error).
+    Attach inline OpenAI credentials only if present and unmasked.
+    Always attach LLM params; if creds are masked/missing, omit them so the backend
+    can use stored credentials.
     """
     openai_credentials = st.session_state.get("openai_credentials")
-    if not openai_credentials:
-        with suppress(Exception):
-            logger.warning(MSG_WARNING_LLM_FIELDS_MISSING.format(fields=["openai_credentials"]))
-        st.error(MSG_ERROR_MISSING_OPENAI_CREDENTIALS)
-        return False
 
-    # Normalize creds payload (support Pydantic v2 model or plain mapping)
-    if hasattr(openai_credentials, "model_dump"):
-        creds_payload = openai_credentials.model_dump()
-    elif isinstance(openai_credentials, Mapping):
-        creds_payload = dict(openai_credentials)
-    else:
-        st.error(MSG_ERROR_MISSING_OPENAI_CREDENTIALS)
-        return False
+    # Normalize creds payload (Pydantic v2 model or plain mapping)
+    creds_payload: dict[str, Any] | None = None
+    if openai_credentials is not None:
+        if hasattr(openai_credentials, "model_dump"):
+            creds_payload = openai_credentials.model_dump()
+        elif isinstance(openai_credentials, Mapping):
+            creds_payload = dict(openai_credentials)
 
-    # Always attach credentials
-    body["openai_credentials"] = creds_payload
+    # Attach inline creds only if present and not masked
+    if creds_payload:
+        api_key = creds_payload.get("api_key")
+        if isinstance(api_key, str) and not _looks_masked(api_key) and api_key:
+            body["openai_credentials"] = creds_payload
+        else:
+            with suppress(Exception):
+                logger.info(MSG_INFO_INLINE_KEY_MASKED_FALLBACK)
 
     # Attach optional LLM params from config
     openai_model = getattr(config, "openai_model", None)
@@ -181,16 +197,7 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
         body["llm_schema_retries"] = llm_schema_retries
 
     with suppress(Exception):
-        fields = [
-            k
-            for k in [
-                "openai_credentials",
-                "openai_model",
-                "llm_concurrency",
-                "llm_schema_retries",
-            ]
-            if k in body
-        ]
+        fields = [k for k in REQUIRED_CONFIG_FIELDS_FOR_LLM if k in body]
         logger.debug(MSG_DEBUG_LLM_FIELDS_ATTACHED.format(fields=fields))
 
     return True

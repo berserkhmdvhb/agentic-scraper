@@ -31,6 +31,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_HTTP_JOB_NOT_FOUND_DETAIL,
     MSG_HTTP_LOCATION_HEADER_SET,
     MSG_HTTP_MISSING_OPENAI_CREDS,
+    MSG_INFO_INLINE_KEY_MASKED_FALLBACK,
     MSG_INFO_SCRAPE_REQUEST_RECEIVED,
     MSG_JOB_CANCEL_REQUESTED,
     MSG_JOB_CANCELED,
@@ -52,6 +53,12 @@ settings = get_settings()
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
 
 
+def _masked(s: str | None) -> bool:
+    if not s:
+        return False
+    return any(ch in s for ch in ("*", "•", "●", "·"))
+
+
 async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser) -> None:
     """Background job runner that executes the pipeline and updates job state."""
     try:
@@ -59,8 +66,12 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
         logger.info(MSG_JOB_STARTED.format(job_id=job_id))
 
         # Resolve OpenAI creds (if agent requires them)
+        inline = payload.openai_credentials
+        if inline and _masked(getattr(inline, "api_key", None)):
+            logger.info(MSG_INFO_INLINE_KEY_MASKED_FALLBACK)
+            inline = None
         needs_llm = payload.agent_mode != AgentMode.RULE_BASED
-        creds = payload.openai_credentials or load_user_credentials(user["sub"])
+        creds = inline or load_user_credentials(user["sub"])
         if needs_llm and not creds:
             # Fail early if creds are missing for LLM modes
             update_job(

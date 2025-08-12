@@ -70,8 +70,6 @@ class ScrapeCreate(BaseModel):
         missing: list[str] = []
         if self.openai_model is None:
             missing.append("openai_model")
-        if self.openai_credentials is None:
-            missing.append("openai_credentials")
         if self.llm_concurrency is None:
             missing.append("llm_concurrency")
         if self.llm_schema_retries is None:

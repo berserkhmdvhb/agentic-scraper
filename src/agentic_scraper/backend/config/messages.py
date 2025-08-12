@@ -50,6 +50,10 @@ MSG_INFO_TOKEN_SESSION_LENGTH = "[FRONTEND] [AUTH] JWT token stored in session. 
 MSG_INFO_NO_TOKEN_YET = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
 MSG_INFO_AUTH0_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 login URI: {uri}"
 
+# ui_auth_helpers.py
+MSG_LOG_TOKEN_FROM_SESSION_STATE = "[FRONTEND] [AUTH] Token from session state (not URL)"
+
+
 # ui_runner.py
 
 UI_SCRAPE_PREFIX = "[FRONTEND] [PIPELINE] "
@@ -108,7 +112,9 @@ MSG_DEBUG_PARSE_RESULT_SUMMARY = (
 )
 MSG_WARNING_PARSE_ITEM_SKIPPED = UI_SCRAPE_PREFIX + "Skipped malformed result #{idx}: {error}"
 
-
+MSG_DEBUG_INLINE_KEY_MASKED_OMIT = (
+    "[FRONTEND] [RUNNER] Inline OpenAI key appearsmasked/placeholder; omitting to use stored creds."
+)
 # ui_jobs.py
 MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED = "Backend domain is not configured."
 MSG_ERROR_LIST_JOBS = "Failed to list jobs: {error}"
@@ -285,6 +291,9 @@ MSG_HTTP_JOB_NOT_CANCELABLE = (
 )
 MSG_JOB_CANCELED_BY_USER = "[API] [ROUTE] [SCRAPE] Job canceled: {job_id}, by user: {user_sub}"
 MSG_HTTP_LOCATION_HEADER_SET = "[API] [ROUTE] [SCRAPE] Location header set for scrape job: {url}"
+MSG_INFO_INLINE_KEY_MASKED_FALLBACK = (
+    "[API] [ROUTE] [SCRAPE] Inline OpenAI key appears masked; falling back to stored credentials."
+)
 
 # ---------------------------------------------------------------------
 # core/
@@ -469,6 +478,13 @@ MSG_DEBUG_EARLY_EXIT_SKIPPED = (
 MSG_DEBUG_CONTEXT_HINTS_EXTRACTED = (
     "[AGENT] [LLM] [{url}] Context hints extracted: type={page_type},"
     "meta_keys={meta_keys}, breadcrumbs_count={breadcrumbs}"
+)
+
+MSG_ERROR_MASKED_OPENAI_API_KEY = (
+    "[AGENT] [LLM] OpenAI API key appearsmasked/redacted; update stored credentials."
+)
+MSG_DEBUG_LLM_JSON_REPAIRED = (
+    "[AGENT] [LLM] [{url}]LLM output repaired and parsed after JSONDecodeError"
 )
 
 # field_utils.py
