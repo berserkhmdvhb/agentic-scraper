@@ -76,33 +76,41 @@ def _safe_message(resp: httpx.Response) -> str:
     except (TypeError, ValueError):
         return resp.text
 
-
-# -------------------------
-# API calls
-# -------------------------
 def fetch_jobs(
     status_filter: str | None,
     limit: int,
     cursor: str | None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """
-    Return (items, next_cursor).
-    status_filter can be one of queued/running/succeeded/failed/canceled or None/"All".
+    Fetch jobs from the backend.
+
+    Returns:
+        (items, next_cursor)
+        - items: list of job dicts
+        - next_cursor: pagination cursor or None
+
+    Notes:
+        - `status_filter` can be one of: queued/running/succeeded/failed/canceled or None/"All".
+        - Always call the trailing-slash endpoint to avoid redirects.
     """
     base = api_base()
     if not base:
         st.error(MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED)
         return [], None
 
-    params: list[tuple[str, str]] = []
+    # Build query params safely (let httpx encode them)
+    params: dict[str, str] = {}
     if status_filter and status_filter.lower() != "all":
-        params.append(("status_", status_filter.lower()))
-    params.append(("limit", str(limit)))
+        params["status_"] = status_filter.lower()
+    params["limit"] = str(limit)
     if cursor:
-        params.append(("cursor", cursor))
+        params["cursor"] = cursor
 
-    query = ("?" + "&".join(f"{k}={v}" for k, v in params)) if params else ""
-    url = f"{base}/scrapes{query}"
+    url = f"{base}/scrapes/"
+    if params:
+        query_str = str(httpx.QueryParams(params))  # e.g., "status_=running&limit=20"
+        url = f"{url}?{query_str}"
+
     try:
         resp = _get(url)
         resp.raise_for_status()
@@ -114,10 +122,15 @@ def fetch_jobs(
         return [], None
 
     payload: dict[str, Any] = resp.json() or {}
-    items_val = payload.get("items", [])
-    items: list[dict[str, Any]] = items_val if isinstance(items_val, list) else []
-    next_cursor_val = payload.get("next_cursor")
+    if not isinstance(payload, dict):
+        payload = {}
+
+    raw_items: Any = payload.get("items", [])
+    items: list[dict[str, Any]] = [it for it in raw_items if isinstance(it, dict)]
+
+    next_cursor_val: Any = payload.get("next_cursor")
     next_cursor: str | None = next_cursor_val if isinstance(next_cursor_val, str) else None
+
     return items, next_cursor
 
 
