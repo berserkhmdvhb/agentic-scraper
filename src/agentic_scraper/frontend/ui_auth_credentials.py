@@ -13,7 +13,7 @@ import streamlit as st
 
 from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.core.settings import get_settings
-from agentic_scraper.frontend.ui_auth import fetch_openai_credentials
+from agentic_scraper.frontend.ui_auth_helpers import fetch_openai_credentials
 
 settings = get_settings()
 

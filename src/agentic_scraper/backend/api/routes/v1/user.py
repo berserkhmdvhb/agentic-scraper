@@ -79,9 +79,7 @@ def _mask_secret(value: str | SecretStr | None, show_last: int = 4) -> str | Non
     return "*" * (len(value) - show_last) + value[-show_last:]
 
 
-router.get("/openai-credentials", tags=["User"])
-
-
+@router.get("/me", tags=["User"])
 async def get_me(user: CurrentUser) -> UserProfile:
     """
     Retrieve the current user's profile.

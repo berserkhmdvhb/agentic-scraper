@@ -1,16 +1,18 @@
 """
-Helper functions for the Streamlit scraper runner.
+Helper functions for the Streamlit scraper runner (REST job flow).
 
-This module handles:
+This module now focuses on:
 - Input URL validation and deduplication
-- OpenAI config attachment for API calls
-- Result parsing and error handling
-- UI feedback for valid/invalid inputs
-- Quick result summaries and error reporting
+- Optional OpenAI config attachment (when overriding stored creds)
+- Parsing final job results into ScrapedItem objects
+- UI feedback for valid/invalid inputs and terminal job errors
+- Quick result summaries
 """
 
+from __future__ import annotations
+
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 from pydantic import ValidationError
@@ -21,14 +23,16 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.scraper.models import ScrapedItem
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
-from agentic_scraper.frontend.models import PipelineConfig
+
+if TYPE_CHECKING:
+    from agentic_scraper.frontend.models import PipelineConfig
 
 __all__ = [
     "attach_openai_config",
-    "display_error_summaries",
     "extract_domain_icon",
-    "parse_scraper_response",
+    "parse_job_result",
     "render_invalid_url_section",
+    "render_job_error",
     "render_valid_url_feedback",
     "summarize_results",
     "validate_and_deduplicate_urls",
@@ -45,17 +49,7 @@ DOMAIN_EMOJIS = {
 
 
 def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]:
-    """
-    Clean and deduplicate user input URLs, separating valid and invalid ones.
-
-    Args:
-        raw_input (str): Multiline string of raw input from the user.
-
-    Returns:
-        tuple[list[str], list[str]]:
-            - Valid deduplicated URLs
-            - Invalid lines from the original input
-    """
+    """Clean and deduplicate user input URLs, separating valid and invalid ones."""
     all_lines = [line.strip() for line in raw_input.strip().splitlines() if line.strip()]
     valid_urls = clean_input_urls(raw_input)
     invalid_lines = [line for line in all_lines if line not in valid_urls]
@@ -63,49 +57,15 @@ def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]
 
 
 def extract_domain_icon(url: str) -> str:
-    """
-    Return an emoji icon representing a known domain.
-
-    Args:
-        url (str): The URL to evaluate.
-
-    Returns:
-        str: Emoji icon for the domain, or default "🔗".
-    """
+    """Return an emoji icon representing a known domain, defaulting to a link icon."""
     for domain, emoji in DOMAIN_EMOJIS.items():
         if domain in url:
             return emoji
     return "🔗"
 
 
-def display_error_summaries(fetch_errors: list[str], extraction_errors: list[str]) -> None:
-    """
-    Render fetch and extraction errors in expandable UI sections.
-
-    Args:
-        fetch_errors (list[str]): List of page-fetching errors.
-        extraction_errors (list[str]): List of LLM/validation extraction failures.
-    """
-    if fetch_errors:
-        with st.expander("🌐 Fetch Errors (could not load page)"):
-            for msg in fetch_errors:
-                st.markdown(f"- ❌ `{msg}`")
-
-    if extraction_errors:
-        with st.expander("🧐 Extraction Errors (LLM or validation failed)"):
-            for msg in extraction_errors:
-                st.markdown(f"- ❌ `{msg}`")
-
-
 def summarize_results(items: list[ScrapedItem], skipped: int, start_time: float) -> None:
-    """
-    Display scraping performance metrics and a quick view of results.
-
-    Args:
-        items (list[ScrapedItem]): Parsed items from backend.
-        skipped (int): Number of skipped or failed URLs.
-        start_time (float): Time at which scraping began.
-    """
+    """Display scraping performance metrics and a quick view of results."""
     elapsed = round(time.perf_counter() - start_time, 2)
 
     if not items:
@@ -126,12 +86,7 @@ def summarize_results(items: list[ScrapedItem], skipped: int, start_time: float)
 
 
 def render_invalid_url_section(invalid_lines: list[str]) -> None:
-    """
-    Show an expandable UI section listing invalid input URLs.
-
-    Args:
-        invalid_lines (list[str]): List of lines that failed URL validation.
-    """
+    """Show an expandable UI section listing invalid input URLs."""
     if invalid_lines:
         with st.expander("⚠️ Skipped Invalid URLs"):
             for url in invalid_lines:
@@ -139,12 +94,7 @@ def render_invalid_url_section(invalid_lines: list[str]) -> None:
 
 
 def render_valid_url_feedback(urls: list[str]) -> None:
-    """
-    Show feedback in the UI when valid URLs are detected.
-
-    Args:
-        urls (list[str]): List of validated input URLs.
-    """
+    """Show feedback in the UI when valid URLs are detected."""
     if not urls:
         st.warning(MSG_INFO_NO_VALID_URLS)
     else:
@@ -155,14 +105,9 @@ def render_valid_url_feedback(urls: list[str]) -> None:
 
 def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     """
-    Inject OpenAI credentials and LLM parameters into the scrape request body.
+    Optionally inject OpenAI credentials and LLM parameters into the request body.
 
-    Args:
-        config (PipelineConfig): Current pipeline config from sidebar.
-        body (dict[str, Any]): Mutable request payload to enrich.
-
-    Returns:
-        bool: True if credentials were attached successfully, False otherwise.
+    Returns True if credentials were attached, False if missing (and shows a UI error).
     """
     openai_credentials = st.session_state.get("openai_credentials")
     if not openai_credentials:
@@ -172,40 +117,62 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     body.update(
         {
             "openai_credentials": openai_credentials.model_dump(),
-            "openai_model": config.openai_model,
-            "llm_concurrency": config.llm_concurrency,
-            "llm_schema_retries": config.llm_schema_retries,
+            "openai_model": getattr(config, "openai_model", None),
+            "llm_concurrency": getattr(config, "llm_concurrency", None),
+            "llm_schema_retries": getattr(config, "llm_schema_retries", None),
         }
     )
+    # Strip None fields so payload is clean
+    for k in ["openai_model", "llm_concurrency", "llm_schema_retries"]:
+        if body.get(k) is None:
+            body.pop(k, None)
     return True
 
 
-def parse_scraper_response(data: dict[str, Any]) -> tuple[list[ScrapedItem], int]:
+# -------------------------
+# New helpers for job-based flow
+# -------------------------
+
+
+def parse_job_result(job: dict[str, Any]) -> tuple[list[ScrapedItem], int, float]:
     """
-    Parse backend JSON response into structured items and skipped count.
+    Convert a final job payload (status == succeeded) into typed items + stats.
 
-    Args:
-        data (dict): JSON data returned by the scraping API.
-
-    Returns:
-        tuple[list[ScrapedItem], int]: List of successfully parsed items and number skipped.
-
-    Raises:
-        None. Parsing failures are handled with UI warnings and skipped gracefully.
+    Returns (items, skipped, duration_sec).
     """
-    raw_items = data.get("results", [])
-    skipped = data.get("stats", {}).get("skipped", 0)
-    items = []
+    result = (job or {}).get("result") or {}
+    raw_items = result.get("items", [])
+    stats = result.get("stats", {})
+    skipped = int(stats.get("num_failed", 0) or 0)
+    duration = float(stats.get("duration_sec", 0.0) or 0.0)
 
+    items: list[ScrapedItem] = []
     for idx, item in enumerate(raw_items):
+        if isinstance(item, ScrapedItem):
+            items.append(item)
+            continue
         if isinstance(item, dict):
             try:
                 items.append(ScrapedItem(**item))
             except (ValidationError, TypeError) as e:
                 st.warning(f"⚠️ Skipped malformed result #{idx + 1}: {e}")
-        elif isinstance(item, ScrapedItem):
-            items.append(item)
         else:
             st.warning(f"⚠️ Skipped unexpected type result #{idx + 1}: {type(item)}")
 
-    return items, skipped
+    return items, skipped, duration
+
+
+def render_job_error(job: dict[str, Any]) -> None:
+    """Render a terminal job error or cancellation message in the UI."""
+    status_ = (job.get("status") or "").lower()
+    if status_ == "canceled":
+        st.info("🛑 Job was canceled.")
+        return
+
+    # failed or unknown
+    err = job.get("error")
+    if isinstance(err, dict) and "message" in err:
+        msg = err.get("message")
+    else:
+        msg = str(err) if err else "Job failed."
+    st.error(msg)

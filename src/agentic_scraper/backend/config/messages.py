@@ -52,6 +52,32 @@ MSG_INFO_AUTH0_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 login URI: {uri}"
 
 # ui_runner.py
 MSG_DEBUG_SCRAPE_CONFIG_MERGED = "[FRONTEND] [PIPELINE] config values before calling API: {config}"
+MSG_ERROR_USER_NOT_AUTHENTICATED = "User is not authenticated!"
+MSG_ERROR_CREATE_JOB = "Failed to create job: {error}"
+MSG_WARNING_JOB_NOT_FOUND = "Job not found (404)."
+MSG_ERROR_FORBIDDEN_JOB_ACCESS = "Forbidden: you do not own this job."
+MSG_INFO_JOB_NOT_CANCELABLE = "Job is not cancelable (already finished)."
+MSG_ERROR_CANCEL_FAILED = "Cancel failed: {error}"
+MSG_ERROR_NETWORK_HTTP = "Network/HTTP error: {error}"
+MSG_INFO_CREATING_JOB_SPINNER = "🔍 Creating job..."
+MSG_INFO_RUNNING_JOB_SPINNER = "⏳ Running scrape job..."
+MSG_ERROR_BACKEND_NO_JOB_ID = "Backend did not return a job id."
+
+# ui_jobs.py
+MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED = "Backend domain is not configured."
+MSG_ERROR_LIST_JOBS = "Failed to list jobs: {error}"
+MSG_ERROR_LIST_JOBS_NETWORK = "Network error while listing jobs: {error}"
+MSG_ERROR_FETCH_JOB = "Failed to fetch job: {error}"
+MSG_ERROR_FETCH_JOB_NETWORK = "Network error while fetching job: {error}"
+MSG_WARNING_JOB_NOT_FOUND = "Job not found (404)."
+MSG_ERROR_FORBIDDEN_JOB_ACCESS = "Forbidden: you do not own this job."
+MSG_SUCCESS_JOB_CANCELED = "Job canceled."
+MSG_INFO_JOB_NOT_CANCELABLE = "Job is not cancelable (already finished)."
+MSG_ERROR_CANCEL_JOB = "Failed to cancel job: {error}"
+MSG_ERROR_CANCEL_JOB_NETWORK = "Network error while canceling job: {error}"
+MSG_INFO_NO_JOBS_FOUND = "No jobs found."
+MSG_INFO_LOGIN_TO_VIEW_JOBS = "Please log in to view your jobs."
+
 
 # ─── Backend ───
 
