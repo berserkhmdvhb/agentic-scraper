@@ -43,6 +43,7 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.config.types import AgentMode, JobStatus
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
+from agentic_scraper.backend.api.schemas.items import ScrapedItemDTO
 
 router = APIRouter(prefix="/scrapes", tags=["Scrape"])
 logger = logging.getLogger(__name__)
@@ -82,10 +83,11 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
         items, stats = await scrape_with_stats(urls, settings=merged_settings, openai=creds)
 
         # Persist final result
+        dto_items = [ScrapedItemDTO.model_validate(it.model_dump()) for it in items]
         update_job(
             job_id,
             status="succeeded",
-            result=ScrapeResult(items=items, stats=stats).model_dump(),
+            result=ScrapeResult(items=dto_items, stats=stats).model_dump(),
             progress=1.0,
             updated_at=datetime.now(timezone.utc),
         )
