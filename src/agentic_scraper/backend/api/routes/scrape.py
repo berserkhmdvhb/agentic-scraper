@@ -2,9 +2,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 
-from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.auth.scope_helpers import check_required_scopes
 from agentic_scraper.backend.api.models import AuthUser, RequiredScopes
