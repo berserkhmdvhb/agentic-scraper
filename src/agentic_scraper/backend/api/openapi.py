@@ -72,7 +72,7 @@ def _api_server_url() -> str | None:
         return None
     if not base.startswith(("http://", "https://")):
         base = "https://" + base
-    return f"{base}/api/{api_version}"
+    return base
 
 
 def custom_openapi(app: FastAPI) -> dict[str, Any]:
