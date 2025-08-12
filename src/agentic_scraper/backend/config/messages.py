@@ -62,6 +62,13 @@ MSG_ERROR_NETWORK_HTTP = "Network/HTTP error: {error}"
 MSG_INFO_CREATING_JOB_SPINNER = "🔍 Creating job..."
 MSG_INFO_RUNNING_JOB_SPINNER = "⏳ Running scrape job..."
 MSG_ERROR_BACKEND_NO_JOB_ID = "Backend did not return a job id."
+MSG_ERROR_MISSING_OPENAI_CREDENTIALS = (
+    "Missing OpenAI credentials. "
+    "Please provide your API key and project ID before running LLM-based scraping."
+)
+MSG_ERROR_INVALID_AGENT_MODE = "Invalid agent mode: {mode}"
+MSG_ERROR_MISSING_LLM_FIELDS = "Missing LLM fields before send: {fields}"
+MSG_ERROR_POLLING_TIMEOUT = "Polling timed out."
 
 # ui_jobs.py
 MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED = "Backend domain is not configured."

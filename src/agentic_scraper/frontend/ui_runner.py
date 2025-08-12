@@ -21,13 +21,18 @@ import streamlit as st
 from fastapi import status
 
 from agentic_scraper import __api_version__ as api_version
+from agentic_scraper.backend.config.constants import REQUIRED_CONFIG_FIELDS_FOR_LLM
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SCRAPE_CONFIG_MERGED,
     MSG_ERROR_BACKEND_NO_JOB_ID,
     MSG_ERROR_CREATE_JOB,
     MSG_ERROR_EXTRACTION_FAILED,
     MSG_ERROR_FORBIDDEN_JOB_ACCESS,
+    MSG_ERROR_INVALID_AGENT_MODE,
+    MSG_ERROR_MISSING_LLM_FIELDS,
+    MSG_ERROR_MISSING_OPENAI_CREDENTIALS,
     MSG_ERROR_NETWORK_HTTP,
+    MSG_ERROR_POLLING_TIMEOUT,
     MSG_ERROR_USER_NOT_AUTHENTICATED,
     MSG_INFO_CREATING_JOB_SPINNER,
     MSG_INFO_JOB_NOT_CANCELABLE,
@@ -93,7 +98,7 @@ def _safe_message(resp: httpx.Response) -> str:
 
 async def _auth_headers() -> dict[str, str]:
     jwt = st.session_state.get("jwt_token")
-    if not jwt:
+    if not isinstance(jwt, str) or not jwt.strip():
         raise RuntimeError(MSG_ERROR_USER_NOT_AUTHENTICATED)
     return {"Authorization": f"Bearer {jwt}"}
 
@@ -120,15 +125,24 @@ async def create_scrape_job(urls: list[str], config: PipelineConfig) -> tuple[st
     if isinstance(agent_mode, str):
         try:
             agent_mode = AgentMode(agent_mode)
-        except ValueError:
-            agent_mode = AgentMode.RULE_BASED
-
-    if agent_mode != AgentMode.RULE_BASED and st.session_state.get("openai_credentials"):
-        attach_openai_config(config, body)
-    else:
-        # Rule-based: make sure no LLM-only fields sneak in
-        for k in ("llm_concurrency", "llm_schema_retries", "openai_model"):
+        except ValueError as err:
+            raise RuntimeError(MSG_ERROR_INVALID_AGENT_MODE.format(mode=agent_mode)) from err
+    # Decide by mode only (don't couple to presence of creds)
+    if agent_mode == AgentMode.RULE_BASED:
+        # Strip all LLM-only fields from payload
+        for k in REQUIRED_CONFIG_FIELDS_FOR_LLM:
             body.pop(k, None)
+    else:
+        # LLM modes: require creds and attach them first
+        if not attach_openai_config(config, body):
+            # helper already st.error(...). Abort instead of sending a broken request
+            raise RuntimeError(MSG_ERROR_MISSING_OPENAI_CREDENTIALS)
+
+        # Now that attach_openai_config populated body, validate required LLM fields
+        missing = [k for k in REQUIRED_CONFIG_FIELDS_FOR_LLM if k not in body]
+        if missing:
+            # Suggest adding a constant e.g. MSG_ERROR_MISSING_LLM_FIELDS
+            raise RuntimeError(MSG_ERROR_MISSING_LLM_FIELDS.format(fields=", ".join(missing)))
     logger.debug(
         MSG_DEBUG_SCRAPE_CONFIG_MERGED.format(config={k: body[k] for k in body if k != "urls"})
     )
@@ -154,20 +168,11 @@ async def create_scrape_job(urls: list[str], config: PipelineConfig) -> tuple[st
     return job_id, resp.headers.get("Location")
 
 
-async def poll_scrape_job(job_id: str, *, interval_sec: float = 1.2) -> dict[str, Any]:
-    """
-    Poll the backend for a scrape job until it reaches a terminal state.
-
-    Args:
-        job_id (str): Backend job identifier.
-        interval_sec (float): Delay between polls in seconds.
-
-    Returns:
-        dict[str, Any]: Final job payload. If not found or forbidden, returns a synthetic
-        failed job with an 'error' message.
-    """
+async def poll_scrape_job(
+    job_id: str, *, interval_sec: float = 1.2, max_seconds: float = 300.0
+) -> dict[str, Any]:
     headers = await _auth_headers()
-
+    deadline = time.perf_counter() + max_seconds
     async with httpx.AsyncClient(follow_redirects=True) as client:
         while True:
             resp = await client.get(
@@ -182,12 +187,14 @@ async def poll_scrape_job(job_id: str, *, interval_sec: float = 1.2) -> dict[str
                 return {"status": "failed", "error": MSG_ERROR_FORBIDDEN_JOB_ACCESS}
 
             resp.raise_for_status()
-
             job: dict[str, Any] = resp.json()
             status_ = str(job.get("status") or "").lower()
 
             if status_ in {"succeeded", "failed", "canceled"}:
                 return job
+
+            if time.perf_counter() >= deadline:
+                return {"status": "failed", "error": MSG_ERROR_POLLING_TIMEOUT}
 
             await asyncio.sleep(interval_sec)
 

@@ -12,12 +12,14 @@ This module now focuses on:
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 from pydantic import ValidationError
 
 from agentic_scraper.backend.config.messages import (
+    MSG_ERROR_MISSING_OPENAI_CREDENTIALS,
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_VALID_URLS_FOUND,
 )
@@ -105,27 +107,41 @@ def render_valid_url_feedback(urls: list[str]) -> None:
 
 def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     """
-    Optionally inject OpenAI credentials and LLM parameters into the request body.
+    Inject OpenAI credentials and LLM parameters into the request body.
 
-    Returns True if credentials were attached, False if missing (and shows a UI error).
+    Returns:
+        bool: True if credentials were attached; False if missing (and shows a UI error).
     """
+
     openai_credentials = st.session_state.get("openai_credentials")
     if not openai_credentials:
-        st.error("OpenAI credentials are missing!")
+        st.error(MSG_ERROR_MISSING_OPENAI_CREDENTIALS)
         return False
 
-    body.update(
-        {
-            "openai_credentials": openai_credentials.model_dump(),
-            "openai_model": getattr(config, "openai_model", None),
-            "llm_concurrency": getattr(config, "llm_concurrency", None),
-            "llm_schema_retries": getattr(config, "llm_schema_retries", None),
-        }
-    )
-    # Strip None fields so payload is clean
-    for k in ["openai_model", "llm_concurrency", "llm_schema_retries"]:
-        if body.get(k) is None:
-            body.pop(k, None)
+    # Normalize creds payload (support Pydantic v2 model or plain mapping)
+    if hasattr(openai_credentials, "model_dump"):
+        creds_payload = openai_credentials.model_dump()
+    elif isinstance(openai_credentials, Mapping):
+        creds_payload = dict(openai_credentials)
+    else:
+        st.error(MSG_ERROR_MISSING_OPENAI_CREDENTIALS)
+        return False
+
+    # Always attach credentials
+    body["openai_credentials"] = creds_payload
+
+    # Attach optional LLM params from config
+    openai_model = getattr(config, "openai_model", None)
+    llm_concurrency = getattr(config, "llm_concurrency", None)
+    llm_schema_retries = getattr(config, "llm_schema_retries", None)
+
+    if openai_model is not None:
+        body["openai_model"] = openai_model
+    if llm_concurrency is not None:
+        body["llm_concurrency"] = llm_concurrency
+    if llm_schema_retries is not None:
+        body["llm_schema_retries"] = llm_schema_retries
+
     return True
 
 

@@ -35,6 +35,12 @@ SESSION_KEYS = {
     "llm_schema_retries": "llm_schema_retries",
 }
 
+REQUIRED_CONFIG_FIELDS_FOR_LLM = (
+    "openai_model",
+    "openai_credentials",
+    "llm_concurrency",
+    "llm_schema_retries",
+)
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------
