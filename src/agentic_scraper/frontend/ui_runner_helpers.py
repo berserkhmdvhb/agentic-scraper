@@ -11,17 +11,26 @@ This module now focuses on:
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Mapping
+from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 from pydantic import ValidationError
 
 from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_CACHE_DECISION,  # reused for short summary lines
+    MSG_DEBUG_LLM_FIELDS_ATTACHED,
+    MSG_DEBUG_PARSE_RESULT_SUMMARY,  # add if missing
+    MSG_DEBUG_PIPELINE_INPUT,
+    MSG_DEBUG_RESPONSE_BODY_COMPACT,  # reused for compact value dumps
     MSG_ERROR_MISSING_OPENAI_CREDENTIALS,
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_VALID_URLS_FOUND,
+    MSG_WARNING_LLM_FIELDS_MISSING,  # reused to flag missing creds
+    MSG_WARNING_PARSE_ITEM_SKIPPED,  # add if missing
 )
 from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
@@ -40,6 +49,8 @@ __all__ = [
     "validate_and_deduplicate_urls",
 ]
 
+logger = logging.getLogger(__name__)
+
 DOMAIN_EMOJIS = {
     "youtube.com": "🎮",
     "github.com": "💻",
@@ -49,13 +60,30 @@ DOMAIN_EMOJIS = {
     "google.com": "🔎",
 }
 
+PREVIEW_LIMIT = 10
+
 
 def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]:
     """Clean and deduplicate user input URLs, separating valid and invalid ones."""
     all_lines = [line.strip() for line in raw_input.strip().splitlines() if line.strip()]
     valid_urls = clean_input_urls(raw_input)
     invalid_lines = [line for line in all_lines if line not in valid_urls]
-    return deduplicate_urls(valid_urls), invalid_lines
+    deduped = deduplicate_urls(valid_urls)
+
+    with suppress(Exception):
+        logger.debug(
+            MSG_DEBUG_PIPELINE_INPUT.format(valid=len(deduped), invalid=len(invalid_lines))
+        )
+        if len(deduped) != len(valid_urls):
+            key_summary = f"{len(valid_urls)}→{len(deduped)}"
+            logger.debug(MSG_DEBUG_CACHE_DECISION.format(decision="DEDUP", key=key_summary))
+        if invalid_lines:
+            preview = ", ".join(invalid_lines[:PREVIEW_LIMIT])
+            if len(invalid_lines) > PREVIEW_LIMIT:
+                preview += ", ...(truncated)"
+            logger.debug(MSG_DEBUG_RESPONSE_BODY_COMPACT.format(body=preview))
+
+    return deduped, invalid_lines
 
 
 def extract_domain_icon(url: str) -> str:
@@ -72,6 +100,9 @@ def summarize_results(items: list[ScrapedItem], skipped: int, start_time: float)
 
     if not items:
         st.warning("⚠️ No data could be extracted.")
+        with suppress(Exception):
+            key = f"skipped={skipped} elapsed={elapsed}"
+            logger.debug(MSG_DEBUG_CACHE_DECISION.format(decision="NO_ITEMS", key=key))
         return
 
     st.markdown("## 🎉 Extraction Complete")
@@ -90,6 +121,9 @@ def summarize_results(items: list[ScrapedItem], skipped: int, start_time: float)
 def render_invalid_url_section(invalid_lines: list[str]) -> None:
     """Show an expandable UI section listing invalid input URLs."""
     if invalid_lines:
+        with suppress(Exception):
+            body = f"invalid_count={len(invalid_lines)}"
+            logger.debug(MSG_DEBUG_RESPONSE_BODY_COMPACT.format(body=body))
         with st.expander("⚠️ Skipped Invalid URLs"):
             for url in invalid_lines:
                 st.markdown(f"- ❌ `{url}` — *invalid URL format*")
@@ -103,6 +137,9 @@ def render_valid_url_feedback(urls: list[str]) -> None:
         st.session_state.valid_urls = urls
         st.info(MSG_INFO_VALID_URLS_FOUND.format(n=len(urls)))
         st.markdown("---")
+        with suppress(Exception):
+            body = f"valid_count={len(urls)}"
+            logger.debug(MSG_DEBUG_RESPONSE_BODY_COMPACT.format(body=body))
 
 
 def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
@@ -112,9 +149,10 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     Returns:
         bool: True if credentials were attached; False if missing (and shows a UI error).
     """
-
     openai_credentials = st.session_state.get("openai_credentials")
     if not openai_credentials:
+        with suppress(Exception):
+            logger.warning(MSG_WARNING_LLM_FIELDS_MISSING.format(fields=["openai_credentials"]))
         st.error(MSG_ERROR_MISSING_OPENAI_CREDENTIALS)
         return False
 
@@ -142,14 +180,25 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     if llm_schema_retries is not None:
         body["llm_schema_retries"] = llm_schema_retries
 
+    with suppress(Exception):
+        fields = [
+            k
+            for k in [
+                "openai_credentials",
+                "openai_model",
+                "llm_concurrency",
+                "llm_schema_retries",
+            ]
+            if k in body
+        ]
+        logger.debug(MSG_DEBUG_LLM_FIELDS_ATTACHED.format(fields=fields))
+
     return True
 
 
 # -------------------------
 # New helpers for job-based flow
 # -------------------------
-
-
 def parse_job_result(job: dict[str, Any]) -> tuple[list[ScrapedItem], int, float]:
     """
     Convert a final job payload (status == succeeded) into typed items + stats.
@@ -163,6 +212,7 @@ def parse_job_result(job: dict[str, Any]) -> tuple[list[ScrapedItem], int, float
     duration = float(stats.get("duration_sec", 0.0) or 0.0)
 
     items: list[ScrapedItem] = []
+    malformed = 0
     for idx, item in enumerate(raw_items):
         if isinstance(item, ScrapedItem):
             items.append(item)
@@ -171,10 +221,27 @@ def parse_job_result(job: dict[str, Any]) -> tuple[list[ScrapedItem], int, float
             try:
                 items.append(ScrapedItem(**item))
             except (ValidationError, TypeError) as e:
+                malformed += 1
+                with suppress(Exception):
+                    logger.warning(MSG_WARNING_PARSE_ITEM_SKIPPED.format(idx=idx + 1, error=str(e)))
                 st.warning(f"⚠️ Skipped malformed result #{idx + 1}: {e}")
         else:
+            malformed += 1
+            with suppress(Exception):
+                typ = type(item).__name__
+                logger.warning(MSG_WARNING_PARSE_ITEM_SKIPPED.format(idx=idx + 1, error=typ))
             st.warning(f"⚠️ Skipped unexpected type result #{idx + 1}: {type(item)}")
 
+    with suppress(Exception):
+        logger.debug(
+            MSG_DEBUG_PARSE_RESULT_SUMMARY.format(
+                raw=len(raw_items),
+                valid=len(items),
+                malformed=malformed,
+                num_failed=skipped,
+                duration=f"{duration:.2f}",
+            )
+        )
     return items, skipped, duration
 
 
@@ -185,10 +252,11 @@ def render_job_error(job: dict[str, Any]) -> None:
         st.info("🛑 Job was canceled.")
         return
 
-    # failed or unknown
     err = job.get("error")
     if isinstance(err, dict) and "message" in err:
         msg = err.get("message")
     else:
         msg = str(err) if err else "Job failed."
+    with suppress(Exception):
+        logger.warning(MSG_DEBUG_RESPONSE_BODY_COMPACT.format(body=f"job_error={msg}"))
     st.error(msg)

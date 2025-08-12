@@ -51,7 +51,8 @@ MSG_INFO_NO_TOKEN_YET = "[FRONTEND] [AUTH] No JWT token found; user not logged i
 MSG_INFO_AUTH0_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 login URI: {uri}"
 
 # ui_runner.py
-MSG_DEBUG_SCRAPE_CONFIG_MERGED = "[FRONTEND] [PIPELINE] config values before calling API: {config}"
+
+UI_SCRAPE_PREFIX = "[FRONTEND] [PIPELINE] "
 MSG_ERROR_USER_NOT_AUTHENTICATED = "User is not authenticated!"
 MSG_ERROR_CREATE_JOB = "Failed to create job: {error}"
 MSG_WARNING_JOB_NOT_FOUND = "Job not found (404)."
@@ -69,6 +70,44 @@ MSG_ERROR_MISSING_OPENAI_CREDENTIALS = (
 MSG_ERROR_INVALID_AGENT_MODE = "Invalid agent mode: {mode}"
 MSG_ERROR_MISSING_LLM_FIELDS = "Missing LLM fields before send: {fields}"
 MSG_ERROR_POLLING_TIMEOUT = "Polling timed out."
+
+MSG_DEBUG_SCRAPE_CONFIG_MERGED = UI_SCRAPE_PREFIX + "config values before calling API: {config}"
+MSG_DEBUG_REQUEST_TARGET = UI_SCRAPE_PREFIX + "Requesting {method} {url}"
+MSG_DEBUG_REQUEST_PAYLOAD_KEYS = (
+    UI_SCRAPE_PREFIX + "Payload keys: {keys} (agent_mode={mode} type={type})"
+)
+MSG_DEBUG_LLM_FIELDS_ATTACHED = UI_SCRAPE_PREFIX + "LLM fields attached: {fields}"
+MSG_WARNING_LLM_FIELDS_MISSING = UI_SCRAPE_PREFIX + "Missing required LLM fields: {fields}"
+MSG_DEBUG_RESPONSE_META = UI_SCRAPE_PREFIX + "Response status={status} location={location}"
+MSG_DEBUG_RESPONSE_BODY_COMPACT = UI_SCRAPE_PREFIX + "Response body (truncated): {body}"
+MSG_DEBUG_JOB_ID_FROM_BODY = UI_SCRAPE_PREFIX + "Using job id from body: {job_id}"
+MSG_DEBUG_JOB_ID_FROM_LOCATION = UI_SCRAPE_PREFIX + "Using job id from Location: {job_id}"
+MSG_ERROR_HTTP_COMPACT = UI_SCRAPE_PREFIX + "HTTP error {method} {url}: {error}"
+MSG_DEBUG_POLL_START = (
+    UI_SCRAPE_PREFIX + "Poll start job={job_id} interval={interval}s timeout={timeout}s"
+)
+MSG_DEBUG_POLL_STATUS_CHANGE = (
+    UI_SCRAPE_PREFIX + "Job {job_id} status→{status} progress={progress} items={items}"
+)
+MSG_INFO_POLL_DONE_SUCCEEDED = (
+    UI_SCRAPE_PREFIX + "Job {job_id} SUCCEEDED items={items} skipped={skipped}"
+)
+MSG_WARNING_POLL_DONE_FAILED = UI_SCRAPE_PREFIX + "Job {job_id} {status} error={error}"
+MSG_WARNING_POLL_TIMEOUT = UI_SCRAPE_PREFIX + "Poll timeout job={job_id} after {elapsed}s"
+MSG_DEBUG_PIPELINE_INPUT = UI_SCRAPE_PREFIX + "URLs: valid={valid} invalid={invalid}"
+MSG_DEBUG_CACHE_DECISION = UI_SCRAPE_PREFIX + "Cache {decision} key={key}"
+MSG_ERROR_MISSING_JWT = UI_SCRAPE_PREFIX + "Missing JWT in session state"
+
+# ui_runner_helpers.py
+MSG_DEBUG_PARSE_RESULT_SUMMARY = (
+    UI_SCRAPE_PREFIX + "Parse: raw_items={raw} "
+    "valid={valid} "
+    "malformed={malformed} "
+    "num_failed={num_failed} "
+    "duration={duration}s"
+)
+MSG_WARNING_PARSE_ITEM_SKIPPED = UI_SCRAPE_PREFIX + "Skipped malformed result #{idx}: {error}"
+
 
 # ui_jobs.py
 MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED = "Backend domain is not configured."
