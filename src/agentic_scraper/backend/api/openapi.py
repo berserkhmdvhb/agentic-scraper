@@ -17,7 +17,6 @@ from urllib.parse import quote_plus
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
-from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.core.settings import get_settings
 
 settings = get_settings()
