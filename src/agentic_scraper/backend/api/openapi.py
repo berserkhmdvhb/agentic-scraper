@@ -67,10 +67,12 @@ def custom_openapi(app: FastAPI) -> dict[str, Any]:
     }
 
     # Add the BearerAuth security scheme globally
-    openapi_schema["components"]["securitySchemes"] = security_scheme
-    for path in openapi_schema["paths"].values():
+    openapi_schema.setdefault("components", {}).setdefault("securitySchemes", {})
+    openapi_schema["components"]["securitySchemes"].update(security_scheme)
+    for path in openapi_schema.get("paths", {}).values():
         for method in path.values():
-            method["security"] = [{"BearerAuth": []}]
+            if isinstance(method, dict) and "security" not in method:
+                method["security"] = [{"BearerAuth": []}]
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema

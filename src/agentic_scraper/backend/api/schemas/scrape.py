@@ -7,10 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from agentic_scraper.backend.config.messages import MSG_ERROR_MISSING_FIELDS_FOR_AGENT
 
-if TYPE_CHECKING:
-    from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIConfig, OpenAIModel
-    from agentic_scraper.backend.scraper.schemas import ScrapedItem
-
+from agentic_scraper.backend.api.schemas.items import ScrapedItemDTO
+from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIConfig, OpenAIModel
 
 # Reusable type for URL lists with validation and examples
 UrlsType = Annotated[
@@ -90,11 +88,11 @@ class ScrapeResult(BaseModel):
     Final job result payload returned when a job has succeeded.
 
     Args:
-        items (list[ScrapedItem]): Extracted items across all URLs.
+        items (list[ScrapedItemDTO]): Extracted items across all URLs.
         stats (dict[str, object]): Aggregated metrics (e.g., totals, duration).
     """
 
-    items: list[ScrapedItem] = Field(..., description="Extracted items from all URLs.")
+    items: list[ScrapedItemDTO] = Field(..., description="Extracted items from all URLs.")
     stats: dict[str, object] = Field(..., description="Execution metrics (counts, duration, etc.).")
 
 
