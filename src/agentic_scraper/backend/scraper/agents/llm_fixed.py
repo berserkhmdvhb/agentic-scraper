@@ -32,7 +32,8 @@ from agentic_scraper.backend.scraper.agents.agent_helpers import (
     parse_llm_response,
     retrieve_openai_credentials,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.backend.scraper.models import ScrapeRequest
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam

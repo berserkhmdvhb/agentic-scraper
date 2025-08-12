@@ -45,7 +45,8 @@ from agentic_scraper.backend.scraper.agents.field_utils import (
     score_nonempty_fields,
 )
 from agentic_scraper.backend.scraper.agents.prompt_helpers import build_prompt
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.backend.scraper.models import ScrapeRequest
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam

@@ -3,63 +3,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from openai.types.chat import ChatCompletionMessageParam
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel
 
 from agentic_scraper.backend.config.aliases import (
     OnErrorCallback,
     OnSuccessCallback,
 )
 from agentic_scraper.backend.config.types import OpenAIConfig
-from agentic_scraper.backend.utils.validators import (
-    clean_price,
-    validate_optional_str,
-)
-
-
-class ScrapedItem(BaseModel):
-    """
-    Represents structured data extracted from a single web page.
-
-    This model is returned by all scraping agents. It includes common fields such as title,
-    description, price, and publication metadata. Extra fields from the LLM are allowed.
-
-    Fields:
-        url (HttpUrl): Source URL of the page.
-        title (str | None): Main title or heading.
-        description (str | None): Short description or summary.
-        price (float | None): Numeric price if detected.
-        author (str | None): Author or source of the content.
-        date_published (str | None): Publication date if known.
-        screenshot_path (str | None): Path to a captured screenshot image.
-    """
-
-    url: HttpUrl
-    title: str | None = Field(default=None, description="Main title or heading")
-    description: str | None = Field(default=None, description="Short description or summary")
-    price: float | None = Field(default=None, description="Numeric price if detected")
-    author: str | None = Field(default=None, description="Author or source of the content")
-    date_published: str | None = Field(default=None, description="Publication date if known")
-    screenshot_path: str | None = Field(default=None, description="Path to screenshot image")
-
-    _clean_title = field_validator("title", mode="before")(
-        lambda v: validate_optional_str(v, "title")
-    )
-    _clean_description = field_validator("description", mode="before")(
-        lambda v: validate_optional_str(v, "description")
-    )
-    _clean_author = field_validator("author", mode="before")(
-        lambda v: validate_optional_str(v, "author")
-    )
-    _clean_date = field_validator("date_published", mode="before")(
-        lambda v: validate_optional_str(v, "date_published")
-    )
-    _clean_price = field_validator("price", mode="before")(clean_price)
-    _clean_screenshot = field_validator("screenshot_path", mode="before")(
-        lambda v: validate_optional_str(v, "screenshot_path")
-    )
-
-    # Pydantic v2 configuration: allow extra fields returned by the LLM.
-    model_config = ConfigDict(extra="allow")
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 
 class ScrapeRequest(BaseModel):

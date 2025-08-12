@@ -32,10 +32,10 @@ if TYPE_CHECKING:
     from agentic_scraper.backend.config.aliases import ScrapeInput
     from agentic_scraper.backend.config.types import OpenAIConfig
     from agentic_scraper.backend.scraper.models import (
-        ScrapedItem,
         ScrapeRequest,
         WorkerPoolConfig,
     )
+    from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
     # Only for typing to avoid runtime circular import
     from agentic_scraper.backend.scraper.worker_pool import _WorkerContext

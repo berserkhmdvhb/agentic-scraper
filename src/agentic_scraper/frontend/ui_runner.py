@@ -48,7 +48,7 @@ from agentic_scraper.frontend.ui_runner_helpers import (
 )
 
 if TYPE_CHECKING:
-    from agentic_scraper.backend.scraper.models import ScrapedItem
+    from agentic_scraper.backend.scraper.schemas import ScrapedItem
     from agentic_scraper.frontend.models import PipelineConfig
 
 logger = logging.getLogger(__name__)

@@ -40,7 +40,8 @@ from agentic_scraper.backend.scraper.agents.agent_helpers import (
     capture_optional_screenshot,
     log_structured_data,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.backend.scraper.models import ScrapeRequest
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 __all__ = ["extract_structured_data"]
 

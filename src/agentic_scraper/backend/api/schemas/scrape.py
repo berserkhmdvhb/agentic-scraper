@@ -9,7 +9,7 @@ from agentic_scraper.backend.config.messages import MSG_ERROR_MISSING_FIELDS_FOR
 
 if TYPE_CHECKING:
     from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIConfig, OpenAIModel
-    from agentic_scraper.backend.scraper.models import ScrapedItem
+    from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 
 # Reusable type for URL lists with validation and examples

@@ -21,7 +21,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_VALID_URLS_FOUND,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
 
 if TYPE_CHECKING:

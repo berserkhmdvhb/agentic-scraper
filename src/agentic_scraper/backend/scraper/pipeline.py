@@ -39,7 +39,7 @@ from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
 if TYPE_CHECKING:
     from agentic_scraper.backend.config.aliases import ScrapeInput
     from agentic_scraper.backend.core.settings import Settings
-    from agentic_scraper.backend.scraper.models import ScrapedItem
+    from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 logger = logging.getLogger(__name__)
 

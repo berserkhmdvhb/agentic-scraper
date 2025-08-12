@@ -52,7 +52,7 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agents.field_utils import FIELD_WEIGHTS, score_nonempty_fields
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
 
 logger = logging.getLogger(__name__)

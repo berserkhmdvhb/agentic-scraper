@@ -58,7 +58,8 @@ from agentic_scraper.backend.scraper.agents.prompt_helpers import (
     build_prompt,
     build_retry_or_fallback_prompt,
 )
-from agentic_scraper.backend.scraper.models import RetryContext, ScrapedItem, ScrapeRequest
+from agentic_scraper.backend.scraper.models import RetryContext, ScrapeRequest
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 logger = logging.getLogger(__name__)
 
