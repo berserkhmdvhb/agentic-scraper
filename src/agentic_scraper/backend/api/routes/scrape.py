@@ -7,12 +7,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.auth.scope_helpers import check_required_scopes
 from agentic_scraper.backend.api.models import AuthUser, RequiredScopes
-from agentic_scraper.backend.api.schemas.items import ScrapedItemDTO
 from agentic_scraper.backend.api.schemas.scrape import (
     ScrapeCreate,
     ScrapeJob,
     ScrapeList,
-    ScrapeResult,
+    ScrapeResultDynamic,
+    ScrapeResultFixed,
 )
 from agentic_scraper.backend.api.stores.job_store import (
     cancel_job,
@@ -92,13 +92,18 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
         # Execute pipeline
         urls = [str(u) for u in payload.urls]
         items, stats = await scrape_with_stats(urls, settings=merged_settings, openai=creds)
-
+        result_model: ScrapeResultFixed | ScrapeResultDynamic
         # Persist final result
-        dto_items = [ScrapedItemDTO.model_validate(it.model_dump()) for it in items]
+        if payload.agent_mode == AgentMode.LLM_FIXED:
+            result_model = ScrapeResultFixed.from_internal(items, stats)
+        else:
+            # Dynamic mode keeps extra fields
+            result_model = ScrapeResultDynamic.from_internal(items, stats)
+
         update_job(
             job_id,
             status="succeeded",
-            result=ScrapeResult(items=dto_items, stats=stats).model_dump(),
+            result=result_model.model_dump(),
             progress=1.0,
             updated_at=datetime.now(timezone.utc),
         )

@@ -8,22 +8,8 @@ if TYPE_CHECKING:
     from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 
-class ScrapedItemDTO(BaseModel):
-    """
-    API-facing representation of a scraped item.
-
-    Deliberately decoupled from `backend.scraper.schemas.ScrapedItem` so the
-    public OpenAPI schema doesn't pull in scraper internals.
-
-    Fields:
-        url (HttpUrl): Source URL of the page.
-        title (str | None): Main title or heading.
-        description (str | None): Short description or summary.
-        price (float | None): Numeric price if detected.
-        author (str | None): Author or source of the content.
-        date_published (str | None): Publication date if known.
-        screenshot_path (str | None): Path to a captured screenshot image.
-    """
+class _ScrapedItemBaseDTO(BaseModel):
+    """Common API-facing fields for all scraped items."""
 
     url: HttpUrl
     title: str | None = Field(default=None, description="Main title or heading.")
@@ -33,13 +19,35 @@ class ScrapedItemDTO(BaseModel):
     date_published: str | None = Field(default=None, description="Publication date if known.")
     screenshot_path: str | None = Field(default=None, description="Path to screenshot image.")
 
+    model_config = ConfigDict(extra="ignore")  # API schema is fixed unless overridden
+
+
+class ScrapedItemFixedDTO(_ScrapedItemBaseDTO):
+    """
+    DTO for fixed-schema extractions — no extra fields allowed.
+    """
+
     @classmethod
-    def from_internal(cls, item: ScrapedItem) -> ScrapedItemDTO:
-        """Convert internal scraper model to API DTO."""
+    def from_internal(cls, item: ScrapedItem) -> ScrapedItemFixedDTO:
+        """Convert internal scraper model to fixed-schema API DTO."""
         return cls.model_validate(item.model_dump())
 
-    # Ignore extra keys that agents may return; keeps API payload stable.
-    model_config = ConfigDict(extra="ignore")
+
+class ScrapedItemDynamicDTO(_ScrapedItemBaseDTO):
+    """
+    DTO for dynamic-schema extractions — allows extra fields returned by LLM agents.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    @classmethod
+    def from_internal(cls, item: ScrapedItem) -> ScrapedItemDynamicDTO:
+        """Convert internal scraper model to dynamic-schema API DTO."""
+        # keep all extra fields from internal model
+        return cls.model_validate(item.model_dump())
 
 
-__all__ = ["ScrapedItemDTO"]
+__all__ = [
+    "ScrapedItemDynamicDTO",
+    "ScrapedItemFixedDTO",
+]
