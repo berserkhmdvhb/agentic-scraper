@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
-from agentic_scraper.backend.api.schemas.items import ScrapedItemDTO
+from agentic_scraper.backend.api.schemas.items import (
+    ScrapedItemDynamicDTO,
+    ScrapedItemFixedDTO,
+)
 from agentic_scraper.backend.config.messages import MSG_ERROR_MISSING_FIELDS_FOR_AGENT
 from agentic_scraper.backend.config.types import (
     AgentMode,
@@ -14,7 +18,9 @@ from agentic_scraper.backend.config.types import (
     OpenAIModel,
 )
 
-# Reusable type for URL lists with validation and examples
+if TYPE_CHECKING:
+    from agentic_scraper.backend.scraper.schemas import ScrapedItem
+
 UrlsType = Annotated[
     list[HttpUrl],
     Field(
@@ -27,19 +33,10 @@ UrlsType = Annotated[
 
 class ScrapeCreate(BaseModel):
     """
-    Request payload to create a new scrape job.
+    Request payload for initiating a scrape job.
 
-    Args:
-        urls (list[HttpUrl]): URLs to scrape.
-        agent_mode (AgentMode): Extraction mode (e.g., adaptive, fixed, rule-based).
-        openai_model (OpenAIModel | None): Model used when an LLM agent is selected.
-        openai_credentials (OpenAIConfig | None): Optional per-request OpenAI credentials.
-        llm_concurrency (int | None): LLM parallelism; required for LLM agents.
-        llm_schema_retries (int | None): Schema retries for adaptive/fixed agents.
-        fetch_concurrency (int): Parallel fetch limit.
-        screenshot_enabled (bool): Capture screenshots during scraping.
-        verbose (bool): Increase logging/verbosity.
-        retry_attempts (int): Non-LLM retry attempts where applicable.
+    Validates that OpenAI-related fields are present when using an LLM-based
+    agent mode (non-rule-based).
     """
 
     urls: UrlsType
@@ -55,14 +52,6 @@ class ScrapeCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_openai_fields(self) -> ScrapeCreate:
-        """
-        Enforce OpenAI-related fields only when an LLM agent is selected.
-        Rule-based mode may omit all OpenAI fields.
-
-        Returns:
-            ScrapeCreate: The validated model.
-        """
-        # Works whether AgentMode is an Enum or Literal[str]
         mode_value = getattr(self.agent_mode, "value", self.agent_mode)
         if mode_value == AgentMode.RULE_BASED:
             return self
@@ -81,35 +70,70 @@ class ScrapeCreate(BaseModel):
                     agent_mode=mode_value, missing_fields=", ".join(missing)
                 )
             )
-
         return self
 
 
-class ScrapeResult(BaseModel):
-    """
-    Final job result payload returned when a job has succeeded.
+class ScrapeResultBase(BaseModel):
+    """Base model for scrape results returned in job responses."""
 
-    Args:
-        items (list[ScrapedItemDTO]): Extracted items across all URLs.
-        stats (dict[str, object]): Aggregated metrics (e.g., totals, duration).
+    stats: Mapping[str, object] = Field(
+        ..., description="Execution metrics (counts, duration, etc.)"
+    )
+
+
+class ScrapeResultFixed(ScrapeResultBase):
+    """
+    Scrape results for agents using a fixed schema.
+
+    Typically produced by `AgentMode.LLM_FIXED` or `AgentMode.RULE_BASED`.
     """
 
-    items: list[ScrapedItemDTO] = Field(..., description="Extracted items from all URLs.")
-    stats: dict[str, object] = Field(..., description="Execution metrics (counts, duration, etc.).")
+    items: list[ScrapedItemFixedDTO] = Field(..., description="Extracted items from all URLs.")
+
+    @classmethod
+    def from_internal(
+        cls,
+        items: list[ScrapedItem],
+        stats: Mapping[str, object],
+    ) -> ScrapeResultFixed:
+        """Convert internal scraper models to API DTOs."""
+        return cls(
+            items=[ScrapedItemFixedDTO.from_internal(i) for i in items],
+            stats=stats,
+        )
+
+
+class ScrapeResultDynamic(ScrapeResultBase):
+    """
+    Scrape results for agents using a dynamic schema.
+
+    Typically produced by `AgentMode.DYNAMIC_LLM`.
+    """
+
+    items: list[ScrapedItemDynamicDTO] = Field(
+        ..., description="Extracted items from all URLs, may include extra fields."
+    )
+
+    @classmethod
+    def from_internal(
+        cls,
+        items: list[ScrapedItem],
+        stats: Mapping[str, object],
+    ) -> ScrapeResultDynamic:
+        """Convert internal scraper models to API DTOs."""
+        return cls(
+            items=[ScrapedItemDynamicDTO.from_internal(i) for i in items],
+            stats=stats,
+        )
 
 
 class ScrapeJob(BaseModel):
     """
-    Representation of a scrape job resource for polling.
+    Represents a scrape job with its current state.
 
-    Args:
-        id (str): Unique job identifier.
-        status (JobStatus): Current state of the job.
-        created_at (datetime): Creation timestamp (UTC).
-        updated_at (datetime): Last update timestamp (UTC).
-        progress (float | None): 0..1 progress indicator while running.
-        error (str | None): Error message if the job failed.
-        result (ScrapeResult | None): Final result when status == 'succeeded'.
+    The `result` type depends on the agent mode used:
+    - Fixed schema → `ScrapeResultFixed`
+    - Dynamic schema → `ScrapeResultDynamic`
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -122,11 +146,14 @@ class ScrapeJob(BaseModel):
         default=None, ge=0.0, le=1.0, description="0..1 progress while running."
     )
     error: str | None = Field(default=None, description="Populated when status == 'failed'.")
-    result: ScrapeResult | None = Field(
+    # NOTE: Order matters. Pydantic tries union variants in order.
+    result: ScrapeResultDynamic | ScrapeResultFixed | None = Field(
         default=None, description="Present when status == 'succeeded'."
     )
 
 
 class ScrapeList(BaseModel):
+    """Paginated list of scrape jobs."""
+
     items: list[ScrapeJob]
     next_cursor: str | None = None

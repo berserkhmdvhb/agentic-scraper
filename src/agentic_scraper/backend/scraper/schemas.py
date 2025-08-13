@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 from agentic_scraper.backend.utils.validators import (
@@ -8,19 +10,11 @@ from agentic_scraper.backend.utils.validators import (
 
 class ScrapedItem(BaseModel):
     """
-    Represents structured data extracted from a single web page.
+    Internal representation of structured data extracted from a single web page.
 
-    This model is returned by all scraping agents. It includes common fields such as title,
-    description, price, and publication metadata. Extra fields from the LLM are allowed.
-
-    Fields:
-        url (HttpUrl): Source URL of the page.
-        title (str | None): Main title or heading.
-        description (str | None): Short description or summary.
-        price (float | None): Numeric price if detected.
-        author (str | None): Author or source of the content.
-        date_published (str | None): Publication date if known.
-        screenshot_path (str | None): Path to a captured screenshot image.
+    This model is returned by all scraping agents and includes common fields
+    such as title, description, price, and publication metadata.
+    Extra fields from the LLM are allowed.
     """
 
     url: HttpUrl
@@ -31,6 +25,7 @@ class ScrapedItem(BaseModel):
     date_published: str | None = Field(default=None, description="Publication date if known")
     screenshot_path: str | None = Field(default=None, description="Path to screenshot image")
 
+    # Cleaning / normalization validators
     _clean_title = field_validator("title", mode="before")(
         lambda v: validate_optional_str(v, "title")
     )
@@ -48,5 +43,5 @@ class ScrapedItem(BaseModel):
         lambda v: validate_optional_str(v, "screenshot_path")
     )
 
-    # Pydantic v2 configuration: allow extra fields returned by the LLM.
+    # Allow extra keys for dynamic agent outputs
     model_config = ConfigDict(extra="allow")

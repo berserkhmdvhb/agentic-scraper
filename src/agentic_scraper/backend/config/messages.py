@@ -295,6 +295,12 @@ MSG_INFO_INLINE_KEY_MASKED_FALLBACK = (
     "[API] [ROUTE] [SCRAPE] Inline OpenAI key appears masked; falling back to stored credentials."
 )
 
+
+MSG_LOG_DEBUG_DYNAMIC_EXTRAS = (
+    "DEBUG dynamic extras check | agent_mode={agent_mode} | first_item_keys={keys}"
+)
+MSG_LOG_DYNAMIC_EXTRAS_ERROR = "Failed to inspect first item for dynamic extras: {error}"
+
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------

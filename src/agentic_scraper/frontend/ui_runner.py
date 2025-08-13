@@ -71,7 +71,6 @@ from agentic_scraper.frontend.ui_runner_helpers import (
 )
 
 if TYPE_CHECKING:
-    from agentic_scraper.backend.scraper.schemas import ScrapedItem
     from agentic_scraper.frontend.models import PipelineConfig
 
 logger = logging.getLogger(__name__)
@@ -334,7 +333,9 @@ async def cancel_scrape_job(job_id: str) -> bool:
 # -------------------------
 # Public entry point used by the UI
 # -------------------------
-def run_scraper_pipeline(raw_input: str, config: PipelineConfig) -> tuple[list[ScrapedItem], int]:
+def run_scraper_pipeline(
+    raw_input: str, config: PipelineConfig
+) -> tuple[list[dict[str, Any]], int]:
     """
     Validate URLs, create a scrape job, poll until completion, and render results.
 
