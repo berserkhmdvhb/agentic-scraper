@@ -14,15 +14,12 @@ import json
 import sqlite3
 from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any
 
 import pandas as pd
 import streamlit as st
 from pydantic import HttpUrl
 from st_aggrid import AgGrid, GridOptionsBuilder
-
-if TYPE_CHECKING:
-    from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 
 def dataframe_to_sqlite_bytes(df: pd.DataFrame, table_name: str = "scraped_data") -> BytesIO:
@@ -69,17 +66,39 @@ def _stable_column_order(df: pd.DataFrame) -> pd.DataFrame:
     return df[cols]
 
 
-def prepare_dataframe(items: list[ScrapedItem], *, screenshot_enabled: bool) -> pd.DataFrame:
-    """Convert scraped items into a cleaned and ordered DataFrame."""
+def prepare_dataframe(items: list[Any], *, screenshot_enabled: bool) -> pd.DataFrame:
+    """Convert scraped items (dicts or models) into a cleaned and ordered DataFrame."""
     if not items:
         return pd.DataFrame()
 
-    df_extracted = pd.DataFrame(
-        [{**item.model_dump(exclude={"url"}), "url": str(item.url)} for item in items]
-    )
+    rows: list[dict[str, Any]] = []
+    for it in items:
+        # Prefer dicts to preserve dynamic extras
+        if isinstance(it, dict):
+            url = str(it.get("url", ""))
+            row = dict(it)
+            row["url"] = url  # ensure string URL (and ensure column exists)
+            rows.append(row)
+            continue
 
+        # Pydantic model (v2 or v1) fallback
+        try:
+            if hasattr(it, "model_dump"):
+                data = it.model_dump()
+            elif hasattr(it, "dict"):
+                data = it.dict()
+            else:
+                data = {}
+        except (AttributeError, TypeError, ValueError):
+            data = {}
+        data["url"] = str(getattr(it, "url", data.get("url", "")))
+        rows.append(data)
+
+    df_extracted = pd.DataFrame(rows)
+
+    # Optionally hide screenshots entirely
     if not screenshot_enabled and "screenshot_path" in df_extracted.columns:
-        df_extracted = df_extracted.drop(columns=["screenshot_path"])  # hide entirely
+        df_extracted = df_extracted.drop(columns=["screenshot_path"])
 
     return _stable_column_order(df_extracted)
 
@@ -107,7 +126,7 @@ def display_data_table(df: pd.DataFrame) -> None:
 
 
 def display_results(
-    items: list[ScrapedItem],
+    items: list[Any],
     *,
     screenshot_enabled: bool,
 ) -> None:
@@ -121,7 +140,7 @@ def display_results(
         st.info("Nothing to show yet. Try running a scrape or adjust your filters.")
         return
 
-    # Create tabs for viewing results
+    # Tabs
     if screenshot_enabled:
         tab1, tab2 = st.tabs(["📋 Extracted Table", "🖼️ Screenshot Details"])
     else:
@@ -130,21 +149,19 @@ def display_results(
     with tab1:
         display_data_table(df_extracted)
 
-        # Export buttons
+        # Exports
         st.download_button(
             "📅 Download JSON",
             df_extracted.to_json(orient="records", indent=2),
             "results.json",
             mime="application/json",
         )
-
         st.download_button(
             "📄 Download CSV",
             df_extracted.to_csv(index=False),
             "results.csv",
             mime="text/csv",
         )
-
         try:
             sqlite_bytes = dataframe_to_sqlite_bytes(df_extracted)
         except (sqlite3.Error, ValueError, TypeError) as e:
@@ -159,12 +176,24 @@ def display_results(
 
     if screenshot_enabled:
         with tab2:
-            for item in items:
-                screenshot_path = getattr(item, "screenshot_path", None)
-                if screenshot_path:
-                    with st.expander(f"🔗 [{item.url}]({item.url})"):
-                        if item.title:
-                            st.markdown(f"### {item.title}")
-                        st.markdown(f"**URL:** [{item.url}]({item.url})")
-                        st.markdown(f"**Description:** {item.description or '_No description_'}")
+            for it in items:
+                # dict-safe attribute access
+                if isinstance(it, dict):
+                    url = it.get("url")
+                    title = it.get("title")
+                    description = it.get("description")
+                    screenshot_path = it.get("screenshot_path")
+                else:
+                    url = getattr(it, "url", None)
+                    title = getattr(it, "title", None)
+                    description = getattr(it, "description", None)
+                    screenshot_path = getattr(it, "screenshot_path", None)
+
+                if screenshot_path and url:
+                    with st.expander(f"🔗 [{url}]({url})"):
+                        if title:
+                            st.markdown(f"### {title}")
+                        if url:
+                            st.markdown(f"**URL:** [{url}]({url})")
+                        st.markdown(f"**Description:** {description or '_No description_'}")
                         st.image(screenshot_path, width=500)

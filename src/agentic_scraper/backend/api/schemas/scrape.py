@@ -146,7 +146,8 @@ class ScrapeJob(BaseModel):
         default=None, ge=0.0, le=1.0, description="0..1 progress while running."
     )
     error: str | None = Field(default=None, description="Populated when status == 'failed'.")
-    result: ScrapeResultFixed | ScrapeResultDynamic | None = Field(
+    # NOTE: Order matters. Pydantic tries union variants in order.
+    result: ScrapeResultDynamic | ScrapeResultFixed | None = Field(
         default=None, description="Present when status == 'succeeded'."
     )
 

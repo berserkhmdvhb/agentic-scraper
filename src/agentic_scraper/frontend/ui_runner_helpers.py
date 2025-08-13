@@ -13,12 +13,11 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
-from pydantic import ValidationError
 
 from agentic_scraper.backend.config.constants import REQUIRED_CONFIG_FIELDS_FOR_LLM
 from agentic_scraper.backend.config.messages import (
@@ -32,7 +31,6 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_VALID_URLS_FOUND,
     MSG_WARNING_PARSE_ITEM_SKIPPED,
 )
-from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.utils.validators import clean_input_urls, deduplicate_urls
 
 if TYPE_CHECKING:
@@ -111,7 +109,7 @@ def extract_domain_icon(url: str) -> str:
     return "🔗"
 
 
-def summarize_results(items: list[ScrapedItem], skipped: int, start_time: float) -> None:
+def summarize_results(items: Sequence[Mapping[str, Any]], skipped: int, start_time: float) -> None:
     """Display scraping performance metrics and a quick view of results."""
     elapsed = round(time.perf_counter() - start_time, 2)
 
@@ -130,9 +128,13 @@ def summarize_results(items: list[ScrapedItem], skipped: int, start_time: float)
 
     with st.expander("🔍 Extracted URLs (Quick View)"):
         for item in items:
-            icon = extract_domain_icon(str(item.url))
-            title = (item.title or str(item.url)).strip()
-            st.markdown(f"- {icon} [{title}]({item.url})")
+            # dict-safe access (fallbacks included)
+            url = item.get("url") if isinstance(item, dict) else getattr(item, "url", "")
+            title = item.get("title") if isinstance(item, dict) else getattr(item, "title", None)
+            url_str = str(url) if url is not None else ""
+            title_str = (title or url_str).strip()
+            icon = extract_domain_icon(url_str)
+            st.markdown(f"- {icon} [{title_str}]({url_str})")
 
 
 def render_invalid_url_section(invalid_lines: list[str]) -> None:
@@ -206,38 +208,52 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
 # -------------------------
 # New helpers for job-based flow
 # -------------------------
-def parse_job_result(job: dict[str, Any]) -> tuple[list[ScrapedItem], int, float]:
+def parse_job_result(job: dict[str, Any]) -> tuple[list[dict[str, Any]], int, float]:
     """
-    Convert a final job payload (status == succeeded) into typed items + stats.
+    Convert a final job payload (status == succeeded) into plain dict items + stats.
 
-    Returns (items, skipped, duration_sec).
+    Returns:
+        (items, skipped, duration_sec)
+        - items: list[dict[str, Any]] with ALL fields preserved (including dynamic extras)
     """
     result = (job or {}).get("result") or {}
     raw_items = result.get("items", [])
-    stats = result.get("stats", {})
+    stats = result.get("stats", {}) or {}
     skipped = int(stats.get("num_failed", 0) or 0)
     duration = float(stats.get("duration_sec", 0.0) or 0.0)
 
-    items: list[ScrapedItem] = []
+    items: list[dict[str, Any]] = []
     malformed = 0
+
     for idx, item in enumerate(raw_items):
-        if isinstance(item, ScrapedItem):
+        # Already a dict → keep as-is to preserve dynamic fields
+        if isinstance(item, dict):
             items.append(item)
             continue
-        if isinstance(item, dict):
-            try:
-                items.append(ScrapedItem(**item))
-            except (ValidationError, TypeError) as e:
-                malformed += 1
-                with suppress(Exception):
-                    logger.warning(MSG_WARNING_PARSE_ITEM_SKIPPED.format(idx=idx + 1, error=str(e)))
-                st.warning(f"⚠️ Skipped malformed result #{idx + 1}: {e}")
-        else:
+
+        # Pydantic-like object → try model_dump()/dict() to get a plain dict
+        try:
+            md = getattr(item, "model_dump", None)
+            if callable(md):
+                items.append(md())
+                continue
+
+            d = getattr(item, "dict", None)  # Pydantic v1 fallback
+            if callable(d):
+                items.append(d())
+                continue
+        except (AttributeError, TypeError) as e:
             malformed += 1
-            with suppress(Exception):
-                typ = type(item).__name__
-                logger.warning(MSG_WARNING_PARSE_ITEM_SKIPPED.format(idx=idx + 1, error=typ))
-            st.warning(f"⚠️ Skipped unexpected type result #{idx + 1}: {type(item)}")
+            # Log and surface a warning; no broad suppress/except to satisfy Ruff BLE001
+            logger.warning(MSG_WARNING_PARSE_ITEM_SKIPPED.format(idx=idx + 1, error=str(e)))
+            st.warning(f"⚠️ Skipped malformed result #{idx + 1}: {e}")
+            continue
+        # Anything else → skip with warning
+        malformed += 1
+        with suppress(Exception):
+            typ = type(item).__name__
+            logger.warning(MSG_WARNING_PARSE_ITEM_SKIPPED.format(idx=idx + 1, error=typ))
+        st.warning(f"⚠️ Skipped unexpected type result #{idx + 1}: {type(item)}")
 
     with suppress(Exception):
         logger.debug(
@@ -249,6 +265,7 @@ def parse_job_result(job: dict[str, Any]) -> tuple[list[ScrapedItem], int, float
                 duration=f"{duration:.2f}",
             )
         )
+
     return items, skipped, duration
 
 

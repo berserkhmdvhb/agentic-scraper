@@ -94,7 +94,7 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
         # Execute pipeline
         urls = [str(u) for u in payload.urls]
         items, stats = await scrape_with_stats(urls, settings=merged_settings, openai=creds)
-        result_model: ScrapeResultFixed | ScrapeResultDynamic
+        result_model: ScrapeResultDynamic | ScrapeResultFixed
         # Persist final result
         if payload.agent_mode in {AgentMode.LLM_FIXED, AgentMode.RULE_BASED}:
             result_model = ScrapeResultFixed.from_internal(items, stats)
