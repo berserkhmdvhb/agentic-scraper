@@ -37,7 +37,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARN_ADAPTIVE_EXTRACTION_FAILED_AFTER_RETRIES,
 )
 from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.agent.agent_helpers import (
+from agentic_scraper.backend.scraper.agents.agent_helpers import (
     capture_optional_screenshot,
     extract_context_hints,
     handle_openai_exception,
@@ -47,18 +47,19 @@ from agentic_scraper.backend.scraper.agent.agent_helpers import (
     should_exit_early,
     try_validate_scraped_item,
 )
-from agentic_scraper.backend.scraper.agent.field_utils import (
+from agentic_scraper.backend.scraper.agents.field_utils import (
     detect_unavailable_fields,
     get_required_fields,
     normalize_fields,
     normalize_keys,
 )
-from agentic_scraper.backend.scraper.agent.prompt_helpers import (
+from agentic_scraper.backend.scraper.agents.prompt_helpers import (
     _sort_fields_by_weight,
     build_prompt,
     build_retry_or_fallback_prompt,
 )
-from agentic_scraper.backend.scraper.models import RetryContext, ScrapedItem, ScrapeRequest
+from agentic_scraper.backend.scraper.models import RetryContext, ScrapeRequest
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 logger = logging.getLogger(__name__)
 

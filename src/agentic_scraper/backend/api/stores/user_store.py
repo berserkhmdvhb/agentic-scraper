@@ -25,8 +25,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_CREDENTIALS_DELETED,
     MSG_WARNING_CREDENTIALS_NOT_FOUND,
 )
+from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.core.logger_setup import get_logger
-from agentic_scraper.backend.scraper.models import OpenAIConfig
 from agentic_scraper.backend.utils.crypto import decrypt, encrypt
 
 logger = get_logger()

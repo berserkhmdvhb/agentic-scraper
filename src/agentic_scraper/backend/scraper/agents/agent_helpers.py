@@ -32,6 +32,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_EARLY_EXIT_TRIGGERED,
     MSG_DEBUG_LLM_FIELD_SCORE_DETAILS,
     MSG_DEBUG_LLM_JSON_DUMP_SAVED,
+    MSG_DEBUG_LLM_JSON_REPAIRED,
     MSG_DEBUG_PARSED_STRUCTURED_DATA,
     MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS,
     MSG_ERROR_API,
@@ -39,6 +40,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_JSON_DECODING_FAILED_WITH_URL,
     MSG_ERROR_LLM_JSON_DECODE_LOG,
     MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
+    MSG_ERROR_MASKED_OPENAI_API_KEY,
     MSG_ERROR_MISSING_OPENAI_API_KEY,
     MSG_ERROR_MISSING_OPENAI_CONFIG,
     MSG_ERROR_MISSING_OPENAI_PROJECT_ID,
@@ -49,9 +51,10 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_SCREENSHOT_FAILED_WITH_URL,
     MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL,
 )
+from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.agent.field_utils import FIELD_WEIGHTS, score_nonempty_fields
-from agentic_scraper.backend.scraper.models import OpenAIConfig, ScrapedItem
+from agentic_scraper.backend.scraper.agents.field_utils import FIELD_WEIGHTS, score_nonempty_fields
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
 
 logger = logging.getLogger(__name__)
@@ -66,6 +69,23 @@ __all__ = [
     "score_and_log_fields",
     "try_validate_scraped_item",
 ]
+
+# ---------------------------------------------------------------------------
+# Secret masking detection (defense-in-depth)
+# ---------------------------------------------------------------------------
+
+MASK_CHARS: set[str] = {"*", "•", "●", "·"}
+MASK_WORDS: set[str] = {"redacted", "masked", "hidden"}
+
+
+def _is_masked_secret(s: str | None) -> bool:
+    """Return True if the string looks redacted/masked."""
+    if not isinstance(s, str) or not s:
+        return False
+    if any(ch in s for ch in MASK_CHARS):
+        return True
+    ls = s.lower()
+    return any(w in ls for w in MASK_WORDS)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -98,7 +118,7 @@ def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, 
         # Attempt repair
         fixed = _try_fix_and_parse_json(content)
         if fixed is not None:
-            logger.debug("[{url}] LLM output repaired and parsed after JSONDecodeError")
+            logger.debug(MSG_DEBUG_LLM_JSON_REPAIRED.format(url=url))
             return fixed
 
         return None
@@ -380,6 +400,9 @@ def retrieve_openai_credentials(config: OpenAIConfig | None) -> tuple[str, str]:
         raise ValueError(MSG_ERROR_MISSING_OPENAI_CONFIG)
     if not config.api_key:
         raise ValueError(MSG_ERROR_MISSING_OPENAI_API_KEY)
+    # Defensive: refuse obviously masked keys
+    if _is_masked_secret(config.api_key):
+        raise ValueError(MSG_ERROR_MASKED_OPENAI_API_KEY)
     if not config.project_id:
         raise ValueError(MSG_ERROR_MISSING_OPENAI_PROJECT_ID)
     return config.api_key, config.project_id

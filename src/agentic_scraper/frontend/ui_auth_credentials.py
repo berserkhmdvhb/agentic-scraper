@@ -12,8 +12,9 @@ import httpx
 import streamlit as st
 
 from agentic_scraper import __api_version__ as api_version
+from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.core.settings import get_settings
-from agentic_scraper.frontend.ui_auth import fetch_openai_credentials
+from agentic_scraper.frontend.ui_auth_helpers import fetch_openai_credentials
 
 settings = get_settings()
 
@@ -64,6 +65,7 @@ def render_credentials_actions() -> None:
     with col1:
         if st.button("🔄 Update Credentials"):
             st.session_state.pop("openai_credentials")
+            st.session_state.pop("openai_credentials_preview", None)
             st.rerun()
 
     with col2:
@@ -77,6 +79,7 @@ def render_credentials_actions() -> None:
 
             if confirm and delete_openai_credentials():
                 st.session_state.pop("openai_credentials", None)
+                st.session_state.pop("openai_credentials_preview", None)
                 st.session_state.pop("confirm_delete", None)
                 st.success("✅ Credentials deleted successfully.")
                 st.rerun()
@@ -122,6 +125,13 @@ def put_openai_credentials(api_key: str, project_id: str) -> bool:
         return False
     else:
         st.success("✅ OpenAI credentials saved successfully!")
+        # Preserve the real (unmasked) creds in session for inline use.
+        openai_config = OpenAIConfig(
+            api_key=data.get("api_key"),
+            project_id=data.get("project_id"),
+        )
+        st.session_state["openai_credentials"] = openai_config
+        # Optionally fetch masked preview for UI without clobbering the real creds.
         fetch_openai_credentials()
         return True
 

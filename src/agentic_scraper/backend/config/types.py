@@ -1,5 +1,7 @@
 from enum import Enum
 
+from pydantic import BaseModel
+
 # Enum Classes
 
 
@@ -38,3 +40,24 @@ class LogFormat(str, Enum):
 
 class Auth0Algs(str, Enum):
     RS256 = "RS256"
+
+
+class JobStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELED = "canceled"
+
+
+class OpenAIConfig(BaseModel):
+    """
+    Container for OpenAI credential configuration used by agents.
+
+    Fields:
+        api_key (str | None): API key if provided per-request.
+        project_id (str | None): Project ID if provided per-request.
+    """
+
+    api_key: str | None = None
+    project_id: str | None = None

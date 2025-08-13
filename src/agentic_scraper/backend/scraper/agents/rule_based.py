@@ -12,7 +12,7 @@ Key Features:
 - Optionally captures a screenshot via Playwright.
 - Returns a validated `ScrapedItem`, or None if validation fails.
 
-Used in: scraper agent registry when `agent_mode="rule_based"` is selected.
+Used in: scraper agent registry when `agent_mode=AgentMode.RULE_BASED` is selected.
 """
 
 import logging
@@ -36,11 +36,12 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_RULE_BASED_EXTRACTION_FAILED,
 )
 from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.agent.agent_helpers import (
+from agentic_scraper.backend.scraper.agents.agent_helpers import (
     capture_optional_screenshot,
     log_structured_data,
 )
-from agentic_scraper.backend.scraper.models import ScrapedItem, ScrapeRequest
+from agentic_scraper.backend.scraper.models import ScrapeRequest
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 __all__ = ["extract_structured_data"]
 

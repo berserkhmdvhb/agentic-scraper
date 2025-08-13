@@ -50,8 +50,86 @@ MSG_INFO_TOKEN_SESSION_LENGTH = "[FRONTEND] [AUTH] JWT token stored in session. 
 MSG_INFO_NO_TOKEN_YET = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
 MSG_INFO_AUTH0_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 login URI: {uri}"
 
+# ui_auth_helpers.py
+MSG_LOG_TOKEN_FROM_SESSION_STATE = "[FRONTEND] [AUTH] Token from session state (not URL)"
+
+
 # ui_runner.py
-MSG_DEBUG_SCRAPE_CONFIG_MERGED = "[FRONTEND] [PIPELINE] config values before calling API: {config}"
+
+UI_SCRAPE_PREFIX = "[FRONTEND] [PIPELINE] "
+MSG_ERROR_USER_NOT_AUTHENTICATED = "User is not authenticated!"
+MSG_ERROR_CREATE_JOB = "Failed to create job: {error}"
+MSG_WARNING_JOB_NOT_FOUND = "Job not found (404)."
+MSG_ERROR_FORBIDDEN_JOB_ACCESS = "Forbidden: you do not own this job."
+MSG_INFO_JOB_NOT_CANCELABLE = "Job is not cancelable (already finished)."
+MSG_ERROR_CANCEL_FAILED = "Cancel failed: {error}"
+MSG_ERROR_NETWORK_HTTP = "Network/HTTP error: {error}"
+MSG_INFO_CREATING_JOB_SPINNER = "🔍 Creating job..."
+MSG_INFO_RUNNING_JOB_SPINNER = "⏳ Running scrape job..."
+MSG_ERROR_BACKEND_NO_JOB_ID = "Backend did not return a job id."
+MSG_ERROR_MISSING_OPENAI_CREDENTIALS = (
+    "Missing OpenAI credentials. "
+    "Please provide your API key and project ID before running LLM-based scraping."
+)
+MSG_ERROR_INVALID_AGENT_MODE = "Invalid agent mode: {mode}"
+MSG_ERROR_MISSING_LLM_FIELDS = "Missing LLM fields before send: {fields}"
+MSG_ERROR_POLLING_TIMEOUT = "Polling timed out."
+
+MSG_DEBUG_SCRAPE_CONFIG_MERGED = UI_SCRAPE_PREFIX + "config values before calling API: {config}"
+MSG_DEBUG_REQUEST_TARGET = UI_SCRAPE_PREFIX + "Requesting {method} {url}"
+MSG_DEBUG_REQUEST_PAYLOAD_KEYS = (
+    UI_SCRAPE_PREFIX + "Payload keys: {keys} (agent_mode={mode} type={type})"
+)
+MSG_DEBUG_LLM_FIELDS_ATTACHED = UI_SCRAPE_PREFIX + "LLM fields attached: {fields}"
+MSG_WARNING_LLM_FIELDS_MISSING = UI_SCRAPE_PREFIX + "Missing required LLM fields: {fields}"
+MSG_DEBUG_RESPONSE_META = UI_SCRAPE_PREFIX + "Response status={status} location={location}"
+MSG_DEBUG_RESPONSE_BODY_COMPACT = UI_SCRAPE_PREFIX + "Response body (truncated): {body}"
+MSG_DEBUG_JOB_ID_FROM_BODY = UI_SCRAPE_PREFIX + "Using job id from body: {job_id}"
+MSG_DEBUG_JOB_ID_FROM_LOCATION = UI_SCRAPE_PREFIX + "Using job id from Location: {job_id}"
+MSG_ERROR_HTTP_COMPACT = UI_SCRAPE_PREFIX + "HTTP error {method} {url}: {error}"
+MSG_DEBUG_POLL_START = (
+    UI_SCRAPE_PREFIX + "Poll start job={job_id} interval={interval}s timeout={timeout}s"
+)
+MSG_DEBUG_POLL_STATUS_CHANGE = (
+    UI_SCRAPE_PREFIX + "Job {job_id} status→{status} progress={progress} items={items}"
+)
+MSG_INFO_POLL_DONE_SUCCEEDED = (
+    UI_SCRAPE_PREFIX + "Job {job_id} SUCCEEDED items={items} skipped={skipped}"
+)
+MSG_WARNING_POLL_DONE_FAILED = UI_SCRAPE_PREFIX + "Job {job_id} {status} error={error}"
+MSG_WARNING_POLL_TIMEOUT = UI_SCRAPE_PREFIX + "Poll timeout job={job_id} after {elapsed}s"
+MSG_DEBUG_PIPELINE_INPUT = UI_SCRAPE_PREFIX + "URLs: valid={valid} invalid={invalid}"
+MSG_DEBUG_CACHE_DECISION = UI_SCRAPE_PREFIX + "Cache {decision} key={key}"
+MSG_ERROR_MISSING_JWT = UI_SCRAPE_PREFIX + "Missing JWT in session state"
+
+# ui_runner_helpers.py
+MSG_DEBUG_PARSE_RESULT_SUMMARY = (
+    UI_SCRAPE_PREFIX + "Parse: raw_items={raw} "
+    "valid={valid} "
+    "malformed={malformed} "
+    "num_failed={num_failed} "
+    "duration={duration}s"
+)
+MSG_WARNING_PARSE_ITEM_SKIPPED = UI_SCRAPE_PREFIX + "Skipped malformed result #{idx}: {error}"
+
+MSG_DEBUG_INLINE_KEY_MASKED_OMIT = (
+    "[FRONTEND] [RUNNER] Inline OpenAI key appearsmasked/placeholder; omitting to use stored creds."
+)
+# ui_jobs.py
+MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED = "Backend domain is not configured."
+MSG_ERROR_LIST_JOBS = "Failed to list jobs: {error}"
+MSG_ERROR_LIST_JOBS_NETWORK = "Network error while listing jobs: {error}"
+MSG_ERROR_FETCH_JOB = "Failed to fetch job: {error}"
+MSG_ERROR_FETCH_JOB_NETWORK = "Network error while fetching job: {error}"
+MSG_WARNING_JOB_NOT_FOUND = "Job not found (404)."
+MSG_ERROR_FORBIDDEN_JOB_ACCESS = "Forbidden: you do not own this job."
+MSG_SUCCESS_JOB_CANCELED = "Job canceled."
+MSG_INFO_JOB_NOT_CANCELABLE = "Job is not cancelable (already finished)."
+MSG_ERROR_CANCEL_JOB = "Failed to cancel job: {error}"
+MSG_ERROR_CANCEL_JOB_NETWORK = "Network error while canceling job: {error}"
+MSG_INFO_NO_JOBS_FOUND = "No jobs found."
+MSG_INFO_LOGIN_TO_VIEW_JOBS = "Please log in to view your jobs."
+
 
 # ─── Backend ───
 
@@ -62,6 +140,7 @@ MSG_DEBUG_SCRAPE_CONFIG_MERGED = "[FRONTEND] [PIPELINE] config values before cal
 # main.py
 MSG_INFO_SCRAPE_REQUEST_RECEIVED = "[API] Received scrape request for {n} URL(s)"
 
+
 # lifecycle.py
 MSG_INFO_SHUTDOWN_LOG = "[API] [LIFECYCLE] Shutdown complete, cleaning up resources..."
 MSG_INFO_PRELOADING_JWKS = "[API] [LIFECYCLE] Preloading JWKS from Auth0..."
@@ -69,6 +148,13 @@ MSG_DEBUG_LIFESPAN_STARTED = "[API] [LIFECYCLE] Lifespan started for app: {app}"
 MSG_INFO_JWKS_PRELOAD_SUCCESSFUL = (
     "[API] [LIFECYCLE] JWKS preload successful. The app is ready to handle requests."
 )
+MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY = (
+    "[API] [LIFECYCLE] JWKS preload failed;continuing startup and fetching JWKS lazily."
+)
+
+# models.py
+MSG_ERROR_OWNER_SUB_TYPE = "[API] owner_sub must be a string"
+MSG_ERROR_OWNER_SUB_FORMAT = "[API] Invalid owner_sub format: {value!r}"
 
 
 # user_store.py
@@ -81,7 +167,7 @@ MSG_ERROR_DECRYPTION_FAILED = (
 MSG_ERROR_LOADING_USER_STORE = "[API] [USERSTORE] Failed to load user store"
 MSG_ERROR_SAVING_USER_STORE = "[API] [USERSTORE] Failed to save user store: {error}"
 MSG_WARNING_CREDENTIALS_NOT_FOUND = "[API] [USERSTORE] Credentials not found for user {user_id}"
-MSG_INFO_CREDENTIALS_DELETED = "Deleted credentials for user: {user_id}"
+MSG_INFO_CREDENTIALS_DELETED = "[API] [USERSTORE] Deleted credentials for user: {user_id}"
 
 
 # auth/dependencies.py
@@ -98,7 +184,7 @@ MSG_ERROR_MISSING_SCOPES = (
 )
 MSG_DEBUG_VERIFYING_JWT_TOKEN = "[API] [AUTH] [DEP] Verifying JWT token: {token}"
 MSG_WARNING_JWT_VERIFICATION_FAILED = "[API] [AUTH] [DEP] JWT verification failed"
-
+MSG_ERROR_MISSING_SUB_CLAIM = "[API] [AUTH] [DEP] Missing 'sub' in token payload"
 
 # auth/auth0_helpers.py
 MSG_INFO_FETCHING_JWKS = "[API] [AUTH] [AUTH0] Fetching JWKS from {url}..."
@@ -154,12 +240,59 @@ MSG_WARNING_NO_CREDENTIALS_FOUND = (
 MSG_INFO_CREDENTIALS_SAVED = "[API] [ROUTE] [USER] OpenAI credentials saved for user: {user_id}"
 MSG_INFO_CREDENTIALS_LOADED = "[API] [ROUTE] [USER] OpenAI credentials loaded for user: {user_id}"
 
+MSG_ERROR_NO_CREDENTIALS_FOR_USER = "[API] [ROUTE] [USER] No credentials stored for this user."
+MSG_ERROR_PARSING_CREDENTIALS = "[API] [ROUTE] [USER] Error while parsing credentials data."
+MSG_ERROR_UNEXPECTED_CREDENTIALS = (
+    "[API] [ROUTE] [USER] Unexpected errorwhile processing credentials."
+)
+MSG_ERROR_INVALID_CREDENTIALS_FORMAT = "Invalid data format for credentials."
+MSG_ERROR_CREDENTIALS_STORAGE = "[API] [ROUTE] [USER] Error with the database or file storage."
+MSG_ERROR_CREDENTIALS_SAVE_INTERNAL = (
+    "[API] [ROUTE] [USER] Failed tosave user credentials due to internal error."
+)
+MSG_ERROR_NO_CREDENTIALS_TO_DELETE = "[API] [ROUTE] [USER] No credentials found to delete."
+MSG_ERROR_CREDENTIALS_DELETE_FAILED = "[API] [ROUTE] [USER] Failed to delete credentials."
+
+
 # routes/scrape.py
 MSG_DEBUG_SCRAPE_CONFIG_MERGED = (
     "[API] [ROUTE] [SCRAPE] Backend config values merged with settings: {config}"
 )
 MSG_ERROR_MISSING_FIELDS_FOR_AGENT = (
-    "Missing required fields for agent_mode '{agent_mode}': {missing_fields}."
+    "[API] [ROUTE] [SCRAPE] Missing required "
+    "fields for agent_mode '{agent_mode}': {missing_fields}."
+)
+
+MSG_JOB_CREATED = "[API] [ROUTE] [SCRAPE] job created: {job_id}"
+MSG_JOB_STARTED = "[API] [ROUTE] [SCRAPE] job started: {job_id}"
+MSG_JOB_PROGRESS = "[API] [ROUTE] [SCRAPE] job progress update: {job_id} {progress}"
+MSG_JOB_SUCCEEDED = "[API] [ROUTE] [SCRAPE] job succeeded: {job_id}"
+MSG_JOB_FAILED = "[API] [ROUTE] [SCRAPE] job failed: {job_id}"
+MSG_JOB_NOT_FOUND = "[API] [ROUTE] [SCRAPE] job not found: {job_id}"
+MSG_JOB_CANCELED = "[API] [ROUTE] [SCRAPE] job canceled: {job_id}"
+MSG_ROUTE_DEPRECATED = "[API] [ROUTE] [SCRAPE] Deprecatedendpoint called: {route}. Use {successor}."
+MSG_ERROR_INVALID_JOB_STATUS = "[API] [ROUTE] [SCRAPE] Invalid job status: {status}"
+
+MSG_HTTP_JOB_NOT_FOUND_DETAIL = "[API] [ROUTE] [SCRAPE] Job not found."
+MSG_HTTP_FORBIDDEN_JOB_ACCESS = (
+    "[API] [ROUTE] [SCRAPE] User {user_sub} does not have permission to access job {job_id}."
+)
+MSG_HTTP_MISSING_OPENAI_CREDS = (
+    "[API] [ROUTE] [SCRAPE] OpenAI credentials not found for the authenticated user."
+)
+
+MSG_JOB_LIST_REQUESTED = (
+    "[API] [ROUTE] [SCRAPE] List jobs requested: status={status}, limit={limit}, cursor={cursor}"
+)
+MSG_JOB_CANCEL_REQUESTED = "[API] [ROUTE] [SCRAPE] Cancel requested for job_id={job_id}"
+MSG_JOB_CANCELED = "[API] [ROUTE] [SCRAPE] Job canceled: {job_id}"
+MSG_HTTP_JOB_NOT_CANCELABLE = (
+    "[API] [ROUTE] [SCRAPE] Job cannot be canceled in its current status: {status}."
+)
+MSG_JOB_CANCELED_BY_USER = "[API] [ROUTE] [SCRAPE] Job canceled: {job_id}, by user: {user_sub}"
+MSG_HTTP_LOCATION_HEADER_SET = "[API] [ROUTE] [SCRAPE] Location header set for scrape job: {url}"
+MSG_INFO_INLINE_KEY_MASKED_FALLBACK = (
+    "[API] [ROUTE] [SCRAPE] Inline OpenAI key appears masked; falling back to stored credentials."
 )
 
 # ---------------------------------------------------------------------
@@ -229,22 +362,46 @@ MSG_ERROR_INVALID_SCREENSHOT_URL = "[SCREENSHOT] Invalid URL passed to capture_s
 
 
 # worker_pool.py
-MSG_ERROR_WORKER_FAILED = "[WORKER] failed for URL: {url}"
-MSG_WARNING_WORKER_FAILED_SHORT = "[WORKER] failed for URL: {url}: {error}"
-MSG_DEBUG_WORKER_PROGRESS = (
-    "[Worker-{worker_id}] Processed: {url} | Remaining in queue: {remaining}"
-)
-MSG_DEBUG_WORKER_PICKED_URL = "[WORKER {worker_id}] Picked up URL: {url}"
-MSG_DEBUG_WORKER_CREATED_REQUEST = "[WORKER {worker_id}] Created ScrapeRequest for {url}"
-MSG_DEBUG_WORKER_GOT_ITEM = "[WORKER {worker_id}] extract_structured_data returned: {item}"
-MSG_DEBUG_WORKER_ITEM_APPENDED = "[WORKER {worker_id}] Item appended for URL: {url}"
-MSG_DEBUG_WORKER_NO_ITEM = "[WORKER {worker_id}] No item returned for URL: {url}"
-MSG_DEBUG_WORKER_CANCELLED = "[WORKER {worker_id}] Cancelled during shutdown."
+WORKER_PREFIX = "[POOL] "
+WORKER_ID_PREFIX = "[POOL] [WORKER {worker_id}] "
 
-MSG_DEBUG_POOL_ENQUEUED_URL = "[POOL] Enqueued URL: {url}"
-MSG_DEBUG_POOL_SPAWNED_WORKERS = "[POOL] Spawned {count} workers."
-MSG_DEBUG_POOL_CANCELLING_WORKERS = "[POOL] All tasks completed. Cancelling workers..."
-MSG_DEBUG_POOL_DONE = "[POOL] Worker pool finished. Total results: {count}"
+MSG_ERROR_WORKER_FAILED = WORKER_PREFIX + "failed for URL: {url}"
+MSG_WARNING_WORKER_FAILED_SHORT = WORKER_PREFIX + "failed for URL: {url}: {error}"
+MSG_DEBUG_WORKER_PROGRESS = WORKER_ID_PREFIX + "Processed: {url} | Remaining in queue: {remaining}"
+
+MSG_DEBUG_WORKER_PICKED_URL = WORKER_ID_PREFIX + "Picked up URL: {url}"
+MSG_DEBUG_WORKER_CREATED_REQUEST = WORKER_ID_PREFIX + "Created ScrapeRequest for {url}"
+MSG_DEBUG_WORKER_GOT_ITEM = WORKER_ID_PREFIX + "extract_structured_data returned: {item}"
+MSG_DEBUG_WORKER_ITEM_APPENDED = WORKER_ID_PREFIX + "Item appended for URL: {url}"
+MSG_DEBUG_WORKER_NO_ITEM = WORKER_ID_PREFIX + "No item returned for URL: {url}"
+MSG_DEBUG_WORKER_CANCELLED = WORKER_ID_PREFIX + "Cancelled during shutdown."
+
+MSG_DEBUG_POOL_ENQUEUED_URL = WORKER_PREFIX + "Enqueued URL: {url}"
+MSG_DEBUG_POOL_SPAWNED_WORKERS = WORKER_PREFIX + "Spawned {count} workers."
+MSG_DEBUG_POOL_CANCELLING_WORKERS = WORKER_PREFIX + "All tasks completed. Cancelling workers..."
+MSG_DEBUG_POOL_DONE = WORKER_PREFIX + "Worker pool finished. Total results: {count} in {time:.2f}s"
+
+MSG_WARNING_TASK_DONE_FAILED = (
+    WORKER_PREFIX + "failed to acknowledge task_done() for URL {url}: {error}"
+)
+
+MSG_WARNING_PROGRESS_COUNTER_FAILED = (
+    WORKER_PREFIX + "failed updating processed counter for URL {url}: {error}"
+)
+MSG_WARNING_PROGRESS_LOG_FAILED = (
+    WORKER_PREFIX + "failed during progress logging for URL {url}: {error}"
+)
+MSG_WARNING_PROGRESS_CALLBACK_FAILED = WORKER_PREFIX + "on_progress callback raised: {error}"
+MSG_WARNING_PROGRESS_CALLBACK_FAILED_BUBBLE = (
+    WORKER_PREFIX + "caught bubbled on_progress exception for URL {url}: {error}"
+)
+MSG_WARNING_ON_ITEM_CALLBACK_FAILED = (
+    WORKER_PREFIX + "on_item_processed callback raised for URL {url}: {error}"
+)
+
+MSG_WARNING_ON_ITEM_PROCESSED_FAILED = WORKER_PREFIX + "on_item_processed callback failed: {error}"
+MSG_WARNING_ON_ERROR_CALLBACK_FAILED = WORKER_PREFIX + "on_error callback failed: {error}"
+
 
 # pipeline.py
 MSG_DEBUG_SCRAPE_STATS_START = (
@@ -268,6 +425,13 @@ MSG_DEBUG_PIPELINE_WORKER_POOL_START = (
 )
 
 MSG_DEBUG_PIPELINE_FETCH_START = "[PIPELINE] Starting HTML fetch for {count} URLs..."
+
+# In backend/config/messages.py
+
+MSG_DEBUG_JOB_HOOK_ON_STARTED_ERROR = "job_hooks.on_started raised an exception; ignoring."
+MSG_DEBUG_JOB_HOOK_ON_COMPLETED_ERROR = "job_hooks.on_completed raised an exception; ignoring."
+MSG_DEBUG_JOB_HOOK_ON_FAILED_ERROR = "job_hooks.on_failed raised an exception; ignoring."
+
 
 # ---------------------------------------------------------------------
 # scraper/agent/
@@ -314,6 +478,13 @@ MSG_DEBUG_EARLY_EXIT_SKIPPED = (
 MSG_DEBUG_CONTEXT_HINTS_EXTRACTED = (
     "[AGENT] [LLM] [{url}] Context hints extracted: type={page_type},"
     "meta_keys={meta_keys}, breadcrumbs_count={breadcrumbs}"
+)
+
+MSG_ERROR_MASKED_OPENAI_API_KEY = (
+    "[AGENT] [LLM] OpenAI API key appearsmasked/redacted; update stored credentials."
+)
+MSG_DEBUG_LLM_JSON_REPAIRED = (
+    "[AGENT] [LLM] [{url}]LLM output repaired and parsed after JSONDecodeError"
 )
 
 # field_utils.py
@@ -481,4 +652,4 @@ MSG_ERROR_USER_SCOPES_TYPE = (
 )
 
 
-MSG_ERROR_PRELOADING_JWKS = "[VALIDATION] Error occurred while preloading JWKS from Auth0: {error}"
+MSG_ERROR_PRELOADING_JWKS = "[VALIDATION] Error occurred while preloading JWKS from Auth0"

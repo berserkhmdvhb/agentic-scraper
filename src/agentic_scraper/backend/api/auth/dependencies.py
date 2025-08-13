@@ -20,14 +20,13 @@ Example:
 """
 
 import logging
-from typing import cast
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
 from agentic_scraper.backend.api.auth.auth0_helpers import verify_jwt
-from agentic_scraper.backend.api.models import AuthUser
+from agentic_scraper.backend.api.models import AuthUser, OwnerSub
 from agentic_scraper.backend.api.utils.log_helpers import (
     raise_internal_error,
     raise_unauthorized,
@@ -35,6 +34,7 @@ from agentic_scraper.backend.api.utils.log_helpers import (
 from agentic_scraper.backend.config.constants import CLAIM_EMAIL, CLAIM_NAME
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_VERIFYING_JWT_TOKEN,
+    MSG_ERROR_MISSING_SUB_CLAIM,
     MSG_ERROR_UNEXPECTED_EXCEPTION,
     MSG_WARNING_JWT_VERIFICATION_FAILED,
 )
@@ -80,10 +80,10 @@ async def get_current_user(
 
     sub = payload.get("sub")
     if not sub:
-        raise_unauthorized("Missing 'sub' in token payload")
+        raise_unauthorized(MSG_ERROR_MISSING_SUB_CLAIM)
 
     return {
-        "sub": cast("str", sub),
+        "sub": OwnerSub.from_value(payload["sub"]),
         "email": payload.get(CLAIM_EMAIL, payload.get("email")),
         "name": payload.get(CLAIM_NAME, payload.get("name")),
         "scope": payload.get("scope", ""),

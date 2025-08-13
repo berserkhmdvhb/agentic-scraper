@@ -8,7 +8,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_PROMPT_FALLBACK_MODE,
     MSG_DEBUG_PROMPT_RETRY_MODE,
 )
-from agentic_scraper.backend.scraper.agent.field_utils import FIELD_WEIGHTS
+from agentic_scraper.backend.scraper.agents.field_utils import FIELD_WEIGHTS
 
 logger = logging.getLogger(__name__)
 

@@ -16,13 +16,13 @@ from typing import Any
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from agentic_scraper import __api_version__ as api_version  # PEP8-compliant lowercase
+from agentic_scraper import __api_version__ as api_version
 from agentic_scraper import __version__ as version
 from agentic_scraper.backend.api.lifecycle import lifespan
 from agentic_scraper.backend.api.openapi import custom_openapi
-from agentic_scraper.backend.api.routes.v1.auth import router as auth_router
-from agentic_scraper.backend.api.routes.v1.scrape import router as scrape_router
-from agentic_scraper.backend.api.routes.v1.user import router as user_router
+from agentic_scraper.backend.api.routes.auth import router as auth_router
+from agentic_scraper.backend.api.routes.scrape import router as scrape_router
+from agentic_scraper.backend.api.routes.user import router as user_router
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.backend.core.settings import get_settings, log_settings
 
@@ -35,6 +35,8 @@ logger = get_logger()
 settings = get_settings()
 log_settings(settings)
 
+common_prefix = f"{API_PREFIX}/{api_version}"
+
 # FastAPI app instance
 app = FastAPI(
     title="Agentic Scraper API",
@@ -43,15 +45,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware (domains from settings + common local dev hosts)
+cors_origins = {
+    settings.frontend_domain,
+    settings.backend_domain,
+    "http://localhost:8501",
+    "http://127.0.0.1:8501",
+}
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_domain,
-        "http://localhost:8501",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8085",
-    ],
+    allow_origins=[o for o in cors_origins if o],  # drop None/empty strings
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -101,7 +104,8 @@ async def root() -> dict[str, str]:
     }
 
 
-# Register routers with /api/v1/ prefix
-app.include_router(user_router, prefix=f"{API_PREFIX}/{api_version}/user", tags=["User"])
-app.include_router(scrape_router, prefix=f"{API_PREFIX}/{api_version}/scrape", tags=["Scrape"])
-app.include_router(auth_router, prefix=f"{API_PREFIX}/{api_version}/auth", tags=["Auth"])
+# Register routers under /api/<version>; each router declares its own path segment
+# e.g., scrape router exposes "/scrapes", auth router exposes "/auth/*"
+app.include_router(user_router, prefix=common_prefix)
+app.include_router(scrape_router, prefix=common_prefix)
+app.include_router(auth_router, prefix=common_prefix)

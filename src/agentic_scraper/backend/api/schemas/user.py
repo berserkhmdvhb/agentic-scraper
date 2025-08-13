@@ -1,11 +1,15 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
+
+# (Optional hardening: from pydantic import SecretStr)
 
 
 class UserCredentialsIn(BaseModel):
     """Input schema for saving user's OpenAI credentials."""
 
-    api_key: str = Field(
-        ..., description="User's OpenAI API key", json_schema_extra={"example": "sk-abc123..."}
+    api_key: SecretStr = Field(
+        ...,
+        description="User's OpenAI API key (stored securely, not shown in logs).",
+        json_schema_extra={"example": "sk-abc123..."},
     )
     project_id: str = Field(
         ..., description="User's OpenAI project ID", json_schema_extra={"example": "proj_xyz789"}
@@ -13,10 +17,24 @@ class UserCredentialsIn(BaseModel):
 
 
 class UserCredentialsOut(BaseModel):
-    """Output schema when returning user's OpenAI credentials."""
+    """Output schema when returning user's OpenAI credentials (masked key)."""
 
-    api_key: str = Field(..., json_schema_extra={"example": "sk-abc123..."})
-    project_id: str = Field(..., json_schema_extra={"example": "proj_xyz789"})
+    api_key: str = Field(
+        ...,
+        description="Masked OpenAI API key (only last 4 chars visible).",
+        json_schema_extra={"example": "sk-********************************cdef"},
+    )
+    project_id: str = Field(
+        ...,
+        description="OpenAI project ID.",
+        json_schema_extra={"example": "proj_xyz789"},
+    )
+
+
+class UserCredentialsStatus(BaseModel):
+    """Presence info for stored credentials."""
+
+    has_credentials: bool = Field(..., description="Whether the user has saved OpenAI credentials.")
 
 
 class UserProfile(BaseModel):

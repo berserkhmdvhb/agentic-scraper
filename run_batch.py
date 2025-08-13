@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.resolve()))
 
 from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.core.logger_setup import setup_logging
-from agentic_scraper.backend.scraper.models import ScrapedItem
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
 # --- WINDOWS ASYNCIO FIX ---
