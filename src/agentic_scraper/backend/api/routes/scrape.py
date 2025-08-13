@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 
@@ -41,6 +41,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_JOB_NOT_FOUND,
     MSG_JOB_STARTED,
     MSG_JOB_SUCCEEDED,
+    MSG_LOG_DEBUG_DYNAMIC_EXTRAS,
+    MSG_LOG_DYNAMIC_EXTRAS_ERROR,
 )
 from agentic_scraper.backend.config.types import AgentMode, JobStatus
 from agentic_scraper.backend.core.settings import get_settings
@@ -94,11 +96,30 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
         items, stats = await scrape_with_stats(urls, settings=merged_settings, openai=creds)
         result_model: ScrapeResultFixed | ScrapeResultDynamic
         # Persist final result
-        if payload.agent_mode == AgentMode.LLM_FIXED:
+        if payload.agent_mode in {AgentMode.LLM_FIXED, AgentMode.RULE_BASED}:
             result_model = ScrapeResultFixed.from_internal(items, stats)
         else:
             # Dynamic mode keeps extra fields
             result_model = ScrapeResultDynamic.from_internal(items, stats)
+
+        # DEBUG: check if dynamic extras made it into the result payload
+        try:
+            items_list: list[Any] = getattr(result_model, "items", [])
+            first: dict[str, Any] = {}
+            if items_list:
+                first_item = items_list[0]
+                if hasattr(first_item, "model_dump"):
+                    first = first_item.model_dump()
+                elif isinstance(first_item, dict):
+                    first = first_item
+            logger.debug(
+                MSG_LOG_DEBUG_DYNAMIC_EXTRAS.format(
+                    agent_mode=payload.agent_mode,
+                    keys=sorted(first.keys()),
+                )
+            )
+        except (AttributeError, IndexError, TypeError, ValueError) as e:
+            logger.debug(MSG_LOG_DYNAMIC_EXTRAS_ERROR.format(error=e))
 
         update_job(
             job_id,
