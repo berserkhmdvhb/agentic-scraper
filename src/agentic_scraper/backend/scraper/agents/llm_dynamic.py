@@ -34,10 +34,10 @@ from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agents.agent_helpers import (
     capture_optional_screenshot,
     handle_openai_exception,
-    parse_llm_response,
     retrieve_openai_credentials,
     try_validate_scraped_item,
 )
+from agentic_scraper.backend.scraper.agents.agent_parser import parse_llm_response
 from agentic_scraper.backend.scraper.agents.field_utils import (
     detect_unavailable_fields,
     normalize_fields,

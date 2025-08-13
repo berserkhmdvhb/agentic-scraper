@@ -444,13 +444,12 @@ MSG_DEBUG_AGENT_DISPATCH_START = (
 )
 MSG_DEBUG_AGENT_SELECTED = "[AGENT] Using {mode} extraction agent"
 
-
-# agent_helpers.py
+# agent_parser.py
 MSG_DEBUG_LLM_JSON_DUMP_SAVED = "[AGENT] Full LLM JSON output saved to {path}"
 MSG_ERROR_SCREENSHOT_FAILED_WITH_URL = "[AGENT] Failed to capture screenshot. [URL: {url}]"
 MSG_ERROR_RATE_LIMIT_LOG_WITH_URL = "[AGENT] OpenAI rate limit exceeded. [URL: {url}]"
 MSG_ERROR_RATE_LIMIT_DETAIL = "[AGENT] Rate limit detail: {error}"
-MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL = "[AGENT] Unexpected OpenAI error. [URL: {url}]"
+
 MSG_ERROR_OPENAI_UNEXPECTED = "[AGENT] Unexpected OpenAI error: {error}"
 MSG_ERROR_OPENAI_UNEXPECTED_LOG = "[AGENT] Unexpected OpenAI error: {exc}"
 MSG_ERROR_LLM_JSON_DECODE_LOG = (
@@ -486,6 +485,22 @@ MSG_ERROR_MASKED_OPENAI_API_KEY = (
 MSG_DEBUG_LLM_JSON_REPAIRED = (
     "[AGENT] [LLM] [{url}]LLM output repaired and parsed after JSONDecodeError"
 )
+
+
+MSG_DEBUG_LLM_JSON_HEAD_TAIL = (
+    "[AGENT] [LLM] LLM output head/tailfor {url} | head: {head} ... tail: {tail} (len={length})"
+)
+MSG_DEBUG_LLM_JSON_TRUNCATION_REPAIR_APPLIED = (
+    "[AGENT] [LLM] Appliedtruncation repair before JSON parsing for {url}"
+)
+MSG_ERROR_LLM_JSON_PARSE_GIVING_UP_WITH_URL = (
+    "[AGENT] [LLM] JSON parsefailed after repair for {url}: {exc}"
+)
+
+
+# agent_helpers.py
+MSG_ERROR_OPENAI_UNEXPECTED_LOG_WITH_URL = "[AGENT] Unexpected OpenAI error. [URL: {url}]"
+MSG_ERROR_OPENAI_API = "OpenAI API error: {error}"
 
 # field_utils.py
 MSG_DEBUG_UNAVAILABLE_FIELDS_DETECTED = "Unavailable fields detected in raw data: {fields}"

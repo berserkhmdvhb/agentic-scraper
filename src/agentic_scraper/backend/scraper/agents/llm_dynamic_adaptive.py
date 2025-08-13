@@ -41,12 +41,12 @@ from agentic_scraper.backend.scraper.agents.agent_helpers import (
     capture_optional_screenshot,
     extract_context_hints,
     handle_openai_exception,
-    parse_llm_response,
     retrieve_openai_credentials,
     score_and_log_fields,
     should_exit_early,
     try_validate_scraped_item,
 )
+from agentic_scraper.backend.scraper.agents.agent_parser import parse_llm_response
 from agentic_scraper.backend.scraper.agents.field_utils import (
     detect_unavailable_fields,
     get_required_fields,

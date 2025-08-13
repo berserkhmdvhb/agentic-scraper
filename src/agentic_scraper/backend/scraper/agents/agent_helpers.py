@@ -1,23 +1,15 @@
 """
 Shared utility functions for LLM-based scraping agents in AgenticScraper.
 
-This module provides reusable helpers to support adaptive and static scraping agents.
-It includes functionality for:
-- Parsing and validating LLM JSON output
-- Structured error logging (OpenAI, decoding, validation)
-- Screenshot capture for debugging
-- Extraction of contextual hints from HTML
-- Scoring and selecting retry candidates for adaptive extraction
-
-Used primarily by llm_dynamic.py, llm_dynamic_adaptive.py, and related agents.
 """
+
+from __future__ import annotations
 
 import json
 import logging
-import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
@@ -32,13 +24,10 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_EARLY_EXIT_TRIGGERED,
     MSG_DEBUG_LLM_FIELD_SCORE_DETAILS,
     MSG_DEBUG_LLM_JSON_DUMP_SAVED,
-    MSG_DEBUG_LLM_JSON_REPAIRED,
     MSG_DEBUG_PARSED_STRUCTURED_DATA,
     MSG_DEBUG_USING_BEST_CANDIDATE_FIELDS,
     MSG_ERROR_API,
     MSG_ERROR_API_LOG_WITH_URL,
-    MSG_ERROR_JSON_DECODING_FAILED_WITH_URL,
-    MSG_ERROR_LLM_JSON_DECODE_LOG,
     MSG_ERROR_LLM_VALIDATION_FAILED_WITH_URL,
     MSG_ERROR_MASKED_OPENAI_API_KEY,
     MSG_ERROR_MISSING_OPENAI_API_KEY,
@@ -51,11 +40,16 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_SCREENSHOT_FAILED_WITH_URL,
     MSG_INFO_ADAPTIVE_EXTRACTION_SUCCESS_WITH_URL,
 )
-from agentic_scraper.backend.config.types import OpenAIConfig
-from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.agents.field_utils import FIELD_WEIGHTS, score_nonempty_fields
+from agentic_scraper.backend.scraper.agents.field_utils import (
+    FIELD_WEIGHTS,
+    score_nonempty_fields,
+)
 from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.scraper.screenshotter import capture_screenshot
+
+if TYPE_CHECKING:
+    from agentic_scraper.backend.config.types import OpenAIConfig
+    from agentic_scraper.backend.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +58,6 @@ __all__ = [
     "extract_context_hints",
     "handle_openai_exception",
     "log_structured_data",
-    "parse_llm_response",
     "retrieve_openai_credentials",
     "score_and_log_fields",
     "try_validate_scraped_item",
@@ -89,54 +82,13 @@ def _is_masked_secret(s: str | None) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Low-level helpers: JSON parsing, screenshot, exception handling
+# Screenshot & OpenAI exception handling
 # ─────────────────────────────────────────────────────────────────────────────
-
-
-def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, Any] | None:
-    """
-    Safely parse LLM JSON content. Logs errors and returns None on failure.
-
-    Args:
-        content (str): JSON string returned by the LLM.
-        url (str): The source URL being processed.
-        settings (Settings): Runtime config controlling verbosity and error logging.
-
-    Returns:
-        dict[str, Any] | None: Parsed dictionary if successful, else None.
-
-    Raises:
-        None
-    """
-    try:
-        return cast("dict[str, Any]", json.loads(content))
-    except json.JSONDecodeError as e:
-        logger.warning(MSG_ERROR_JSON_DECODING_FAILED_WITH_URL.format(exc=e, url=url))
-        if settings.is_verbose_mode:
-            logger.debug(MSG_ERROR_LLM_JSON_DECODE_LOG.format(exc=e, url=url))
-
-        # Attempt repair
-        fixed = _try_fix_and_parse_json(content)
-        if fixed is not None:
-            logger.debug(MSG_DEBUG_LLM_JSON_REPAIRED.format(url=url))
-            return fixed
-
-        return None
 
 
 async def capture_optional_screenshot(url: str, settings: Settings) -> str | None:
     """
     Attempt to capture a screenshot of the URL. Logs errors and returns None on failure.
-
-    Args:
-        url (str): The URL to screenshot.
-        settings (Settings): Runtime config including screenshot path.
-
-    Returns:
-        str | None: Path to saved screenshot if successful, otherwise None.
-
-    Raises:
-        None
     """
     try:
         return await capture_screenshot(url, output_dir=Path(settings.screenshot_dir))
@@ -148,17 +100,6 @@ async def capture_optional_screenshot(url: str, settings: Settings) -> str | Non
 def handle_openai_exception(e: OpenAIError, url: str, settings: Settings) -> None:
     """
     Log and handle OpenAI-related errors with verbosity-aware logging.
-
-    Args:
-        e (OpenAIError): The OpenAI exception raised.
-        url (str): The URL that triggered the exception.
-        settings (Settings): Runtime config for verbosity.
-
-    Returns:
-        None
-
-    Raises:
-        None
     """
     if isinstance(e, RateLimitError):
         logger.warning(MSG_ERROR_RATE_LIMIT_LOG_WITH_URL.format(url=url))
@@ -183,16 +124,6 @@ def handle_openai_exception(e: OpenAIError, url: str, settings: Settings) -> Non
 def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
     """
     Log a summary of structured LLM-extracted data, and optionally dump full JSON.
-
-    Args:
-        data (dict[str, Any]): Validated structured data from the LLM.
-        settings (Settings): Runtime config (controls verbose mode and JSON dump).
-
-    Returns:
-        None
-
-    Raises:
-        None
     """
     if not settings.is_verbose_mode:
         return
@@ -222,16 +153,6 @@ def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
 def extract_context_hints(html: str, url: str) -> dict[str, str]:
     """
     Extract contextual hints from the HTML and URL for better LLM prompt construction.
-
-    Args:
-        html (str): Raw HTML content of the page.
-        url (str): Source URL of the page.
-
-    Returns:
-        dict[str, str]: Dictionary of contextual elements (meta tags, breadcrumbs, segments, etc.).
-
-    Raises:
-        None
     """
     soup = BeautifulSoup(html, "html.parser")
 
@@ -288,7 +209,7 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
     h1 = soup.find("h1")
     first_h1 = h1.get_text(strip=True) if h1 else ""
 
-    # ─── Naive Page Type Inference ─────────────────────────────────────────────
+    # Naive page type inference
     lower_url = url.lower()
     lower_title = page_title.lower()
     lower_h1 = first_h1.lower()
@@ -319,12 +240,12 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
         "url_last_segment": last_segment,
         "page_title": page_title,
         "first_h1": first_h1,
-        "page": page_type,  # Included for prompt_helpers.py
+        "page": page_type,  # used by prompt_helpers.py
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Data validation and retry scoring
+# Data validation and scoring
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -333,14 +254,6 @@ def try_validate_scraped_item(
 ) -> ScrapedItem | None:
     """
     Attempt to validate the scraped data against the ScrapedItem schema.
-
-    Args:
-        data (dict[str, Any]): Raw JSON-like dict from LLM output.
-        url (str): The URL where the data came from.
-        settings (Settings): Runtime config used for logging.
-
-    Returns:
-        ScrapedItem | None: Validated item or None if validation failed.
     """
     if not data:
         return None
@@ -363,6 +276,9 @@ def score_and_log_fields(
     url: str,
     raw_data: dict[str, Any] | None = None,
 ) -> float:
+    """
+    Compute a weighted score for non-empty fields and log details for debugging.
+    """
     nonempty_keys = {
         k
         for k, v in (raw_data.items() if raw_data else [(f, "nonempty") for f in fields])
@@ -387,14 +303,8 @@ def retrieve_openai_credentials(config: OpenAIConfig | None) -> tuple[str, str]:
     """
     Validate and extract OpenAI credentials from the config.
 
-    Args:
-        config (OpenAIConfig | None): The OpenAI credentials configuration.
-
     Returns:
-        tuple[str, str]: A tuple of (api_key, project_id).
-
-    Raises:
-        ValueError: If config is None or required fields are missing.
+        (api_key, project_id)
     """
     if config is None:
         raise ValueError(MSG_ERROR_MISSING_OPENAI_CONFIG)
@@ -408,6 +318,7 @@ def retrieve_openai_credentials(config: OpenAIConfig | None) -> tuple[str, str]:
     return config.api_key, config.project_id
 
 
+# (Optional, still available if other agents import it)
 def should_exit_early(
     *,
     item: ScrapedItem | None,
@@ -418,21 +329,9 @@ def should_exit_early(
 ) -> bool:
     """
     Decide whether to stop retrying based on whether any useful progress was made.
-
-    Args:
-        item (ScrapedItem | None): The current validated item (if any).
-        raw_data (dict[str, Any]): Raw normalized fields from current attempt.
-        best_fields (dict[str, Any] | None): Best fields seen so far across attempts.
-        missing (set[str]): Required fields still missing.
-        url (str): The URL being scraped, used for logging.
-
-    Returns:
-        bool: True if we should exit early, False to continue retrying.
     """
     if item is None:
         return False
-
-    # Prevent early exit on first result (always retry once)
     if not best_fields:
         return False
 
@@ -455,32 +354,3 @@ def should_exit_early(
         )
 
     return should_stop
-
-
-def _try_fix_and_parse_json(bad_json: str) -> dict[str, Any] | None:
-    """
-    Attempt to repair common formatting issues in LLM JSON and re-parse.
-    Fixes:
-        - Single quotes to double quotes
-        - Unquoted property names
-        - Trailing commas
-        - Strips ```json markdown fences
-
-    Returns:
-        dict[str, Any] | None: Parsed JSON if successful, else None.
-    """
-    cleaned = bad_json.strip().removeprefix("```json").removesuffix("```").strip()
-
-    # Replace single quotes with double quotes
-    cleaned = cleaned.replace("'", '"')
-
-    # Remove trailing commas before object/array close
-    cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
-
-    # Quote unquoted keys
-    cleaned = re.sub(r"([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*):", r'\1"\2"\3:', cleaned)
-
-    try:
-        return cast("dict[str, Any]", json.loads(cleaned))
-    except json.JSONDecodeError:
-        return None

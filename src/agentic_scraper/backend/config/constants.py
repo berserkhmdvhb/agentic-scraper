@@ -171,6 +171,8 @@ FIELD_SYNONYMS: dict[str, str] = {
     "posted_by": "author",
 }
 
+JSON_DOUBLE_QUOTE_THRESHOLD = 2
+JSON_SINGLE_QUOTE_THRESHOLD = 4
 
 # ---------------------------------------------------------------------
 # api/auth/

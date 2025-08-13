@@ -29,9 +29,9 @@ from agentic_scraper.backend.scraper.agents.agent_helpers import (
     capture_optional_screenshot,
     handle_openai_exception,
     log_structured_data,
-    parse_llm_response,
     retrieve_openai_credentials,
 )
+from agentic_scraper.backend.scraper.agents.agent_parser import parse_llm_response
 from agentic_scraper.backend.scraper.models import ScrapeRequest
 from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
