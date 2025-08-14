@@ -16,7 +16,7 @@ from __future__ import annotations
 import streamlit as st
 
 from agentic_scraper.backend.config.constants import SESSION_KEYS, VALID_MODEL_OPTIONS
-from agentic_scraper.backend.config.types import AgentMode
+from agentic_scraper.backend.config.types import AgentMode, OpenAIModel
 from agentic_scraper.backend.core.settings import Settings, get_environment, get_log_dir
 from agentic_scraper.frontend.models import SidebarConfig
 from agentic_scraper.frontend.ui_auth import login_ui
@@ -64,7 +64,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     st.session_state[SESSION_KEYS["llm_concurrency"]] = llm_concurrency
     st.session_state[SESSION_KEYS["verbose"]] = verbose
     st.session_state[SESSION_KEYS["openai_model"]] = selected_model
-    st.session_state[SESSION_KEYS["agent_mode"]] = selected_agent_mode.value
+    st.session_state[SESSION_KEYS["agent_mode"]] = selected_agent_mode
     st.session_state[SESSION_KEYS["retry_attempts"]] = retry_attempts
 
     return SidebarConfig(
@@ -73,7 +73,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         llm_concurrency=llm_concurrency,
         verbose=verbose,
         openai_model=selected_model,
-        agent_mode=selected_agent_mode.value,
+        agent_mode=selected_agent_mode,
         retry_attempts=retry_attempts,
         llm_schema_retries=llm_schema_retries,
     )
@@ -96,7 +96,7 @@ def _render_env_and_login(settings: Settings, agent_mode: AgentMode) -> None:
     st.markdown("---")
 
     st.markdown("## 🔐 Authentication")
-    login_ui(agent_mode.value)
+    login_ui(agent_mode)
     if agent_mode != AgentMode.RULE_BASED and "jwt_token" in st.session_state:
         # Only show credential form for LLM modes when logged in
         render_credentials_form()
@@ -128,9 +128,9 @@ def _render_agent_mode_selector(settings: Settings) -> AgentMode:
     return AgentMode(selected_str)
 
 
-def _render_llm_controls(settings: Settings, agent_mode: AgentMode) -> str | None:
+def _render_llm_controls(settings: Settings, agent_mode: AgentMode) -> OpenAIModel | None:
     """Render model selection (LLM modes) and the screenshot toggle."""
-    selected_model: str | None = None
+    selected_model: OpenAIModel | None = None
 
     if agent_mode != AgentMode.RULE_BASED:
         st.markdown("## 🤖 LLM Settings")
@@ -138,7 +138,7 @@ def _render_llm_controls(settings: Settings, agent_mode: AgentMode) -> str | Non
         # Fall back safely if current default not in VALID_MODEL_OPTIONS
         model_value = settings.openai_model.value
         default_model_key = model_value if model_value in model_keys else model_keys[0]
-        selected_model = st.selectbox(
+        selected_key = st.selectbox(
             "OpenAI Model",
             options=model_keys,
             index=model_keys.index(default_model_key),
@@ -146,7 +146,7 @@ def _render_llm_controls(settings: Settings, agent_mode: AgentMode) -> str | Non
             key="openai_model_select",
             help="Choose which OpenAI model to use for LLM-powered parsing.",
         )
-
+        selected_model = OpenAIModel(selected_key)
     # Screenshot toggle (applies to all modes)
     st.session_state[SESSION_KEYS["screenshot_enabled"]] = st.checkbox(
         "📸 Enable Screenshot",

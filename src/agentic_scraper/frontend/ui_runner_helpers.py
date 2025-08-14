@@ -15,6 +15,7 @@ import logging
 import time
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
@@ -26,7 +27,10 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_PARSE_RESULT_SUMMARY,
     MSG_DEBUG_PIPELINE_INPUT,
     MSG_DEBUG_RESPONSE_BODY_COMPACT,
+    MSG_ERROR_JOB_FAILED,
     MSG_INFO_INLINE_KEY_MASKED_FALLBACK,
+    MSG_INFO_JOB_CANCELED,
+    MSG_INFO_NO_RESULTS,
     MSG_INFO_NO_VALID_URLS,
     MSG_INFO_VALID_URLS_FOUND,
     MSG_WARNING_PARSE_ITEM_SKIPPED,
@@ -114,7 +118,7 @@ def summarize_results(items: Sequence[Mapping[str, Any]], skipped: int, start_ti
     elapsed = round(time.perf_counter() - start_time, 2)
 
     if not items:
-        st.warning("⚠️ No data could be extracted.")
+        st.warning(MSG_INFO_NO_RESULTS)
         with suppress(Exception):
             key = f"skipped={skipped} elapsed={elapsed}"
             logger.debug(MSG_DEBUG_CACHE_DECISION.format(decision="NO_ITEMS", key=key))
@@ -172,19 +176,19 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     # Normalize creds payload (Pydantic v2 model or plain mapping)
     creds_payload: dict[str, Any] | None = None
     if openai_credentials is not None:
-        if hasattr(openai_credentials, "model_dump"):
-            creds_payload = openai_credentials.model_dump()
+        dump = getattr(openai_credentials, "model_dump", None)
+        if callable(dump):
+            creds_payload = dump()
         elif isinstance(openai_credentials, Mapping):
             creds_payload = dict(openai_credentials)
 
     # Attach inline creds only if present and not masked
     if creds_payload:
         api_key = creds_payload.get("api_key")
-        if isinstance(api_key, str) and not _looks_masked(api_key) and api_key:
+        if isinstance(api_key, str) and api_key and not _looks_masked(api_key):
             body["openai_credentials"] = creds_payload
         else:
-            with suppress(Exception):
-                logger.info(MSG_INFO_INLINE_KEY_MASKED_FALLBACK)
+            logger.info(MSG_INFO_INLINE_KEY_MASKED_FALLBACK)
 
     # Attach optional LLM params from config
     openai_model = getattr(config, "openai_model", None)
@@ -192,15 +196,17 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     llm_schema_retries = getattr(config, "llm_schema_retries", None)
 
     if openai_model is not None:
-        body["openai_model"] = openai_model
+        body["openai_model"] = (
+            openai_model.value if isinstance(openai_model, Enum) else openai_model
+        )
     if llm_concurrency is not None:
         body["llm_concurrency"] = llm_concurrency
     if llm_schema_retries is not None:
         body["llm_schema_retries"] = llm_schema_retries
 
-    with suppress(Exception):
-        fields = [k for k in REQUIRED_CONFIG_FIELDS_FOR_LLM if k in body]
-        logger.debug(MSG_DEBUG_LLM_FIELDS_ATTACHED.format(fields=fields))
+    # Debug which fields we actually attached
+    fields = [k for k in REQUIRED_CONFIG_FIELDS_FOR_LLM if k in body]
+    logger.debug(MSG_DEBUG_LLM_FIELDS_ATTACHED.format(fields=fields))
 
     return True
 
@@ -273,14 +279,14 @@ def render_job_error(job: dict[str, Any]) -> None:
     """Render a terminal job error or cancellation message in the UI."""
     status_ = (job.get("status") or "").lower()
     if status_ == "canceled":
-        st.info("🛑 Job was canceled.")
+        st.info(MSG_INFO_JOB_CANCELED)
         return
 
     err = job.get("error")
     if isinstance(err, dict) and "message" in err:
         msg = err.get("message")
     else:
-        msg = str(err) if err else "Job failed."
+        msg = str(err) if err else MSG_ERROR_JOB_FAILED
     with suppress(Exception):
         logger.warning(MSG_DEBUG_RESPONSE_BODY_COMPACT.format(body=f"job_error={msg}"))
     st.error(msg)

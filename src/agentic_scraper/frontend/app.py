@@ -22,13 +22,12 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
-from agentic_scraper.backend.core.settings import Settings, get_settings, log_settings
+from agentic_scraper.backend.core.settings import Settings, get_settings
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
 from agentic_scraper.frontend.ui_auth import authenticate_user
-from agentic_scraper.frontend.ui_display import display_results
 from agentic_scraper.frontend.ui_jobs import render_jobs_tab
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
-from agentic_scraper.frontend.ui_runner import run_scraper_pipeline
+from agentic_scraper.frontend.ui_runner import submit_scrape_job
 from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
 
 # --- WINDOWS ASYNCIO FIX ---
@@ -48,59 +47,38 @@ def configure_app_page(settings: Settings) -> tuple[SidebarConfig, str]:
     return render_sidebar_controls(settings), render_input_section()
 
 
+# Add near other helpers
+def submit_run(raw_input: str, controls: SidebarConfig) -> None:
+    config = PipelineConfig(**controls.model_dump())
+    job_id = submit_scrape_job(raw_input, config)
+    if job_id:
+        st.session_state["active_tab"] = 1
+
+
 def handle_run_button(input_ready: str, *, can_run: bool) -> None:
-    """
-    Render and handle logic for the 'Run Extraction' button.
+    if "run_submitting" not in st.session_state:
+        st.session_state["run_submitting"] = False
 
-    Args:
-        input_ready: User-provided input (non-empty if ready).
-        can_run: Whether the prerequisites (e.g., JWT for LLM modes) are met.
-    """
-    disabled = not can_run
-    label = "🚀 Run Extraction"
-
-    if not st.session_state.get("is_running", False):
-        run_button = st.button(label, type="primary", disabled=disabled)
-        if run_button:
-            if not input_ready:
-                st.warning("⚠️ Please provide at least one URL or upload a .txt file.")
-            else:
-                st.session_state["is_running"] = True
-                st.rerun()
-    else:
-        st.button(label, disabled=True)
+    disabled = (not can_run) or st.session_state["run_submitting"]
+    clicked = st.button("🚀 Run Extraction", type="primary", disabled=disabled)
+    if clicked:
+        if not input_ready.strip():
+            st.warning("⚠️ Please provide at least one URL or upload a .txt file.")
+            return
+        st.session_state["run_submitting"] = True
+        st.rerun()
 
 
-def process_pipeline(
-    raw_input: str, controls: SidebarConfig, settings: Settings, logger: logging.Logger
-) -> None:
-    """
-    Run the scraper pipeline with the selected configuration and display results.
-    """
+def process_pipeline(raw_input: str, controls: SidebarConfig, logger: logging.Logger) -> None:
     try:
-        effective_settings = settings.model_copy(
-            update={
-                "openai_model": controls.openai_model,
-                "agent_mode": controls.agent_mode,
-                "retry_attempts": controls.retry_attempts,
-                "verbose": controls.verbose,
-                "screenshot_enabled": controls.screenshot_enabled,
-            }
-        )
-        log_settings(effective_settings)
-        config = PipelineConfig(**controls.model_dump())
-
-        items, skipped = run_scraper_pipeline(raw_input, config)
-
-        if items:
-            display_results(items, screenshot_enabled=config.screenshot_enabled)
-        elif skipped == 0:
-            st.error("No successful extractions.")
+        st.info("Starting job…")  # (moved here)
+        submit_run(raw_input, controls)
+        st.info("📡 Job created. Please open the **Jobs** tab to monitor progress.")
     except Exception:
         logger.exception(MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR)
-        st.error("❌ An unexpected error occurred while running the pipeline.")
+        st.error("❌ An unexpected error occurred while starting the job.")
     finally:
-        st.session_state["is_running"] = False
+        st.session_state["run_submitting"] = False
 
 
 def reset_app_state(logger: logging.Logger) -> None:
@@ -129,6 +107,10 @@ def main() -> None:
     if "show_auth_overlay" not in st.session_state:
         st.session_state["show_auth_overlay"] = False
 
+    # --- Track which tab should be active: 0 = Run, 1 = Jobs ---
+    if "active_tab" not in st.session_state:
+        st.session_state["active_tab"] = 0
+
     # --- PAGE CONFIG AND SIDEBAR ---
     controls, raw_input = configure_app_page(settings)
     agent_mode = controls.agent_mode
@@ -144,7 +126,7 @@ def main() -> None:
         can_run = not not_logged_in
 
     # --- OPTIONAL REMINDER ---
-    if agent_mode.startswith("llm_") and "openai_credentials" not in st.session_state:
+    if agent_mode.value.startswith("llm_") and "openai_credentials" not in st.session_state:
         st.info("👉 Submit your OpenAI API credentials in the sidebar before running extraction.")
 
     # --- SESSION STATE INIT ---
@@ -154,16 +136,21 @@ def main() -> None:
 
     # === Tabs ===
     tabs = st.tabs(["🧪 Run", "🧭 Jobs"])
-    with tabs[0]:
+    run_tab, jobs_tab = tabs
+    with run_tab:
         # --- RUN EXTRACTION BUTTON ---
         handle_run_button(input_ready, can_run=can_run)
 
-        # --- PROCESSING PIPELINE ---
-        if st.session_state["is_running"]:
-            process_pipeline(raw_input, controls, settings, logger)
+        # If flagged as submitting, do the submit work now (non-blocking overall)
+        if st.session_state.get("run_submitting", False):
+            process_pipeline(raw_input, controls, logger)
+            # Nudge + auto-switch
+            st.info("📡 Job created. Opening **Jobs**…")
+            st.session_state["active_tab"] = 1
+            st.rerun()
 
-    with tabs[1]:
-        render_jobs_tab()
+    with jobs_tab:
+        render_jobs_tab(preselect_job_id=st.session_state.get("last_job_id"))
 
     # --- RESET BUTTON ---
     reset_app_state(logger)

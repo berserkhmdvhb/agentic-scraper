@@ -50,6 +50,9 @@ MSG_INFO_TOKEN_SESSION_LENGTH = "[FRONTEND] [AUTH] JWT token stored in session. 
 MSG_INFO_NO_TOKEN_YET = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
 MSG_INFO_AUTH0_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 login URI: {uri}"
 
+MSG_UI_LOGGED_OUT_APP_ONLY = "[FRONTEND] [AUTH] You've logged out of this app."
+MSG_UI_LOGGING_IN = "Logging you in…"
+
 # ui_auth_helpers.py
 MSG_LOG_TOKEN_FROM_SESSION_STATE = "[FRONTEND] [AUTH] Token from session state (not URL)"
 
@@ -128,7 +131,13 @@ MSG_INFO_JOB_NOT_CANCELABLE = "Job is not cancelable (already finished)."
 MSG_ERROR_CANCEL_JOB = "Failed to cancel job: {error}"
 MSG_ERROR_CANCEL_JOB_NETWORK = "Network error while canceling job: {error}"
 MSG_INFO_NO_JOBS_FOUND = "No jobs found."
-MSG_INFO_LOGIN_TO_VIEW_JOBS = "Please log in to view your jobs."
+MSG_INFO_LOGIN_TO_VIEW_JOBS = "🔐 Please log in to view your jobs."
+MSG_INFO_NO_RESULTS = "📭 No results found for this job."
+
+
+MSG_INFO_NO_RESULTS = "⚠️ No data could be extracted."
+MSG_INFO_JOB_CANCELED = "🛑 Job was canceled."
+MSG_ERROR_JOB_FAILED = "Job failed."
 
 
 # ─── Backend ───

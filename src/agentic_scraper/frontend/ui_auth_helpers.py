@@ -66,28 +66,53 @@ def api_base() -> str:
 
 def get_jwt_token_from_url_or_session() -> str | None:
     """
-    Extract a JWT from ?token=... or session state.
-    If found via URL, store it in session and clear query params.
+    Extract a JWT from the URL query (?token=...) or from Streamlit session state.
+
+    If a token is found in the URL, this function:
+      - Validates the basic JWT shape (header.payload.signature)
+      - Saves it to `st.session_state["jwt_token"]`
+      - Sets `st.session_state["auth_pending"] = True` so the UI can hide the login button
+      - Clears the query params to avoid re-processing on rerun
+
+    If no token is found in the URL, it falls back to `st.session_state["jwt_token"]`.
+
+    Returns:
+        str | None: The JWT string if found and well-formed; otherwise None.
     """
     token = st.query_params.get("token")
 
     if token:
         jwt_token = token[0] if isinstance(token, list) else token
+        if isinstance(jwt_token, str):
+            jwt_token = jwt_token.strip()
+
         if isinstance(jwt_token, str) and len(jwt_token.split(".")) == EXPECTED_JWT_PARTS:
+            st.session_state["auth_pending"] = True
             st.session_state["jwt_token"] = jwt_token
-            logger.debug(MSG_DEBUG_JWT_FROM_URL.format(token=jwt_token))
+            # Log a masked preview to avoid leaking the full token
+            preview = f"{jwt_token[:10]}…"
+            logger.debug(MSG_DEBUG_JWT_FROM_URL.format(token=preview))
             st.query_params.clear()
             return jwt_token
+
+        # Malformed token in URL
         logger.warning(MSG_WARNING_MALFORMED_JWT.format(token=jwt_token))
+        st.session_state.pop("auth_pending", None)
+        st.query_params.clear()
         st.warning("⚠️ Token format appears invalid. Login may fail.")
         return None
 
+    # Fallback - already in session
     token_from_session = st.session_state.get("jwt_token")
     if isinstance(token_from_session, str):
         logger.debug(MSG_LOG_TOKEN_FROM_SESSION_STATE)
+        # Using an existing session token is not a "pending" state
+        st.session_state.pop("auth_pending", None)
         return token_from_session
 
+    # No token anywhere
     logger.warning(MSG_WARNING_NO_JWT_FOUND)
+    st.session_state.pop("auth_pending", None)
     return None
 
 

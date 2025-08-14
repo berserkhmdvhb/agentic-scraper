@@ -20,11 +20,11 @@ dependencies = [
   "pydantic-settings>=2.10.1",
   "pydantic>=2.7.1",
   "python-dotenv>=1.0",
-  "streamlit-aggrid>=1.1.6",
   "streamlit>=1.35.0",
+  "streamlit-aggrid>=1.1.6",
+  "streamlit-autorefresh>=1.0.1",
   "tenacity>=8.2.3",
   "typing-extensions>=4.6",
-  "streamlit-auth0-component>=0.1.0",
 ]
 
 

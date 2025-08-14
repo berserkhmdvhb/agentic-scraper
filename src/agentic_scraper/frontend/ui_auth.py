@@ -22,6 +22,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_AUTH0_LOGIN_URI,
     MSG_INFO_NO_TOKEN_YET,
     MSG_INFO_TOKEN_SESSION_LENGTH,
+    MSG_UI_LOGGED_OUT_APP_ONLY,
+    MSG_UI_LOGGING_IN,
 )
 from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
@@ -52,10 +54,11 @@ def authenticate_user() -> None:
         # Fetch profile & creds (logout on 401)
         fetch_user_profile(on_unauthorized=logout_user)
         fetch_openai_credentials(on_unauthorized=logout_user)
-        st.success("Logged in successfully!")
+        st.session_state["auth_pending"] = False
         st.rerun()
     else:
         logger.info(MSG_INFO_NO_TOKEN_YET)
+        st.session_state.pop("auth_pending", None)
 
 
 def logout_user() -> None:
@@ -63,19 +66,27 @@ def logout_user() -> None:
     st.session_state.pop("jwt_token", None)
     st.session_state.pop("user_info", None)
     st.session_state.pop("openai_credentials", None)
-    st.success("Logged out successfully!")
+    st.session_state.pop("openai_credentials_preview", None)
+    st.session_state.pop("auth_pending", None)
+    st.session_state["show_logged_out_banner"] = True
     st.rerun()
 
 
-def login_ui(agent_mode: str) -> None:
+def login_ui(agent_mode: AgentMode) -> None:
     """Render login or logout UI components based on current session state."""
-    requires_auth = agent_mode and agent_mode != AgentMode.RULE_BASED
+    requires_auth = agent_mode != AgentMode.RULE_BASED
 
     if not requires_auth:
         return
 
     with st.sidebar:
         if "jwt_token" not in st.session_state:
+            pending = st.session_state.get("auth_pending", False)
+            if st.session_state.pop("show_logged_out_banner", False):
+                st.info(MSG_UI_LOGGED_OUT_APP_ONLY)
+            if pending:
+                st.info(MSG_UI_LOGGING_IN)
+                return
             st.markdown("Click below to log in:")
 
             # Auth0 authorize URL (scopes include scrapes & user/creds)
