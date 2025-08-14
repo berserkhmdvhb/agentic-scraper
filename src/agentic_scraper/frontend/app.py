@@ -11,88 +11,25 @@ This version aligns the UI with the RESTful job flow and adds a Jobs tab:
 from __future__ import annotations
 
 import asyncio
-import logging
 import sys
 
 import streamlit as st
 
-from agentic_scraper.backend.config.messages import (
-    MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR,
-    MSG_INFO_APP_RESET_TRIGGERED,
-)
 from agentic_scraper.backend.config.types import AgentMode
-from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
-from agentic_scraper.backend.core.settings import Settings, get_settings
-from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
+from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.frontend.app_helpers import (
+    configure_app_page,
+    handle_run_button,
+    process_pipeline,
+    reset_app_state,
+    setup_logging_and_logger,
+)
 from agentic_scraper.frontend.ui_auth import authenticate_user
 from agentic_scraper.frontend.ui_jobs import render_jobs_tab
-from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
-from agentic_scraper.frontend.ui_runner import submit_scrape_job
-from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
 
 # --- WINDOWS ASYNCIO FIX ---
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
-
-def setup_logging_and_logger() -> logging.Logger:
-    """Initialize logging system and return logger."""
-    setup_logging(reset=True)
-    return get_logger()
-
-
-def configure_app_page(settings: Settings) -> tuple[SidebarConfig, str]:
-    """Render the app layout, sidebar controls, and input method section."""
-    configure_page()
-    return render_sidebar_controls(settings), render_input_section()
-
-
-# Add near other helpers
-def submit_run(raw_input: str, controls: SidebarConfig) -> None:
-    config = PipelineConfig(**controls.model_dump())
-    job_id = submit_scrape_job(raw_input, config)
-    if job_id:
-        st.session_state["active_tab"] = 1
-
-
-def handle_run_button(input_ready: str, *, can_run: bool) -> None:
-    if "run_submitting" not in st.session_state:
-        st.session_state["run_submitting"] = False
-
-    disabled = (not can_run) or st.session_state["run_submitting"]
-    clicked = st.button("🚀 Run Extraction", type="primary", disabled=disabled)
-    if clicked:
-        if not input_ready.strip():
-            st.warning("⚠️ Please provide at least one URL or upload a .txt file.")
-            return
-        st.session_state["run_submitting"] = True
-        st.rerun()
-
-
-def process_pipeline(raw_input: str, controls: SidebarConfig, logger: logging.Logger) -> None:
-    try:
-        st.info("Starting job…")  # (moved here)
-        submit_run(raw_input, controls)
-        st.info("📡 Job created. Please open the **Jobs** tab to monitor progress.")
-    except Exception:
-        logger.exception(MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR)
-        st.error("❌ An unexpected error occurred while starting the job.")
-    finally:
-        st.session_state["run_submitting"] = False
-
-
-def reset_app_state(logger: logging.Logger) -> None:
-    """
-    Render a reset button that clears most session state,
-    but preserves login and OpenAI credentials.
-    """
-    if st.sidebar.button("🔄 Reset"):
-        logger.info(MSG_INFO_APP_RESET_TRIGGERED)
-        preserved_keys = {"jwt_token", "user_info", "openai_credentials"}
-        keys_to_clear = [k for k in st.session_state if k not in preserved_keys]
-        for key in keys_to_clear:
-            del st.session_state[key]
-        st.rerun()
 
 
 def main() -> None:
@@ -102,6 +39,9 @@ def main() -> None:
 
     # --- SETTINGS LOAD ---
     settings = get_settings()
+
+    # --- AUTH FIRST (so sidebar can reflect pending state) ---
+    authenticate_user()
 
     # --- Init overlay state early ---
     if "show_auth_overlay" not in st.session_state:
@@ -116,14 +56,22 @@ def main() -> None:
     agent_mode = controls.agent_mode
     is_llm_mode = agent_mode != AgentMode.RULE_BASED
 
-    # --- AUTH (LLM modes only) ---
+    # --- AUTH-GATED UX ---
     can_run = True
     if is_llm_mode:
-        authenticate_user()
+        pending = st.session_state.get("auth_pending", False)
         not_logged_in = "jwt_token" not in st.session_state
-        if not_logged_in and st.session_state.get("show_auth_overlay", True):
+
+        # If pending, show a lightweight reminder in sidebar (login_ui hides the button)
+        if pending:
+            st.sidebar.info("Logging you in…")
+            can_run = False  # prevent starting runs mid-login
+
+        # Only show the CTA when not logged in and not pending
+        if not_logged_in and not pending and st.session_state.get("show_auth_overlay", True):
             st.info("🔐 Please log in to run LLM-based extraction.")
-        can_run = not not_logged_in
+
+        can_run = can_run and (not not_logged_in)
 
     # --- OPTIONAL REMINDER ---
     if agent_mode.value.startswith("llm_") and "openai_credentials" not in st.session_state:
@@ -137,6 +85,7 @@ def main() -> None:
     # === Tabs ===
     tabs = st.tabs(["🧪 Run", "🧭 Jobs"])
     run_tab, jobs_tab = tabs
+
     with run_tab:
         # --- RUN EXTRACTION BUTTON ---
         handle_run_button(input_ready, can_run=can_run)

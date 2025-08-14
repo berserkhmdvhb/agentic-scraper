@@ -97,7 +97,6 @@ def get_jwt_token_from_url_or_session() -> str | None:
 
         # Malformed token in URL
         logger.warning(MSG_WARNING_MALFORMED_JWT.format(token=jwt_token))
-        st.session_state.pop("auth_pending", None)
         st.query_params.clear()
         st.warning("⚠️ Token format appears invalid. Login may fail.")
         return None
@@ -106,7 +105,6 @@ def get_jwt_token_from_url_or_session() -> str | None:
     token_from_session = st.session_state.get("jwt_token")
     if isinstance(token_from_session, str):
         logger.debug(MSG_LOG_TOKEN_FROM_SESSION_STATE)
-        # Using an existing session token is not a "pending" state
         st.session_state.pop("auth_pending", None)
         return token_from_session
 
