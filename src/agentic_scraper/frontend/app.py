@@ -15,6 +15,7 @@ import sys
 
 import streamlit as st
 
+from agentic_scraper.backend.config.messages import MSG_UI_RESET_COMPLETE
 from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.app_helpers import (
@@ -24,7 +25,7 @@ from agentic_scraper.frontend.app_helpers import (
     reset_app_state,
     setup_logging_and_logger,
 )
-from agentic_scraper.frontend.ui_auth import authenticate_user
+from agentic_scraper.frontend.ui_auth import authenticate_user, login_ui
 from agentic_scraper.frontend.ui_jobs import render_jobs_tab
 
 # --- WINDOWS ASYNCIO FIX ---
@@ -43,9 +44,14 @@ def main() -> None:
     # --- AUTH FIRST (so sidebar can reflect pending state) ---
     authenticate_user()
 
+    # --- Flash messages (post-reset confirmation) ---
+    if st.session_state.pop("flash_reset_success", False):
+        st.toast(MSG_UI_RESET_COMPLETE)
+
     # --- Init overlay state early ---
+    # Default True so first-time users see the login CTA if needed.
     if "show_auth_overlay" not in st.session_state:
-        st.session_state["show_auth_overlay"] = False
+        st.session_state["show_auth_overlay"] = True
 
     # --- Track which tab should be active: 0 = Run, 1 = Jobs ---
     if "active_tab" not in st.session_state:
@@ -55,6 +61,9 @@ def main() -> None:
     controls, raw_input = configure_app_page(settings)
     agent_mode = controls.agent_mode
     is_llm_mode = agent_mode != AgentMode.RULE_BASED
+
+    # --- Render login/logout UI in the sidebar ---
+    login_ui(agent_mode)
 
     # --- AUTH-GATED UX ---
     can_run = True
@@ -67,7 +76,7 @@ def main() -> None:
             st.sidebar.info("Logging you in…")
             can_run = False  # prevent starting runs mid-login
 
-        # Only show the CTA when not logged in and not pending
+        # Top-of-page nudge (optional) when not logged in and not pending
         if not_logged_in and not pending and st.session_state.get("show_auth_overlay", True):
             st.info("🔐 Please log in to run LLM-based extraction.")
 

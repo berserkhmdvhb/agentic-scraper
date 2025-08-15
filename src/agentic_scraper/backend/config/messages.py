@@ -17,6 +17,8 @@ MSG_ERROR_EXTRACTION_FAILED = "❌ LLM extraction failed: {error}"
 MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR = "Unexpected error during extraction pipeline"
 MSG_INFO_APP_RESET_TRIGGERED = "User triggered app reset via sidebar."
 
+MSG_UI_RESET_COMPLETE = "Reset complete. Defaults restored."
+
 # ui_auth.py
 MSG_INFO_JWT_STORED = "[FRONTEND] [AUTH] JWT token stored in session. Length: {length}"
 MSG_INFO_NO_JWT_FOUND = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."

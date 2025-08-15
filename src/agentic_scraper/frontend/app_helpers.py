@@ -36,6 +36,7 @@ def submit_run(raw_input: str, controls: SidebarConfig) -> None:
     config = PipelineConfig(**controls.model_dump())
     job_id = submit_scrape_job(raw_input, config)
     if job_id:
+        st.session_state["last_job_id"] = job_id
         st.session_state["active_tab"] = 1
 
 
@@ -74,8 +75,14 @@ def reset_app_state(logger: logging.Logger) -> None:
     """
     if st.sidebar.button("🔄 Reset"):
         logger.info(MSG_INFO_APP_RESET_TRIGGERED)
-        preserved_keys = {"jwt_token", "user_info", "openai_credentials"}
+        preserved_keys = {
+            "jwt_token",
+            "user_info",
+            "openai_credentials",
+            "openai_credentials_preview",
+        }
         keys_to_clear = [k for k in st.session_state if k not in preserved_keys]
         for key in keys_to_clear:
             del st.session_state[key]
+        st.session_state["flash_reset_success"] = True
         st.rerun()
