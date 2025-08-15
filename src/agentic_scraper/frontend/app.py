@@ -25,7 +25,7 @@ from agentic_scraper.frontend.app_helpers import (
     reset_app_state,
     setup_logging_and_logger,
 )
-from agentic_scraper.frontend.ui_auth import authenticate_user, login_ui
+from agentic_scraper.frontend.ui_auth import authenticate_user
 from agentic_scraper.frontend.ui_jobs import render_jobs_tab
 
 # --- WINDOWS ASYNCIO FIX ---
@@ -61,9 +61,6 @@ def main() -> None:
     controls, raw_input = configure_app_page(settings)
     agent_mode = controls.agent_mode
     is_llm_mode = agent_mode != AgentMode.RULE_BASED
-
-    # --- Render login/logout UI in the sidebar ---
-    login_ui(agent_mode)
 
     # --- AUTH-GATED UX ---
     can_run = True

@@ -259,12 +259,12 @@ def build_logout_url(return_to: str | None = None, *, federated: bool = False) -
     Build an Auth0 /v2/logout URL. Make sure `return_to` is in Auth0 'Allowed Logout URLs'.
     If federated=True, append federated=true to attempt IdP logout as well (if supported).
     """
-    domain = settings.auth0_domain
+    dest = return_to or settings.frontend_domain or settings.auth0_redirect_uri
     client_id = settings.auth0_client_id
-    _return_to = ensure_https(return_to or settings.auth0_redirect_uri)
+    _return_to = ensure_https(dest)
 
     base = (
-        f"https://{domain}{AUTH0_LOGOUT_PATH}"
+        f"https://{settings.auth0_domain}{AUTH0_LOGOUT_PATH}"
         f"?client_id={urllib.parse.quote(client_id)}"
         f"&returnTo={urllib.parse.quote(_return_to, safe='')}"
     )
