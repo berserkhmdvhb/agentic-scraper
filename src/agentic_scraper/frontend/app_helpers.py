@@ -12,6 +12,7 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
+from agentic_scraper.frontend.ui_jobs import render_jobs_tab
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
 from agentic_scraper.frontend.ui_runner import submit_scrape_job
 from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
@@ -29,17 +30,12 @@ TAB_JOBS = "Jobs"
 
 
 def render_main_tabs(
-    render_run: Callable[[], None], render_jobs: Callable[[str | None], None]
+    render_run: Callable[[], None],
+    render_jobs: Callable[[str | None], None],
 ) -> None:
     """
-    Controlled navigation: render a segmented control and call the appropriate tab renderer.
+    Controlled navigation: render a segmented control and call the appropriate renderer.
     Keeps URL ?tab=... in sync for deep-linking.
-
-    Args:
-        render_run: Callable that renders the Run tab content.
-        render_jobs:
-            Callable that renders the Jobs tab content.
-            Accepts an optional preselect_job_id.
     """
     if "main_tab" not in st.session_state:
         st.session_state["main_tab"] = st.query_params.get("tab", [DEFAULT_TAB])[0]
@@ -57,14 +53,30 @@ def render_main_tabs(
 def switch_to_jobs(preselect_job_id: str | None = None) -> None:
     """
     Switch the UI to the Jobs tab and optionally remember a job to preselect.
-
-    Args:
-        preselect_job_id: ID of the job to preselect in the Jobs tab.
     """
     if preselect_job_id:
         st.session_state["last_job_id"] = preselect_job_id
     st.session_state["main_tab"] = TAB_JOBS
     st.rerun()
+
+
+# --------------------------------------------------------------------
+# Run log (persist messages across reruns)
+# --------------------------------------------------------------------
+def runlog_add(kind: str, text: str) -> None:
+    """Append a message to the Run log (persists across reruns)."""
+    st.session_state.setdefault("run_log", []).append((kind, text))
+
+
+def runlog_clear() -> None:
+    """Clear the Run log."""
+    st.session_state["run_log"] = []
+
+
+def runlog_render() -> None:
+    """Render all messages in the Run log."""
+    for kind, text in st.session_state.get("run_log", []):
+        getattr(st, kind)(text)
 
 
 # --------------------------------------------------------------------
@@ -110,14 +122,16 @@ def handle_run_button(input_ready: str, *, can_run: bool) -> None:
 def process_pipeline(raw_input: str, controls: SidebarConfig, logger: logging.Logger) -> None:
     """
     Kick off the job creation and navigate to Jobs tab on success.
+    Uses the run log so messages persist across reruns.
     """
     try:
-        st.info("Starting job…")
+        runlog_clear()
+        runlog_add("info", "Starting job…")
         submit_run(raw_input, controls)  # Will switch & rerun on success
-        st.warning("⚠️ Job could not be created.")  # Only shown if no job_id
+        runlog_add("warning", "⚠️ Job could not be created.")
     except Exception:
         logger.exception(MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR)
-        st.error("❌ An unexpected error occurred while starting the job.")
+        runlog_add("error", "❌ An unexpected error occurred while starting the job.")
     finally:
         st.session_state["run_submitting"] = False
 
@@ -140,3 +154,41 @@ def reset_app_state(logger: logging.Logger) -> None:
             del st.session_state[key]
         st.session_state["flash_reset_success"] = True
         st.rerun()
+
+
+# --------------------------------------------------------------------
+# Render factories (so app.py stays tiny and typed)
+# --------------------------------------------------------------------
+def make_render_run(
+    *,
+    input_ready: str,
+    can_run: bool,
+    raw_input: str,
+    controls: SidebarConfig,
+    logger: logging.Logger,
+) -> Callable[[], None]:
+    """
+    Build a zero-arg renderer for the Run tab.
+    Imported in app.py and passed to render_main_tabs().
+    """
+
+    def _render_run() -> None:
+        runlog_render()
+        handle_run_button(input_ready, can_run=can_run)
+        if st.session_state.get("run_submitting", False):
+            process_pipeline(raw_input, controls, logger)
+
+    return _render_run
+
+
+def make_render_jobs() -> Callable[[str | None], None]:
+    """
+    Build a renderer for the Jobs tab that accepts an optional preselect_job_id.
+    Imported in app.py and passed to render_main_tabs().
+    """
+    # Lazy import to avoid any chance of circular imports
+
+    def _render_jobs(preselect_job_id: str | None = None) -> None:
+        render_jobs_tab(preselect_job_id=preselect_job_id)
+
+    return _render_jobs

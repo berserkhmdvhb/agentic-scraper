@@ -112,6 +112,8 @@ def login_ui(agent_mode: AgentMode) -> None:
                 logout_user()
             # Global (SSO) logout via Auth0 (helpers also log)
             logout_url = build_logout_url()
-            federated_logout_url = build_logout_url(federated=True)
-            st.link_button("🌐 Log out everywhere (Auth0)", logout_url, use_container_width=True)
-            st.caption(f"[Also sign out of identity provider]({federated_logout_url}).")
+            st.link_button(
+                "🌐 Log out everywhere (Auth0)",
+                logout_url,
+                help="Also sign out of identity provider",
+            )
