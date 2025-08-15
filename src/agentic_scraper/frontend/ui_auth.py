@@ -101,27 +101,7 @@ def login_ui(agent_mode: AgentMode) -> None:
             login_url = build_login_url(scope_list=scope_list)
             force_login_url = build_force_login_url(scope_list=scope_list)
 
-            st.markdown(
-                f"""
-                <div class="auth-highlight">
-                    <a href="{login_url}" target="_self">
-                        <button style="
-                            width: 100%;
-                            padding: 0.5rem 1rem;
-                            border-radius: 0.5rem;
-                            background-color: #EF476F;
-                            color: white;
-                            font-weight: bold;
-                            border: none;
-                            cursor: pointer;
-                        ">
-                            🔐 Login with Auth0
-                        </button>
-                    </a>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            st.link_button("🔐 Login with Auth0", login_url, use_container_width=True)
             st.caption(f"Need to switch accounts? [Force re-authentication]({force_login_url}).")
         else:
             user_info = st.session_state.get("user_info", {})
@@ -133,25 +113,5 @@ def login_ui(agent_mode: AgentMode) -> None:
             # Global (SSO) logout via Auth0 (helpers also log)
             logout_url = build_logout_url()
             federated_logout_url = build_logout_url(federated=True)
-            st.markdown(
-                f"""
-                <div style="margin-top: 0.5rem;">
-                    <a href="{logout_url}" target="_self">
-                        <button style="
-                            width: 100%;
-                            padding: 0.5rem 1rem;
-                            border-radius: 0.5rem;
-                            background-color: #555;
-                            color: white;
-                            font-weight: 600;
-                            border: none;
-                            cursor: pointer;
-                        ">
-                            🌐 Log out everywhere (Auth0)
-                        </button>
-                    </a>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            st.link_button("🌐 Log out everywhere (Auth0)", logout_url, use_container_width=True)
             st.caption(f"[Also sign out of identity provider]({federated_logout_url}).")
