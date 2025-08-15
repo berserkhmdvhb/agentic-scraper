@@ -10,6 +10,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR,
     MSG_INFO_APP_RESET_TRIGGERED,
 )
+from agentic_scraper.backend.config.types import AllowedTab
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
 from agentic_scraper.frontend.ui_jobs import render_jobs_tab
@@ -24,9 +25,36 @@ if TYPE_CHECKING:
 # --------------------------------------------------------------------
 # Navigation constants and helpers
 # --------------------------------------------------------------------
-DEFAULT_TAB = "Run"
-TAB_RUN = "Run"
-TAB_JOBS = "Jobs"
+
+
+def coerce_tab_value(value: object, *, default: AllowedTab = AllowedTab.RUN) -> AllowedTab:
+    """
+    Map legacy/invalid values to a valid AllowedTab.
+    Accepts: exact Enum values, case-insensitive strings ("run", "jobs"),
+    single letters ("R", "J"), ints (0,1), and numeric strings ("0","1").
+    """
+    result: AllowedTab = default
+
+    if isinstance(value, AllowedTab):
+        result = value
+    elif isinstance(value, str):
+        v = value.strip()
+        try:
+            result = AllowedTab(v)
+        except ValueError:
+            low = v.lower()
+            if low.startswith("run") or low == "r":
+                result = AllowedTab.RUN
+            elif low.startswith("job") or low == "j":
+                result = AllowedTab.JOBS
+            elif low == "0":
+                result = AllowedTab.RUN
+            elif low == "1":
+                result = AllowedTab.JOBS
+    elif isinstance(value, int):
+        result = AllowedTab.RUN if value == 0 else AllowedTab.JOBS
+
+    return result
 
 
 def render_main_tabs(
@@ -34,16 +62,37 @@ def render_main_tabs(
     render_jobs: Callable[[str | None], None],
 ) -> None:
     """
-    Controlled navigation: render a segmented control and call the appropriate renderer.
-    Keeps URL ?tab=... in sync for deep-linking.
+    Controlled navigation with AllowedTab Enum.
+    Normalizes legacy values and query params before widget creation.
     """
-    if "main_tab" not in st.session_state:
-        st.session_state["main_tab"] = st.query_params.get("tab", [DEFAULT_TAB])[0]
+    # 1) Normalize from query param
+    qp = st.query_params.get("tab", [AllowedTab.RUN.value])
+    qp_val = qp[0] if isinstance(qp, list) and qp else AllowedTab.RUN.value
+    tab_from_query = coerce_tab_value(qp_val)
 
-    main_tab = st.segmented_control(" ", options=[TAB_RUN, TAB_JOBS], key="main_tab")
-    st.query_params["tab"] = main_tab
+    # 2) Migrate/normalize legacy session values before widget creation
+    legacy = st.session_state.get("main_tab", None)
+    if legacy is None:
+        # migrate from old 'active_tab' if present
+        legacy = st.session_state.pop("active_tab", None)
 
-    if main_tab == TAB_RUN:
+    st.session_state["main_tab"] = coerce_tab_value(legacy, default=tab_from_query)
+
+    # 3) Create the control with safe defaults and coerce the return to AllowedTab
+    main_tab: AllowedTab = coerce_tab_value(
+        st.segmented_control(
+            " ",
+            options=[AllowedTab.RUN, AllowedTab.JOBS],
+            format_func=lambda x: x.value,  # display "Run"/"Jobs"
+            key="main_tab",
+        )
+    )
+
+    # 4) Keep URL in sync (pretty)
+    st.query_params["tab"] = main_tab.value
+
+    # 5) Render selected view
+    if main_tab is AllowedTab.RUN:
         render_run()
     else:
         pre_id = st.session_state.get("last_job_id")
@@ -51,12 +100,10 @@ def render_main_tabs(
 
 
 def switch_to_jobs(preselect_job_id: str | None = None) -> None:
-    """
-    Switch the UI to the Jobs tab and optionally remember a job to preselect.
-    """
+    """Switch to Jobs and optionally remember a job to preselect."""
     if preselect_job_id:
         st.session_state["last_job_id"] = preselect_job_id
-    st.session_state["main_tab"] = TAB_JOBS
+    st.session_state["main_tab"] = AllowedTab.JOBS
     st.rerun()
 
 
@@ -186,7 +233,6 @@ def make_render_jobs() -> Callable[[str | None], None]:
     Build a renderer for the Jobs tab that accepts an optional preselect_job_id.
     Imported in app.py and passed to render_main_tabs().
     """
-    # Lazy import to avoid any chance of circular imports
 
     def _render_jobs(preselect_job_id: str | None = None) -> None:
         render_jobs_tab(preselect_job_id=preselect_job_id)
