@@ -14,12 +14,10 @@ logout controls. Non-UI details live in `ui_auth_helpers.py`.
 from __future__ import annotations
 
 import logging
-import urllib.parse
 
 import streamlit as st
 
 from agentic_scraper.backend.config.messages import (
-    MSG_INFO_AUTH0_LOGIN_URI,
     MSG_INFO_NO_TOKEN_YET,
     MSG_INFO_TOKEN_SESSION_LENGTH,
     MSG_UI_LOGGED_OUT_APP_ONLY,
@@ -28,7 +26,9 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.ui_auth_helpers import (
-    ensure_https,
+    build_force_login_url,
+    build_login_url,
+    build_logout_url,
     fetch_openai_credentials,
     fetch_user_profile,
     get_jwt_token_from_url_or_session,
@@ -89,38 +89,17 @@ def login_ui(agent_mode: AgentMode) -> None:
                 return
             st.markdown("Click below to log in:")
 
-            # Auth0 authorize URL (scopes include scrapes & user/creds)
-            audience = settings.auth0_api_audience  # already configured with trailing '/'
-            redirect_uri = ensure_https(settings.auth0_redirect_uri)
-            domain = settings.auth0_domain
-            client_id = settings.auth0_client_id
+            # Auth0 authorize URLs (helpers ensure openid/profile/email + HTTPS; helpers also log)
 
             scope_list = [
-                "openid",
-                "profile",
-                "email",
                 "create:openai_credentials",
                 "read:user_profile",
                 "create:scrapes",
                 "read:scrapes",
                 "cancel:scrapes",
             ]
-            scope = " ".join(scope_list)
-
-            # Build query safely
-            query = urllib.parse.urlencode(
-                {
-                    "client_id": client_id,
-                    "response_type": "code",
-                    "redirect_uri": redirect_uri,
-                    "audience": audience,
-                    "scope": scope,
-                }
-            )
-            login_url = f"https://{domain}/authorize?{query}"
-
-            if settings.is_verbose_mode:
-                logger.debug(MSG_INFO_AUTH0_LOGIN_URI.format(uri=login_url))
+            login_url = build_login_url(scope_list=scope_list)
+            force_login_url = build_force_login_url(scope_list=scope_list)
 
             st.markdown(
                 f"""
@@ -143,10 +122,36 @@ def login_ui(agent_mode: AgentMode) -> None:
                 """,
                 unsafe_allow_html=True,
             )
+            st.caption(f"Need to switch accounts? [Force re-authentication]({force_login_url}).")
         else:
             user_info = st.session_state.get("user_info", {})
             st.markdown(f"Welcome, **{user_info.get('name', 'User')}**")
             st.markdown(f"📧 Email: `{user_info.get('email', 'N/A')}`")
 
-            if st.button("Logout"):
+            if st.button("Logout (this app)"):
                 logout_user()
+            # Global (SSO) logout via Auth0 (helpers also log)
+            logout_url = build_logout_url()
+            federated_logout_url = build_logout_url(federated=True)
+            st.markdown(
+                f"""
+                <div style="margin-top: 0.5rem;">
+                    <a href="{logout_url}" target="_self">
+                        <button style="
+                            width: 100%;
+                            padding: 0.5rem 1rem;
+                            border-radius: 0.5rem;
+                            background-color: #555;
+                            color: white;
+                            font-weight: 600;
+                            border: none;
+                            cursor: pointer;
+                        ">
+                            🌐 Log out everywhere (Auth0)
+                        </button>
+                    </a>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.caption(f"[Also sign out of identity provider]({federated_logout_url}).")

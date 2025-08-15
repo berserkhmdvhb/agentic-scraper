@@ -13,15 +13,18 @@ UI-specific rendering (login/logout buttons, toasts) stays in `ui_auth.py`.
 from __future__ import annotations
 
 import logging
+import urllib.parse
 from collections.abc import Callable
 
 import httpx
 import streamlit as st
 from fastapi import status
-from httpx import HTTPStatusError, RequestError
 
 from agentic_scraper import __api_version__ as api_version
-from agentic_scraper.backend.config.constants import EXPECTED_JWT_PARTS
+from agentic_scraper.backend.config.constants import (
+    AUTH0_LOGOUT_PATH,
+    EXPECTED_JWT_PARTS,
+)
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_JWT_FROM_URL,
     MSG_ERROR_USER_NOT_AUTHENTICATED,
@@ -29,6 +32,9 @@ from agentic_scraper.backend.config.messages import (
     MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK,
     MSG_EXCEPTION_USER_PROFILE,
     MSG_EXCEPTION_USER_PROFILE_NETWORK,
+    MSG_INFO_AUTH0_FORCE_LOGIN_URI,
+    MSG_INFO_AUTH0_LOGIN_URI,
+    MSG_INFO_AUTH0_LOGOUT_URI,
     MSG_INFO_CREDENTIALS_SUCCESS,
     MSG_INFO_USER_PROFILE_SUCCESS,
     MSG_LOG_TOKEN_FROM_SESSION_STATE,
@@ -149,11 +155,11 @@ def fetch_user_profile(on_unauthorized: Callable[[], None] | None = None) -> Non
                 on_unauthorized()
             return
         resp.raise_for_status()
-    except HTTPStatusError as e:
+    except httpx.HTTPStatusError as e:
         logger.exception(MSG_EXCEPTION_USER_PROFILE.format(error=e.response.text))
         st.error(f"Failed to fetch user profile: {e.response.text}")
         return
-    except RequestError as e:
+    except httpx.RequestError as e:
         logger.exception(MSG_EXCEPTION_USER_PROFILE_NETWORK)
         st.error(f"Network error while fetching user profile: {e}")
         return
@@ -187,11 +193,11 @@ def fetch_openai_credentials(on_unauthorized: Callable[[], None] | None = None) 
                 on_unauthorized()
             return
         resp.raise_for_status()
-    except HTTPStatusError as e:
+    except httpx.HTTPStatusError as e:
         logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS.format(error=e.response.text))
         st.error(f"Failed to fetch OpenAI credentials: {e.response.text}")
         return
-    except RequestError as e:
+    except httpx.RequestError as e:
         logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK)
         st.error(f"Network error while fetching OpenAI credentials: {e}")
         return
@@ -203,3 +209,66 @@ def fetch_openai_credentials(on_unauthorized: Callable[[], None] | None = None) 
     )
     st.session_state["openai_credentials_preview"] = openai_config
     logger.info(MSG_INFO_CREDENTIALS_SUCCESS)
+
+
+# ---- Log in and log out helpers ----
+
+
+def build_login_url(scope_list: list[str] | None = None, *, force_prompt: bool = False) -> str:
+    """
+    Build an Auth0 /authorize URL using settings + provided scopes.
+    If force_prompt=True, adds prompt=login to require credentials even if SSO is active.
+    """
+    domain = settings.auth0_domain
+    audience = settings.auth0_api_audience  # already configured with trailing '/'
+    redirect_uri = ensure_https(settings.auth0_redirect_uri)
+    client_id = settings.auth0_client_id
+
+    # Ensure openid/profile/email are present and preserve caller's order for extras.
+    base_scopes = ["openid", "profile", "email"]
+    extras = scope_list or []
+    # Deduplicate while preserving order
+    scopes = list(dict.fromkeys([*base_scopes, *extras]))
+    scope = " ".join(scopes)
+
+    query = {
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": redirect_uri,
+        "audience": audience,
+        "scope": scope,
+    }
+    if force_prompt:
+        query["prompt"] = "login"
+
+    url = f"https://{domain}/authorize?{urllib.parse.urlencode(query)}"
+    if settings.is_verbose_mode:
+        # Pick the right message for forced vs normal login
+        msg = MSG_INFO_AUTH0_FORCE_LOGIN_URI if force_prompt else MSG_INFO_AUTH0_LOGIN_URI
+        logger.debug(msg.format(uri=url))
+    return url
+
+
+def build_force_login_url(scope_list: list[str] | None = None) -> str:
+    """Convenience wrapper for build_login_url(..., force_prompt=True)."""
+    return build_login_url(scope_list=scope_list, force_prompt=True)
+
+
+def build_logout_url(return_to: str | None = None, *, federated: bool = False) -> str:
+    """
+    Build an Auth0 /v2/logout URL. Make sure `return_to` is in Auth0 'Allowed Logout URLs'.
+    If federated=True, append federated=true to attempt IdP logout as well (if supported).
+    """
+    domain = settings.auth0_domain
+    client_id = settings.auth0_client_id
+    _return_to = ensure_https(return_to or settings.auth0_redirect_uri)
+
+    base = (
+        f"https://{domain}{AUTH0_LOGOUT_PATH}"
+        f"?client_id={urllib.parse.quote(client_id)}"
+        f"&returnTo={urllib.parse.quote(_return_to, safe='')}"
+    )
+    url = f"{base}&federated=true" if federated else base
+    if settings.is_verbose_mode:
+        logger.debug(MSG_INFO_AUTH0_LOGOUT_URI.format(uri=url))
+    return url

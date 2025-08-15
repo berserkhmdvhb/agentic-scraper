@@ -22,6 +22,8 @@ SCRAPER_CONFIG_FIELDS = [
 # frontend/
 # ---------------------------------------------------------------------
 
+AUTH0_LOGOUT_PATH = "/v2/logout"
+
 
 # === Streamlit Session Keys ===
 SESSION_KEYS = {
