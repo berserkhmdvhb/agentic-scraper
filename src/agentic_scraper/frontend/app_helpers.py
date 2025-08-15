@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import streamlit as st
@@ -19,6 +20,56 @@ if TYPE_CHECKING:
     from agentic_scraper.backend.core.settings import Settings
 
 
+# --------------------------------------------------------------------
+# Navigation constants and helpers
+# --------------------------------------------------------------------
+DEFAULT_TAB = "Run"
+TAB_RUN = "Run"
+TAB_JOBS = "Jobs"
+
+
+def render_main_tabs(
+    render_run: Callable[[], None], render_jobs: Callable[[str | None], None]
+) -> None:
+    """
+    Controlled navigation: render a segmented control and call the appropriate tab renderer.
+    Keeps URL ?tab=... in sync for deep-linking.
+
+    Args:
+        render_run: Callable that renders the Run tab content.
+        render_jobs:
+            Callable that renders the Jobs tab content.
+            Accepts an optional preselect_job_id.
+    """
+    if "main_tab" not in st.session_state:
+        st.session_state["main_tab"] = st.query_params.get("tab", [DEFAULT_TAB])[0]
+
+    main_tab = st.segmented_control(" ", options=[TAB_RUN, TAB_JOBS], key="main_tab")
+    st.query_params["tab"] = main_tab
+
+    if main_tab == TAB_RUN:
+        render_run()
+    else:
+        pre_id = st.session_state.get("last_job_id")
+        render_jobs(pre_id)
+
+
+def switch_to_jobs(preselect_job_id: str | None = None) -> None:
+    """
+    Switch the UI to the Jobs tab and optionally remember a job to preselect.
+
+    Args:
+        preselect_job_id: ID of the job to preselect in the Jobs tab.
+    """
+    if preselect_job_id:
+        st.session_state["last_job_id"] = preselect_job_id
+    st.session_state["main_tab"] = TAB_JOBS
+    st.rerun()
+
+
+# --------------------------------------------------------------------
+# Existing helpers
+# --------------------------------------------------------------------
 def setup_logging_and_logger() -> logging.Logger:
     """Initialize logging system and return logger."""
     setup_logging(reset=True)
@@ -32,12 +83,13 @@ def configure_app_page(settings: Settings) -> tuple[SidebarConfig, str]:
 
 
 def submit_run(raw_input: str, controls: SidebarConfig) -> None:
-    """Submit a scrape job and switch to Jobs tab."""
+    """
+    Submit a scrape job and switch to Jobs tab on success.
+    """
     config = PipelineConfig(**controls.model_dump())
     job_id = submit_scrape_job(raw_input, config)
     if job_id:
-        st.session_state["last_job_id"] = job_id
-        st.session_state["active_tab"] = 1
+        switch_to_jobs(preselect_job_id=job_id)
 
 
 def handle_run_button(input_ready: str, *, can_run: bool) -> None:
@@ -56,11 +108,13 @@ def handle_run_button(input_ready: str, *, can_run: bool) -> None:
 
 
 def process_pipeline(raw_input: str, controls: SidebarConfig, logger: logging.Logger) -> None:
-    """Kick off the job creation and guide user to the Jobs tab."""
+    """
+    Kick off the job creation and navigate to Jobs tab on success.
+    """
     try:
         st.info("Starting job…")
-        submit_run(raw_input, controls)
-        st.info("📡 Job created. Please open the **Jobs** tab to monitor progress.")
+        submit_run(raw_input, controls)  # Will switch & rerun on success
+        st.warning("⚠️ Job could not be created.")  # Only shown if no job_id
     except Exception:
         logger.exception(MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR)
         st.error("❌ An unexpected error occurred while starting the job.")
