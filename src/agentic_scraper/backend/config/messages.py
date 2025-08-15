@@ -17,6 +17,8 @@ MSG_ERROR_EXTRACTION_FAILED = "❌ LLM extraction failed: {error}"
 MSG_EXCEPTION_UNEXPECTED_PIPELINE_ERROR = "Unexpected error during extraction pipeline"
 MSG_INFO_APP_RESET_TRIGGERED = "User triggered app reset via sidebar."
 
+MSG_UI_RESET_COMPLETE = "Reset complete. Defaults restored."
+
 # ui_auth.py
 MSG_INFO_JWT_STORED = "[FRONTEND] [AUTH] JWT token stored in session. Length: {length}"
 MSG_INFO_NO_JWT_FOUND = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
@@ -24,7 +26,6 @@ MSG_WARNING_MALFORMED_JWT = "[FRONTEND] [AUTH] Suspected malformed JWT (segments
 MSG_WARNING_NO_TOKEN_FOUND = "[FRONTEND] [AUTH] No token found in URL or session"
 
 MSG_ERROR_FETCH_USER_PROFILE = "[FRONTEND] [AUTH] Failed to fetch user profile: {error}"
-MSG_ERROR_FETCH_CREDENTIALS = "[FRONTEND] [AUTH] Failed to fetch OpenAI credentials: {error}"
 MSG_ERROR_NETWORK_USER_PROFILE = (
     "[FRONTEND] [AUTH] Network error while fetching user profile: {error}"
 )
@@ -42,7 +43,7 @@ MSG_EXCEPTION_USER_PROFILE = "[FRONTEND] [AUTH] Failed to fetch user profile: {e
 MSG_EXCEPTION_USER_PROFILE_NETWORK = "[FRONTEND] [AUTH] Network error while fetching user profile"
 MSG_INFO_USER_PROFILE_SUCCESS = "[FRONTEND] [AUTH] User profile fetched successfully"
 MSG_INFO_CREDENTIALS_SUCCESS = "[FRONTEND] [AUTH] OpenAI credentials fetched and stored"
-MSG_EXCEPTION_OPENAI_CREDENTIALS = "[FRONTEND] [AUTH] Failed to fetch OpenAI credentials: {error}"
+MSG_EXCEPTION_OPENAI_CREDENTIALS = "Failed to fetch OpenAI credentials: {error}"
 MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK = (
     "[FRONTEND] [AUTH] Network error while fetching OpenAI credentials"
 )
@@ -50,8 +51,14 @@ MSG_INFO_TOKEN_SESSION_LENGTH = "[FRONTEND] [AUTH] JWT token stored in session. 
 MSG_INFO_NO_TOKEN_YET = "[FRONTEND] [AUTH] No JWT token found; user not logged in yet."
 MSG_INFO_AUTH0_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 login URI: {uri}"
 
+MSG_UI_LOGGED_OUT_APP_ONLY = "You've logged out of this app."
+MSG_UI_LOGGING_IN = "Logging you in…"
+
 # ui_auth_helpers.py
 MSG_LOG_TOKEN_FROM_SESSION_STATE = "[FRONTEND] [AUTH] Token from session state (not URL)"
+MSG_INFO_AUTH0_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 login URL computed: {uri}"
+MSG_INFO_AUTH0_FORCE_LOGIN_URI = "[FRONTEND] [AUTH] Auth0 force-login URL computed: {uri}"
+MSG_INFO_AUTH0_LOGOUT_URI = "[FRONTEND] [AUTH] Auth0 logout URL computed: {uri}"
 
 
 # ui_runner.py
@@ -128,7 +135,13 @@ MSG_INFO_JOB_NOT_CANCELABLE = "Job is not cancelable (already finished)."
 MSG_ERROR_CANCEL_JOB = "Failed to cancel job: {error}"
 MSG_ERROR_CANCEL_JOB_NETWORK = "Network error while canceling job: {error}"
 MSG_INFO_NO_JOBS_FOUND = "No jobs found."
-MSG_INFO_LOGIN_TO_VIEW_JOBS = "Please log in to view your jobs."
+MSG_INFO_LOGIN_TO_VIEW_JOBS = "🔐 Please log in to view your jobs."
+MSG_INFO_NO_RESULTS = "📭 No results found for this job."
+
+
+MSG_INFO_NO_RESULTS = "⚠️ No data could be extracted."
+MSG_INFO_JOB_CANCELED = "🛑 Job was canceled."
+MSG_ERROR_JOB_FAILED = "Job failed."
 
 
 # ─── Backend ───
@@ -277,9 +290,7 @@ MSG_HTTP_JOB_NOT_FOUND_DETAIL = "[API] [ROUTE] [SCRAPE] Job not found."
 MSG_HTTP_FORBIDDEN_JOB_ACCESS = (
     "[API] [ROUTE] [SCRAPE] User {user_sub} does not have permission to access job {job_id}."
 )
-MSG_HTTP_MISSING_OPENAI_CREDS = (
-    "[API] [ROUTE] [SCRAPE] OpenAI credentials not found for the authenticated user."
-)
+MSG_HTTP_MISSING_OPENAI_CREDS = "OpenAI credentials not found for the authenticated user."
 
 MSG_JOB_LIST_REQUESTED = (
     "[API] [ROUTE] [SCRAPE] List jobs requested: status={status}, limit={limit}, cursor={cursor}"

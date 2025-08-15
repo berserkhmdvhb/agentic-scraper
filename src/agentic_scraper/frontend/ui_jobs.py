@@ -14,13 +14,16 @@ Prereqs:
 from __future__ import annotations
 
 import json
+import time as _time
 from collections.abc import Iterable
 from typing import Any
 
 import httpx
 import streamlit as st
 from fastapi import status
+from streamlit_autorefresh import st_autorefresh
 
+from agentic_scraper.backend.config.constants import SESSION_KEYS
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED,
     MSG_ERROR_CANCEL_JOB,
@@ -38,8 +41,15 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.ui_auth_helpers import api_base, build_auth_headers
+from agentic_scraper.frontend.ui_display import display_results
+from agentic_scraper.frontend.ui_runner_helpers import (
+    parse_job_result,
+    render_job_error,
+    summarize_results,
+)
 
 settings = get_settings()
+_AUTO_REFRESH_SECONDS = 2
 
 
 # -------------------------
@@ -99,7 +109,6 @@ def fetch_jobs(
         st.error(MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED)
         return [], None
 
-    # Build query params safely (let httpx encode them)
     params: dict[str, str] = {}
     if status_filter and status_filter.lower() != "all":
         params["status_"] = status_filter.lower()
@@ -114,6 +123,12 @@ def fetch_jobs(
 
     try:
         resp = _get(url)
+        # Handle auth errors explicitly BEFORE raise_for_status
+        if resp.status_code == status.HTTP_401_UNAUTHORIZED:
+            if "jwt_token" in st.session_state:
+                del st.session_state["jwt_token"]
+            st.info(MSG_INFO_LOGIN_TO_VIEW_JOBS)
+            return [], None
         resp.raise_for_status()
     except httpx.HTTPStatusError as e:
         st.error(MSG_ERROR_LIST_JOBS.format(error=e.response.text))
@@ -136,28 +151,36 @@ def fetch_jobs(
 
 
 def fetch_job(job_id: str) -> dict[str, Any] | None:
+    """Fetch a single job by id. Returns the job dict or None on error/not-found."""
+    payload: dict[str, Any] | None = None
+
     base = api_base()
     if not base:
         st.error(MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED)
-        return None
+        return None  # If you want literally one return, see alternative below.
 
     try:
         resp = _get(f"{base}/scrapes/{job_id}")
-        if resp.status_code == status.HTTP_404_NOT_FOUND:
+        code = resp.status_code
+
+        if code == status.HTTP_404_NOT_FOUND:
             st.warning(MSG_WARNING_JOB_NOT_FOUND)
-            return None
-        if resp.status_code == status.HTTP_403_FORBIDDEN:
+        elif code == status.HTTP_403_FORBIDDEN:
             st.error(MSG_ERROR_FORBIDDEN_JOB_ACCESS)
-            return None
-        resp.raise_for_status()
+        elif code == status.HTTP_401_UNAUTHORIZED:
+            if "jwt_token" in st.session_state:
+                del st.session_state["jwt_token"]
+            st.info(MSG_INFO_LOGIN_TO_VIEW_JOBS)
+        else:
+            # Will raise for 4xx/5xx not handled above
+            resp.raise_for_status()
+            data = resp.json() or {}
+            payload = data if isinstance(data, dict) else {}
     except httpx.HTTPStatusError as e:
         st.error(MSG_ERROR_FETCH_JOB.format(error=e.response.text))
-        return None
     except httpx.RequestError as e:
         st.error(MSG_ERROR_FETCH_JOB_NETWORK.format(error=e))
-        return None
 
-    payload: dict[str, Any] = resp.json() or {}
     return payload
 
 
@@ -182,7 +205,6 @@ def cancel_job(job_id: str) -> bool:
         elif code == status.HTTP_403_FORBIDDEN:
             st.error(MSG_ERROR_FORBIDDEN_JOB_ACCESS)
         else:
-            # Unexpected status → show server message
             st.error(MSG_ERROR_CANCEL_JOB.format(error=_safe_message(resp)))
     except httpx.HTTPStatusError as e:
         st.error(MSG_ERROR_CANCEL_JOB.format(error=e.response.text))
@@ -292,15 +314,24 @@ def _render_job_detail(job: dict[str, Any]) -> None:
     if 0.0 <= progress <= 1.0:
         st.progress(progress, text=f"Progress: {int(progress * 100)}%")
 
-    if (job.get("status") or "").lower() == "succeeded":
-        stats = (job.get("result") or {}).get("stats") or {}
-        st.metric("✅ Success", stats.get("num_success", 0))
-        st.metric("⚠️ Failed", stats.get("num_failed", 0))
-        st.metric("⏱️ Duration (s)", stats.get("duration_sec", 0.0))
+    status_lower = (job.get("status") or "").lower()
+
+    if status_lower == "succeeded":
+        # Rich result summary using your helpers
+        items, skipped, duration = parse_job_result(job)
+        # summarize_results expects a start_time; synthesize from duration
+        fake_start = _time.perf_counter() - float(duration or 0.0)
+        summarize_results(items, skipped, fake_start)
         _result_download_button(job)
+        # Render the interactive table + downloads
+        screenshot_enabled = bool(st.session_state.get(SESSION_KEYS["screenshot_enabled"], False))
+        display_results(items, screenshot_enabled=screenshot_enabled)
+
+    elif status_lower in {"failed", "canceled"}:
+        render_job_error(job)
 
     # Cancel button for queued/running
-    if (str(job.get("status") or "")).lower() in {"queued", "running"} and st.button(
+    if status_lower in {"queued", "running"} and st.button(
         "🛑 Cancel Job", use_container_width=True
     ):
         job_id = job.get("id")
@@ -313,7 +344,65 @@ def _render_job_detail(job: dict[str, Any]) -> None:
 # -------------------------
 
 
-def render_jobs_tab() -> None:
+def _is_active(job: dict[str, Any]) -> bool:
+    """
+    Return True if a job is in an active state (queued or running).
+    """
+    status_lower = str(job.get("status") or "").lower()
+    return status_lower in {"queued", "running"}
+
+
+def _init_and_get_cursor(cursor_key: str = "jobs_cursor_stack") -> str | None:
+    if cursor_key not in st.session_state:
+        st.session_state[cursor_key] = []  # stack of cursors (for back navigation)
+    return st.session_state[cursor_key][-1] if st.session_state[cursor_key] else None
+
+
+def _count_active(items: list[dict[str, Any]]) -> int:
+    return sum((str(j.get("status") or "").lower() in {"queued", "running"}) for j in items)
+
+
+def _render_jobs_table(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+    rows: list[dict[str, Any]] = _build_rows(items)
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+    job_ids: list[str] = [str(r["id"]) for r in rows if r.get("id") is not None]
+    return rows, job_ids
+
+
+def _select_job(job_ids: list[str], preselect_job_id: str | None) -> str | None:
+    if not job_ids:
+        return None
+    default_index = job_ids.index(preselect_job_id) if preselect_job_id in job_ids else 0
+    return st.selectbox("Select a job", options=job_ids, index=default_index)
+
+
+def _maybe_list_autorefresh(items: list[dict[str, Any]], *, enabled: bool) -> None:
+    if enabled and any(_is_active(j) for j in items):
+        st_autorefresh(interval=_AUTO_REFRESH_SECONDS * 1000, key="jobs_list_auto_refresh")
+
+
+def _handle_selected_job(
+    selected_id: str | None,
+    *,
+    auto_refresh: bool,
+    manual_refresh_clicked: bool,
+) -> None:
+    if not selected_id:
+        return
+    job: dict[str, Any] | None = fetch_job(selected_id)
+    if job:
+        _render_job_detail(job)
+
+    if auto_refresh and not manual_refresh_clicked:
+        if job and _is_active(job):
+            st.caption(f"🔄 Auto-refreshing every {_AUTO_REFRESH_SECONDS} seconds…")
+            st_autorefresh(interval=_AUTO_REFRESH_SECONDS * 1000, key="jobs_auto_refresh")
+        else:
+            _time.sleep(_AUTO_REFRESH_SECONDS)
+            st.rerun()
+
+
+def render_jobs_tab(preselect_job_id: str | None = None) -> None:
     """Render the Jobs tab UI."""
     st.header("🧭 Jobs")
 
@@ -321,39 +410,25 @@ def render_jobs_tab() -> None:
         st.info(MSG_INFO_LOGIN_TO_VIEW_JOBS)
         return
 
-    status_filter, limit, auto_refresh, refresh = _render_filters()
+    status_filter, limit, auto_refresh, refresh_clicked = _render_filters()
 
-    # Pagination state
-    cursor_key = "jobs_cursor_stack"
-    if cursor_key not in st.session_state:
-        st.session_state[cursor_key] = []  # stack of cursors (for back navigation)
-
-    cursor = st.session_state[cursor_key][-1] if st.session_state[cursor_key] else None
-
-    # Fetch list
+    cursor = _init_and_get_cursor()
     items, next_cursor = fetch_jobs(status_filter, limit, cursor)
 
-    # Toolbar for pagination
-    _render_pagination_toolbar(cursor_key, cursor, next_cursor)
+    _maybe_list_autorefresh(items, enabled=auto_refresh)
+    _render_pagination_toolbar("jobs_cursor_stack", cursor, next_cursor)
 
-    # Jobs table
     if not items:
         st.info(MSG_INFO_NO_JOBS_FOUND)
         return
 
-    rows = _build_rows(items)
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    active_count = _count_active(items)
+    if active_count:
+        st.caption(f"🟦 Active jobs: {active_count}")
 
-    # Selection & actions
-    job_ids = [r["id"] for r in rows if r.get("id")]
-    selected_id = None
-    if job_ids:
-        selected_id = st.selectbox("Select a job", options=job_ids, index=0 if job_ids else None)
-    if selected_id:
-        job = fetch_job(selected_id)
-        if job:
-            _render_job_detail(job)
+    _, job_ids = _render_jobs_table(items)
+    selected_id = _select_job(job_ids, preselect_job_id)
 
-    # Auto-refresh logic
-    if auto_refresh and not refresh:
-        st.rerun()
+    _handle_selected_job(
+        selected_id, auto_refresh=auto_refresh, manual_refresh_clicked=refresh_clicked
+    )

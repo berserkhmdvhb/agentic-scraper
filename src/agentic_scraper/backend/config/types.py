@@ -61,3 +61,8 @@ class OpenAIConfig(BaseModel):
 
     api_key: str | None = None
     project_id: str | None = None
+
+
+class AllowedTab(str, Enum):
+    RUN = "Run"
+    JOBS = "Jobs"

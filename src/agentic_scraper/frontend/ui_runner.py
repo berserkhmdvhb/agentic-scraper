@@ -21,13 +21,10 @@ import httpx
 import streamlit as st
 from fastapi import status
 
-from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.config.constants import REQUIRED_CONFIG_FIELDS_FOR_LLM
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_CACHE_DECISION,
     MSG_DEBUG_JOB_ID_FROM_BODY,
     MSG_DEBUG_LLM_FIELDS_ATTACHED,
-    MSG_DEBUG_PIPELINE_INPUT,
     MSG_DEBUG_POLL_START,
     MSG_DEBUG_POLL_STATUS_CHANGE,
     MSG_DEBUG_REQUEST_PAYLOAD_KEYS,
@@ -49,24 +46,19 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_USER_NOT_AUTHENTICATED,
     MSG_INFO_CREATING_JOB_SPINNER,
     MSG_INFO_JOB_NOT_CANCELABLE,
+    MSG_INFO_LOGIN_TO_VIEW_JOBS,
     MSG_INFO_NO_VALID_URLS,
-    MSG_INFO_POLL_DONE_SUCCEEDED,
-    MSG_INFO_RUNNING_JOB_SPINNER,
-    MSG_INFO_USING_CACHE,
     MSG_WARNING_JOB_NOT_FOUND,
     MSG_WARNING_LLM_FIELDS_MISSING,
-    MSG_WARNING_POLL_DONE_FAILED,
     MSG_WARNING_POLL_TIMEOUT,
 )
 from agentic_scraper.backend.config.types import AgentMode
 from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.frontend.ui_auth_helpers import api_base
 from agentic_scraper.frontend.ui_runner_helpers import (
     attach_openai_config,
-    parse_job_result,
     render_invalid_url_section,
-    render_job_error,
     render_valid_url_feedback,
-    summarize_results,
     validate_and_deduplicate_urls,
 )
 
@@ -96,7 +88,7 @@ class BackendNoJobIdError(ValueError):
 # Internal helpers
 # -------------------------
 def _request_base_url() -> str:
-    return f"{settings.backend_domain}".rstrip("/")
+    return api_base()
 
 
 def _build_request_body(urls: list[str], config: PipelineConfig) -> dict[str, Any]:
@@ -219,7 +211,7 @@ async def create_scrape_job(
         MSG_DEBUG_SCRAPE_CONFIG_MERGED.format(config={k: body[k] for k in body if k != "urls"})
     )
     base = _request_base_url()
-    url = f"{base}/api/{api_version}/scrapes/"
+    url = f"{base}/scrapes/"
     logger.debug(MSG_DEBUG_REQUEST_TARGET.format(method="POST", url=url))
     async with httpx.AsyncClient(follow_redirects=True) as client:
         resp = await client.post(
@@ -265,7 +257,7 @@ async def poll_scrape_job(
     async with httpx.AsyncClient(follow_redirects=True) as client:
         while True:
             base = _request_base_url()
-            url = f"{base}/api/{api_version}/scrapes/{job_id}"
+            url = f"{base}/scrapes/{job_id}"
             resp = await client.get(
                 url,
                 headers=headers,
@@ -307,7 +299,7 @@ async def cancel_scrape_job(job_id: str) -> bool:
 
     try:
         base = _request_base_url()
-        url = f"{base}/api/{api_version}/scrapes/{job_id}"
+        url = f"{base}/scrapes/{job_id}"
         logger.debug(MSG_DEBUG_REQUEST_TARGET.format(method="DELETE", url=url))
         async with httpx.AsyncClient(follow_redirects=True) as client:
             resp = await client.delete(
@@ -333,76 +325,57 @@ async def cancel_scrape_job(job_id: str) -> bool:
 # -------------------------
 # Public entry point used by the UI
 # -------------------------
-def run_scraper_pipeline(
-    raw_input: str, config: PipelineConfig
-) -> tuple[list[dict[str, Any]], int]:
-    """
-    Validate URLs, create a scrape job, poll until completion, and render results.
 
-    Returns:
-        (items, skipped)
-    """
+
+# New: simple submit helper that only creates a job and returns its id
+def submit_scrape_job(raw_input: str, config: PipelineConfig) -> str | None:
     urls, invalid_lines = validate_and_deduplicate_urls(raw_input)
-    with suppress(Exception):
-        logger.debug(MSG_DEBUG_PIPELINE_INPUT.format(valid=len(urls), invalid=len(invalid_lines)))
     render_invalid_url_section(invalid_lines)
 
     if not urls:
         st.warning(MSG_INFO_NO_VALID_URLS)
-        return [], 0
+        return None
 
     render_valid_url_feedback(urls)
-
-    # Cache by URL list to avoid duplicate submissions in-session
-    key = tuple(sorted(urls))
-    if st.session_state.get("last_input_key") == key:
-        logger.debug(MSG_DEBUG_CACHE_DECISION.format(decision="HIT", key=key))
-        st.info(MSG_INFO_USING_CACHE)
-        return st.session_state.get("extracted_items", []), 0
-    logger.debug(MSG_DEBUG_CACHE_DECISION.format(decision="MISS", key=key))
-
-    start = time.perf_counter()
 
     try:
         with st.spinner(MSG_INFO_CREATING_JOB_SPINNER):
             job_id, _ = asyncio.run(create_scrape_job(urls, config))
-            logger.debug(MSG_DEBUG_JOB_ID_FROM_BODY.format(job_id=job_id))
-
-        # Simple live status indicator while polling
-        with st.spinner(MSG_INFO_RUNNING_JOB_SPINNER):
-            final_job = asyncio.run(poll_scrape_job(job_id))
-    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+    except httpx.HTTPStatusError as e:
+        resp = e.response
+        code = getattr(resp, "status_code", None)
+        # Mirror the friendly handling you use in ui_jobs.py
+        if code == status.HTTP_401_UNAUTHORIZED:
+            if "jwt_token" in st.session_state:
+                del st.session_state["jwt_token"]
+            st.info(MSG_INFO_LOGIN_TO_VIEW_JOBS)
+        elif code == status.HTTP_403_FORBIDDEN:
+            st.error(MSG_ERROR_FORBIDDEN_JOB_ACCESS)
+        else:
+            st.error(MSG_ERROR_CREATE_JOB.format(error=resp.text if resp is not None else e))
+        return None
+    except httpx.RequestError as e:
         st.error(MSG_ERROR_NETWORK_HTTP.format(error=e))
-        return [], 0
+        return None
     except (ValueError, RuntimeError) as e:
         st.error(MSG_ERROR_EXTRACTION_FAILED.format(error=e))
-        return [], 0
-    else:
-        status_ = (final_job.get("status") or "").lower()
-        if status_ == "succeeded":
-            items, skipped, _duration = parse_job_result(final_job)
-            with suppress(Exception):
-                logger.info(
-                    MSG_INFO_POLL_DONE_SUCCEEDED.format(
-                        job_id=final_job.get("id"), items=len(items), skipped=skipped
-                    )
-                )
+        return None
 
-            # Cache results
-            st.session_state["extracted_items"] = items
-            st.session_state["last_input_key"] = key
+    if job_id:
+        st.session_state["last_job_id"] = job_id
+        st.success("✅ Job started — monitor progress or cancel in the **Jobs** tab.")
+        return job_id
+    return None
 
-            summarize_results(items, skipped, start)
-            return items, skipped
 
-        # Failed or Canceled
-        with suppress(Exception):
-            logger.warning(
-                MSG_WARNING_POLL_DONE_FAILED.format(
-                    job_id=final_job.get("id"),
-                    status=status_,
-                    error=_truncate(str(final_job.get("error", ""))),
-                )
-            )
-        render_job_error(final_job)
-        return [], 0
+# Replace the existing definition entirely
+def run_scraper_pipeline(
+    raw_input: str, config: PipelineConfig
+) -> tuple[list[dict[str, Any]], int]:
+    """
+    Non-blocking: only submit a job and return immediately.
+    The Jobs tab is responsible for monitoring and displaying results.
+    """
+    submit_scrape_job(raw_input, config)
+    # We no longer return extracted items here; results are shown in Jobs.
+    return [], 0

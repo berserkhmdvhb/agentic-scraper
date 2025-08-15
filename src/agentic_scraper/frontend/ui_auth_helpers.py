@@ -13,15 +13,18 @@ UI-specific rendering (login/logout buttons, toasts) stays in `ui_auth.py`.
 from __future__ import annotations
 
 import logging
+import urllib.parse
 from collections.abc import Callable
 
 import httpx
 import streamlit as st
 from fastapi import status
-from httpx import HTTPStatusError, RequestError
 
 from agentic_scraper import __api_version__ as api_version
-from agentic_scraper.backend.config.constants import EXPECTED_JWT_PARTS
+from agentic_scraper.backend.config.constants import (
+    AUTH0_LOGOUT_PATH,
+    EXPECTED_JWT_PARTS,
+)
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_JWT_FROM_URL,
     MSG_ERROR_USER_NOT_AUTHENTICATED,
@@ -29,6 +32,9 @@ from agentic_scraper.backend.config.messages import (
     MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK,
     MSG_EXCEPTION_USER_PROFILE,
     MSG_EXCEPTION_USER_PROFILE_NETWORK,
+    MSG_INFO_AUTH0_FORCE_LOGIN_URI,
+    MSG_INFO_AUTH0_LOGIN_URI,
+    MSG_INFO_AUTH0_LOGOUT_URI,
     MSG_INFO_CREDENTIALS_SUCCESS,
     MSG_INFO_USER_PROFILE_SUCCESS,
     MSG_LOG_TOKEN_FROM_SESSION_STATE,
@@ -66,28 +72,51 @@ def api_base() -> str:
 
 def get_jwt_token_from_url_or_session() -> str | None:
     """
-    Extract a JWT from ?token=... or session state.
-    If found via URL, store it in session and clear query params.
+    Extract a JWT from the URL query (?token=...) or from Streamlit session state.
+
+    If a token is found in the URL, this function:
+      - Validates the basic JWT shape (header.payload.signature)
+      - Saves it to `st.session_state["jwt_token"]`
+      - Sets `st.session_state["auth_pending"] = True` so the UI can hide the login button
+      - Clears the query params to avoid re-processing on rerun
+
+    If no token is found in the URL, it falls back to `st.session_state["jwt_token"]`.
+
+    Returns:
+        str | None: The JWT string if found and well-formed; otherwise None.
     """
     token = st.query_params.get("token")
 
     if token:
         jwt_token = token[0] if isinstance(token, list) else token
+        if isinstance(jwt_token, str):
+            jwt_token = jwt_token.strip()
+
         if isinstance(jwt_token, str) and len(jwt_token.split(".")) == EXPECTED_JWT_PARTS:
+            st.session_state["auth_pending"] = True
             st.session_state["jwt_token"] = jwt_token
-            logger.debug(MSG_DEBUG_JWT_FROM_URL.format(token=jwt_token))
+            # Log a masked preview to avoid leaking the full token
+            preview = f"{jwt_token[:10]}…"
+            logger.debug(MSG_DEBUG_JWT_FROM_URL.format(token=preview))
             st.query_params.clear()
             return jwt_token
+
+        # Malformed token in URL
         logger.warning(MSG_WARNING_MALFORMED_JWT.format(token=jwt_token))
+        st.query_params.clear()
         st.warning("⚠️ Token format appears invalid. Login may fail.")
         return None
 
+    # Fallback - already in session
     token_from_session = st.session_state.get("jwt_token")
     if isinstance(token_from_session, str):
         logger.debug(MSG_LOG_TOKEN_FROM_SESSION_STATE)
+        st.session_state.pop("auth_pending", None)
         return token_from_session
 
+    # No token anywhere
     logger.warning(MSG_WARNING_NO_JWT_FOUND)
+    st.session_state.pop("auth_pending", None)
     return None
 
 
@@ -126,11 +155,11 @@ def fetch_user_profile(on_unauthorized: Callable[[], None] | None = None) -> Non
                 on_unauthorized()
             return
         resp.raise_for_status()
-    except HTTPStatusError as e:
+    except httpx.HTTPStatusError as e:
         logger.exception(MSG_EXCEPTION_USER_PROFILE.format(error=e.response.text))
         st.error(f"Failed to fetch user profile: {e.response.text}")
         return
-    except RequestError as e:
+    except httpx.RequestError as e:
         logger.exception(MSG_EXCEPTION_USER_PROFILE_NETWORK)
         st.error(f"Network error while fetching user profile: {e}")
         return
@@ -164,11 +193,11 @@ def fetch_openai_credentials(on_unauthorized: Callable[[], None] | None = None) 
                 on_unauthorized()
             return
         resp.raise_for_status()
-    except HTTPStatusError as e:
+    except httpx.HTTPStatusError as e:
         logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS.format(error=e.response.text))
         st.error(f"Failed to fetch OpenAI credentials: {e.response.text}")
         return
-    except RequestError as e:
+    except httpx.RequestError as e:
         logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK)
         st.error(f"Network error while fetching OpenAI credentials: {e}")
         return
@@ -180,3 +209,66 @@ def fetch_openai_credentials(on_unauthorized: Callable[[], None] | None = None) 
     )
     st.session_state["openai_credentials_preview"] = openai_config
     logger.info(MSG_INFO_CREDENTIALS_SUCCESS)
+
+
+# ---- Log in and log out helpers ----
+
+
+def build_login_url(scope_list: list[str] | None = None, *, force_prompt: bool = False) -> str:
+    """
+    Build an Auth0 /authorize URL using settings + provided scopes.
+    If force_prompt=True, adds prompt=login to require credentials even if SSO is active.
+    """
+    domain = settings.auth0_domain
+    audience = settings.auth0_api_audience  # already configured with trailing '/'
+    redirect_uri = ensure_https(settings.auth0_redirect_uri)
+    client_id = settings.auth0_client_id
+
+    # Ensure openid/profile/email are present and preserve caller's order for extras.
+    base_scopes = ["openid", "profile", "email"]
+    extras = scope_list or []
+    # Deduplicate while preserving order
+    scopes = list(dict.fromkeys([*base_scopes, *extras]))
+    scope = " ".join(scopes)
+
+    query = {
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": redirect_uri,
+        "audience": audience,
+        "scope": scope,
+    }
+    if force_prompt:
+        query["prompt"] = "login"
+
+    url = f"https://{domain}/authorize?{urllib.parse.urlencode(query)}"
+    if settings.is_verbose_mode:
+        # Pick the right message for forced vs normal login
+        msg = MSG_INFO_AUTH0_FORCE_LOGIN_URI if force_prompt else MSG_INFO_AUTH0_LOGIN_URI
+        logger.debug(msg.format(uri=url))
+    return url
+
+
+def build_force_login_url(scope_list: list[str] | None = None) -> str:
+    """Convenience wrapper for build_login_url(..., force_prompt=True)."""
+    return build_login_url(scope_list=scope_list, force_prompt=True)
+
+
+def build_logout_url(return_to: str | None = None, *, federated: bool = False) -> str:
+    """
+    Build an Auth0 /v2/logout URL. Make sure `return_to` is in Auth0 'Allowed Logout URLs'.
+    If federated=True, append federated=true to attempt IdP logout as well (if supported).
+    """
+    dest = return_to or settings.frontend_domain or settings.auth0_redirect_uri
+    client_id = settings.auth0_client_id
+    _return_to = ensure_https(dest)
+
+    base = (
+        f"https://{settings.auth0_domain}{AUTH0_LOGOUT_PATH}"
+        f"?client_id={urllib.parse.quote(client_id)}"
+        f"&returnTo={urllib.parse.quote(_return_to, safe='')}"
+    )
+    url = f"{base}&federated=true" if federated else base
+    if settings.is_verbose_mode:
+        logger.debug(MSG_INFO_AUTH0_LOGOUT_URI.format(uri=url))
+    return url
