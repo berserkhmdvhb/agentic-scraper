@@ -101,8 +101,27 @@ def login_ui(agent_mode: AgentMode) -> None:
             login_url = build_login_url(scope_list=scope_list)
             force_login_url = build_force_login_url(scope_list=scope_list)
 
-            st.link_button("🔐 Login with Auth0", login_url, use_container_width=True)
+            pending = bool(st.session_state.get("auth_pending"))
+
+            if pending:
+                st.info(MSG_UI_LOGGING_IN)  # e.g., "Logging you in…"
+                st.button("🔐 Login with Auth0", use_container_width=True, disabled=True)
+                # Don't render force re-auth while pending
+                return
+
+            clicked = st.button("🔐 Login with Auth0", use_container_width=True)
+            if clicked:
+                # Enter pending mode and redirect via meta refresh (same tab, no JS)
+                st.session_state["auth_pending"] = True
+                st.info(MSG_UI_LOGGING_IN)
+                st.markdown(
+                    f'<meta http-equiv="refresh" content="0; url={login_url}">',
+                    unsafe_allow_html=True,
+                )
+                st.stop()  # prevent any further rendering / double clicks in this frame
+
             st.caption(f"Need to switch accounts? [Force re-authentication]({force_login_url}).")
+
         else:
             user_info = st.session_state.get("user_info", {})
             st.markdown(f"Welcome, **{user_info.get('name', 'User')}**")
