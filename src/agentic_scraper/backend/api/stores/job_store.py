@@ -147,16 +147,9 @@ def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJobRecor
     """
     Update a job with the provided fields.
 
-    Common fields include:
-        - status (JobStatus or str convertible to JobStatus)
-        - progress (float 0..1)
-        - error (str | None)
-        - result (JobResult | None)
-        - updated_at (datetime)
-
-    Args:
-        job_id (str): The job identifier.
-        **fields: Arbitrary fields to update (validated by JobUpdateFields).
+    Guards:
+        - If the job is already in a terminal state (SUCCEEDED/FAILED/CANCELED),
+          ignore status/progress/result/error updates to prevent illegal transitions.
 
     Returns:
         ScrapeJobRecord | None: The updated job snapshot, or None if not found.
@@ -166,17 +159,30 @@ def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJobRecor
         if job is None:
             return None
 
-        # Coerce first so we always store a JobStatus
+        # Determine proposed status (if any), coercing to JobStatus early.
+        new_status: JobStatus | None = None
         if "status" in fields:
-            job["status"] = _coerce_status(fields["status"])
+            new_status = _coerce_status(fields["status"])
 
-        # Assign fields individually (mypy-friendly; avoid TypedDict.update)
+        # Hard terminal-state guard: once terminal, do not accept further mutations
+        # that change status/progress/result/error. (updated_at may still be set.)
+        terminal = {JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELED}
+        if job["status"] in terminal:
+            # Drop mutating fields silently; caller gets a snapshot back.
+            fields.pop("status", None)
+            fields.pop("progress", None)
+            fields.pop("result", None)
+            fields.pop("error", None)
+        # Only apply status if not terminal
+        elif new_status is not None:
+            job["status"] = new_status
+
+        # Assign fields individually (keep mypy-friendly and preserve deep copies)
         if "progress" in fields:
             job["progress"] = fields["progress"]
         if "error" in fields:
             job["error"] = fields["error"]
         if "result" in fields:
-            # Keep isolation from external mutations
             job["result"] = deepcopy(fields["result"])
 
         # Ensure updated_at is always refreshed unless explicitly provided

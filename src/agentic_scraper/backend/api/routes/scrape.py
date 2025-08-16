@@ -1,144 +1,75 @@
 import logging
-from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.auth.scope_helpers import check_required_scopes
 from agentic_scraper.backend.api.models import AuthUser, RequiredScopes
+from agentic_scraper.backend.api.routes.scrape_helpers import (
+    _finalize_failure,
+    _finalize_success_if_not_canceled,
+    _mark_running,
+    _merge_runtime_settings,
+    _resolve_openai_creds_or_fail,
+    _run_pipeline_and_build_result,
+)
 from agentic_scraper.backend.api.schemas.scrape import (
     ScrapeCreate,
     ScrapeJob,
     ScrapeList,
-    ScrapeResultDynamic,
-    ScrapeResultFixed,
 )
 from agentic_scraper.backend.api.stores.job_store import (
     cancel_job,
     create_job,
     get_job,
     list_jobs,
-    update_job,
 )
-from agentic_scraper.backend.api.stores.user_store import load_user_credentials
-from agentic_scraper.backend.config.constants import SCRAPER_CONFIG_FIELDS
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_SCRAPE_CONFIG_MERGED,
     MSG_ERROR_INVALID_JOB_STATUS,
     MSG_HTTP_FORBIDDEN_JOB_ACCESS,
     MSG_HTTP_JOB_NOT_CANCELABLE,
     MSG_HTTP_JOB_NOT_FOUND_DETAIL,
     MSG_HTTP_LOCATION_HEADER_SET,
-    MSG_HTTP_MISSING_OPENAI_CREDS,
-    MSG_INFO_INLINE_KEY_MASKED_FALLBACK,
     MSG_INFO_SCRAPE_REQUEST_RECEIVED,
     MSG_JOB_CANCEL_REQUESTED,
     MSG_JOB_CANCELED,
     MSG_JOB_CREATED,
-    MSG_JOB_FAILED,
     MSG_JOB_LIST_REQUESTED,
     MSG_JOB_NOT_FOUND,
-    MSG_JOB_STARTED,
-    MSG_JOB_SUCCEEDED,
-    MSG_LOG_DEBUG_DYNAMIC_EXTRAS,
-    MSG_LOG_DYNAMIC_EXTRAS_ERROR,
 )
 from agentic_scraper.backend.config.types import AgentMode, JobStatus
-from agentic_scraper.backend.core.settings import get_settings
-from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
 router = APIRouter(prefix="/scrapes", tags=["Scrape"])
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
-
-
-def _masked(s: str | None) -> bool:
-    if not s:
-        return False
-    return any(ch in s for ch in ("*", "•", "●", "·"))
 
 
 async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser) -> None:
     """Background job runner that executes the pipeline and updates job state."""
     try:
-        update_job(job_id, status="running", updated_at=datetime.now(timezone.utc))
-        logger.info(MSG_JOB_STARTED.format(job_id=job_id))
+        _mark_running(job_id)
 
-        # Resolve OpenAI creds (if agent requires them)
-        inline = payload.openai_credentials
-        if inline and _masked(getattr(inline, "api_key", None)):
-            logger.info(MSG_INFO_INLINE_KEY_MASKED_FALLBACK)
-            inline = None
-        needs_llm = payload.agent_mode != AgentMode.RULE_BASED
-        creds = inline or load_user_credentials(user["sub"])
-        if needs_llm and not creds:
-            # Fail early if creds are missing for LLM modes
-            update_job(
-                job_id,
-                status="failed",
-                error=MSG_HTTP_MISSING_OPENAI_CREDS,
-                progress=0.0,
-                updated_at=datetime.now(timezone.utc),
-            )
-            logger.error(MSG_JOB_FAILED.format(job_id=job_id, error=MSG_HTTP_MISSING_OPENAI_CREDS))
+        creds = _resolve_openai_creds_or_fail(job_id, payload, user)
+        # If LLM is required and creds were missing, the helper already failed the job.
+        if payload.agent_mode != AgentMode.RULE_BASED and creds is None:
             return
 
-        # Merge runtime settings from request
-        config_values = payload.model_dump(include=set(SCRAPER_CONFIG_FIELDS))
-        merged_settings = settings.model_copy(update=config_values)
-        logger.debug(MSG_DEBUG_SCRAPE_CONFIG_MERGED.format(config=config_values))
+        merged_settings = _merge_runtime_settings(payload)
 
-        # Execute pipeline
-        urls = [str(u) for u in payload.urls]
-        items, stats = await scrape_with_stats(urls, settings=merged_settings, openai=creds)
-        result_model: ScrapeResultDynamic | ScrapeResultFixed
-        # Persist final result
-        if payload.agent_mode in {AgentMode.LLM_FIXED, AgentMode.RULE_BASED}:
-            result_model = ScrapeResultFixed.from_internal(items, stats)
-        else:
-            # Dynamic mode keeps extra fields
-            result_model = ScrapeResultDynamic.from_internal(items, stats)
-
-        # DEBUG: check if dynamic extras made it into the result payload
-        try:
-            items_list: list[Any] = getattr(result_model, "items", [])
-            first: dict[str, Any] = {}
-            if items_list:
-                first_item = items_list[0]
-                if hasattr(first_item, "model_dump"):
-                    first = first_item.model_dump()
-                elif isinstance(first_item, dict):
-                    first = first_item
-            logger.debug(
-                MSG_LOG_DEBUG_DYNAMIC_EXTRAS.format(
-                    agent_mode=payload.agent_mode,
-                    keys=sorted(first.keys()),
-                )
-            )
-        except (AttributeError, IndexError, TypeError, ValueError) as e:
-            logger.debug(MSG_LOG_DYNAMIC_EXTRAS_ERROR.format(error=e))
-
-        update_job(
-            job_id,
-            status="succeeded",
-            result=result_model.model_dump(),
-            progress=1.0,
-            updated_at=datetime.now(timezone.utc),
+        result_model = await _run_pipeline_and_build_result(
+            payload=payload,
+            merged_settings=merged_settings,
+            creds=creds,
         )
-        logger.info(MSG_JOB_SUCCEEDED.format(job_id=job_id))
 
-    except Exception as e:
-        update_job(
-            job_id,
-            status="failed",
-            error=str(e),
-            progress=0.0,
-            updated_at=datetime.now(timezone.utc),
-        )
-        logger.exception(MSG_JOB_FAILED.format(job_id=job_id))
+        _finalize_success_if_not_canceled(job_id, result_model)
+
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as e:  # noqa: BLE001
+        _finalize_failure(job_id, e)
 
 
 @router.post(
