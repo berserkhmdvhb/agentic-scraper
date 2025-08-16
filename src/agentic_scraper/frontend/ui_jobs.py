@@ -243,21 +243,26 @@ def _status_badge(status_: str) -> str:
     )
 
 
-def _result_download_button(job: dict[str, Any]) -> None:
+def _job_package_download_button(job: dict[str, Any]) -> None:
+    """Download the full job payload (metadata + stats + raw results)."""
     if (job.get("status") or "").lower() != "succeeded":
         return
-    result = job.get("result") or {}
     try:
-        json_str = json.dumps(result, indent=2)
+        # Export the entire backend payload for this job
+        payload_str = json.dumps(job, indent=2)
     except (TypeError, ValueError):
         return
-    st.download_button(
-        "⬇️ Download result JSON",
-        data=json_str,
-        file_name=f"scrape_{job.get('id', 'job')}.json",
-        mime="application/json",
-        use_container_width=True,
-    )
+    # Put the button in a right-aligned column so it doesn't look like a wide primary CTA
+    _, right = st.columns([3, 1])
+    with right:
+        st.download_button(
+            "⬇️ Download job package (JSON)",
+            data=payload_str,
+            file_name=f"scrape_{job.get('id', 'job')}.job.json",
+            mime="application/json",
+            help="Full payload including job metadata, stats, and raw results.",
+            use_container_width=True,
+        )
 
 
 def _build_rows(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -311,21 +316,42 @@ def _render_job_detail(job: dict[str, Any]) -> None:
     st.markdown(f"Status: {_status_badge(job.get('status', ''))}", unsafe_allow_html=True)
 
     progress = float(job.get("progress", 0.0) or 0.0)
-    if 0.0 <= progress <= 1.0:
+    if (job.get("status") or "").lower() in {"queued", "running"} and 0.0 <= progress <= 1.0:
         st.progress(progress, text=f"Progress: {int(progress * 100)}%")
 
     status_lower = (job.get("status") or "").lower()
 
     if status_lower == "succeeded":
-        # Rich result summary using your helpers
-        items, skipped, duration = parse_job_result(job)
-        # summarize_results expects a start_time; synthesize from duration
-        fake_start = _time.perf_counter() - float(duration or 0.0)
-        summarize_results(items, skipped, fake_start)
-        _result_download_button(job)
-        # Render the interactive table + downloads
-        screenshot_enabled = bool(st.session_state.get(SESSION_KEYS["screenshot_enabled"], False))
-        display_results(items, screenshot_enabled=screenshot_enabled)
+        # Split success view into tabs to reduce vertical sprawl
+        tab_overview, tab_results = st.tabs(["Overview", "Results"])
+
+        with tab_overview:
+            items, skipped, duration = parse_job_result(job)
+            fake_start = _time.perf_counter() - float(duration or 0.0)
+            summarize_results(items, skipped, fake_start)
+            # Smaller, scoped download: the full job payload
+            _job_package_download_button(job)
+            st.caption(
+                "Includes job metadata, stats, and raw results. "
+                "For table-only exports, see the Results tab."
+            )
+
+            # Optional quick peek at extracted URLs (collapsed by default)
+            if items:
+                with st.expander("🔗 Quick view: URLs only", expanded=False):
+                    for it in items:
+                        url = it.get("url") if isinstance(it, dict) else getattr(it, "url", None)
+                        if url:
+                            st.write(f"- [{url}]({url})")
+
+        with tab_results:
+            screenshot_enabled = bool(
+                st.session_state.get(SESSION_KEYS["screenshot_enabled"], False)
+            )
+            # Pass job_id so the table export filenames can include it
+            display_results(
+                items, job_id=str(job.get("id", "")), screenshot_enabled=screenshot_enabled
+            )
 
     elif status_lower in {"failed", "canceled"}:
         render_job_error(job)
