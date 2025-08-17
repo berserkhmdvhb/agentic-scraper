@@ -11,8 +11,10 @@ import asyncio
 import logging
 from collections import deque
 from collections.abc import Callable
+from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
+from agentic_scraper.backend.api.stores import job_store
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_POOL_ENQUEUED_URL,
     MSG_DEBUG_WORKER_CREATED_REQUEST,
@@ -27,6 +29,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_PROGRESS_CALLBACK_FAILED,
     MSG_WARNING_WORKER_FAILED_SHORT,
 )
+from agentic_scraper.backend.config.types import JobStatus
 
 if TYPE_CHECKING:
     from agentic_scraper.backend.config.aliases import ScrapeInput
@@ -49,20 +52,6 @@ logger = logging.getLogger(__name__)
 # ───────────────────────────
 
 
-def _safe_should_cancel(should_cancel: Callable[[], bool] | None) -> bool:
-    """
-    Safely evaluate a user-supplied cancel predicate.
-    Any exception is logged at debug and treated as "not canceled".
-    """
-    if not should_cancel:
-        return False
-    try:
-        return bool(should_cancel())
-    except Exception as e:  # noqa: BLE001 - user predicate may raise arbitrary exceptions
-        logger.debug("should_cancel predicate raised: %r", e)
-        return False
-
-
 def early_cancel_or_raise(cancel_event: asyncio.Event | None) -> None:
     """Raise CancelledError if the cancel_event is set (legacy signature)."""
     if cancel_event and cancel_event.is_set():
@@ -79,8 +68,27 @@ def early_cancel_or_raise_ext(
     """
     if cancel_event and cancel_event.is_set():
         raise asyncio.CancelledError
-    if _safe_should_cancel(should_cancel):
+    if should_cancel is not None and should_cancel():
         raise asyncio.CancelledError
+
+
+def composite_should_cancel_factory(
+    *,
+    should_cancel: Callable[[], bool] | None,
+    job_id: str | None,
+) -> Callable[[], bool]:
+    """Compose cancellation sources without broad exception handling."""
+
+    def _fn() -> bool:
+        if should_cancel is not None and should_cancel():
+            return True
+        if job_id:
+            snap = job_store.get_job(job_id)  # in-memory; should not raise
+            if snap and snap.get("status", "") == JobStatus.CANCELED:
+                return True
+        return False
+
+    return _fn
 
 
 # ───────────────────────────
@@ -207,6 +215,40 @@ def call_progress_callback(
         logger.warning(MSG_WARNING_PROGRESS_CALLBACK_FAILED.format(error=error))
 
 
+def emit_initial_progress(
+    *,
+    total: int,
+    on_progress: Callable[[int, int], None] | None,
+    cancel_event: asyncio.Event | None,
+    should_cancel: Callable[[], bool] | None,
+) -> None:
+    """Fire a 0/total progress tick unless already canceled."""
+    if not on_progress:
+        return
+    event_canceled = bool(cancel_event and cancel_event.is_set())
+    manual_canceled = bool(should_cancel is not None and should_cancel())
+    if not event_canceled and not manual_canceled:
+        with suppress(Exception):
+            on_progress(0, total)
+
+
+def finalize_progress(
+    *,
+    total: int,
+    on_progress: Callable[[int, int], None] | None,
+    cancel_event: asyncio.Event | None,
+    should_cancel: Callable[[], bool] | None,
+) -> None:
+    """Fire a total/total progress tick unless canceled."""
+    if not on_progress:
+        return
+    event_canceled = bool(cancel_event and cancel_event.is_set())
+    manual_canceled = bool(should_cancel is not None and should_cancel())
+    if not event_canceled and not manual_canceled:
+        with suppress(Exception):
+            on_progress(total, total)
+
+
 # ───────────────────────────
 # Ordering helpers
 # ───────────────────────────
@@ -300,7 +342,7 @@ async def _poll_cancel_predicate(
 ) -> None:
     """Periodically poll a cancel predicate; return when it indicates cancel."""
     while True:
-        if _safe_should_cancel(should_cancel):
+        if should_cancel is not None and should_cancel():
             return
         await asyncio.sleep(interval_sec)
 

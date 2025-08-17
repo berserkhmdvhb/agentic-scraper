@@ -15,7 +15,6 @@ from agentic_scraper.backend.api.routes.scrape_cancel_registry import (
 )
 from agentic_scraper.backend.api.routes.scrape_helpers import (
     _finalize_failure,
-    _finalize_success_if_not_canceled,
     _mark_running,
     _merge_runtime_settings,
     _resolve_openai_creds_or_fail,
@@ -44,6 +43,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_JOB_CREATED,
     MSG_JOB_LIST_REQUESTED,
     MSG_JOB_NOT_FOUND,
+    MSG_JOB_ROUTE_FAILED,
 )
 from agentic_scraper.backend.config.types import AgentMode, JobStatus
 
@@ -69,7 +69,8 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
         2) Short-circuit if already CANCELED.
         3) Resolve creds (fail job if missing for LLM modes).
         4) Merge runtime settings and run pipeline with cancel awareness.
-        5) Finalize SUCCEEDED only if not canceled.
+        5) Finalization is handled inside the pipeline (SUCCEEDED/FAILED). It
+           also respects CANCELED and will not overwrite.
         6) Always cleanup the cancel registry entry.
     """
     try:
@@ -96,12 +97,14 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
             job_id=job_id,
         )
 
-        if not was_canceled:
-            _finalize_success_if_not_canceled(job_id, result_model)
+        # Pipeline already finalized SUCCEEDED and respected CANCELED.
+        # We keep result_model/was_canceled for potential future hooks/logging.
 
     except (KeyboardInterrupt, SystemExit):
         raise
-    except Exception as e:  # noqa: BLE001 - catch-all to ensure job is finalized as FAILED
+    except Exception as e:
+        logger.exception(MSG_JOB_ROUTE_FAILED.format(job_id=job_id))
+        # Belt-and-suspenders: mark FAILED unless already terminal.
         _finalize_failure(job_id, e)
     finally:
         cleanup(job_id)
@@ -248,7 +251,7 @@ async def cancel_scrape_job(job_id: str, user: CurrentUser) -> Response:
     if not ok:
         # Not cancelable (already finished or already canceled)
         current_status = job.get("status")
-        if str(current_status).lower() == "canceled":
+        if current_status == JobStatus.CANCELED:
             # Idempotent: already canceled → 204
             set_canceled(job_id)  # ensure any waiting workers wake up
             return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -14,8 +14,9 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Coroutine
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import httpx
 import streamlit as st
@@ -32,6 +33,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_RESPONSE_BODY_COMPACT,
     MSG_DEBUG_RESPONSE_META,
     MSG_DEBUG_SCRAPE_CONFIG_MERGED,
+    MSG_ERROR_BACKEND_BASE_URL_NOT_CONFIGURED,
     MSG_ERROR_BACKEND_NO_JOB_ID,
     MSG_ERROR_CREATE_JOB,
     MSG_ERROR_EXTRACTION_FAILED,
@@ -67,6 +69,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _LOG_TRUNCATE = 500
+_T = TypeVar("_T")
 
 
 def _truncate(s: str, n: int = _LOG_TRUNCATE) -> str:
@@ -86,7 +89,12 @@ class BackendNoJobIdError(ValueError):
 # Internal helpers
 # -------------------------
 def _request_base_url() -> str:
-    return api_base()
+    base = api_base()
+    if not base:
+        # reuse a general backend-missing msg if you have one for base URL
+        logger.error(MSG_ERROR_BACKEND_NO_JOB_ID)
+        raise RuntimeError(MSG_ERROR_BACKEND_BASE_URL_NOT_CONFIGURED)
+    return base
 
 
 def _build_request_body(urls: list[str], config: PipelineConfig) -> dict[str, Any]:
@@ -323,6 +331,14 @@ async def cancel_scrape_job(job_id: str) -> bool:
 # -------------------------
 # Public entry point used by the UI
 # -------------------------
+def _run_async(coro: Coroutine[Any, Any, _T]) -> _T:
+    """Run an async coroutine safely even if an event loop exists."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    else:
+        return loop.run_until_complete(coro)
 
 
 # New: simple submit helper that only creates a job and returns its id
@@ -338,7 +354,7 @@ def submit_scrape_job(raw_input: str, config: PipelineConfig) -> str | None:
 
     try:
         with st.spinner(MSG_INFO_CREATING_JOB_SPINNER):
-            job_id, _ = asyncio.run(create_scrape_job(urls, config))
+            job_id, _ = _run_async(create_scrape_job(urls, config))
     except httpx.HTTPStatusError as e:
         resp = e.response
         code = getattr(resp, "status_code", None)
