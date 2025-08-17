@@ -13,6 +13,8 @@ Returns a `SidebarConfig` object with user-selected values to control scraping b
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from agentic_scraper.backend.config.constants import SESSION_KEYS, VALID_MODEL_OPTIONS
@@ -86,8 +88,14 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
 
 def _render_env_and_login(settings: Settings, agent_mode: AgentMode) -> None:
     """Display environment info, log path, and authentication UI (if needed)."""
-    st.markdown(f"**Environment:** `{get_environment()}`")
-    st.markdown(f"**Log Path:** `{get_log_dir() / 'agentic_scraper.log'}`")
+
+    @st.cache_resource
+    def _env_info() -> tuple[str, Path]:
+        return get_environment(), get_log_dir()
+
+    env, log_dir = _env_info()
+    st.markdown(f"**Environment:** `{env}`")
+    st.markdown(f"**Log Path:** `{log_dir / 'agentic_scraper.log'}`")
     # Optionally surface domains if available in settings
     if getattr(settings, "frontend_domain", None):
         st.markdown(f"**Frontend:** `{settings.frontend_domain}`")

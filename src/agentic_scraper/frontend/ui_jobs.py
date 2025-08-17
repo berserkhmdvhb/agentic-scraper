@@ -57,8 +57,9 @@ _AUTO_REFRESH_SECONDS = 2
 # -------------------------
 
 
-def _get(url: str, *, timeout: int = 30) -> httpx.Response:
-    headers = build_auth_headers()
+@st.cache_data(ttl=2, show_spinner=False)
+def _get_cached(url: str, jwt: str, *, timeout: int = 30) -> httpx.Response:
+    headers = {"Authorization": f"Bearer {jwt}"}
     with httpx.Client() as client:
         return client.get(url, headers=headers, timeout=timeout)
 
@@ -108,6 +109,7 @@ def fetch_jobs(
     if not base:
         st.error(MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED)
         return [], None
+    jwt = st.session_state.get("jwt_token", "")
 
     params: dict[str, str] = {}
     if status_filter and status_filter.lower() != "all":
@@ -122,7 +124,7 @@ def fetch_jobs(
         url = f"{url}?{query_str}"
 
     try:
-        resp = _get(url)
+        resp = _get_cached(url, jwt)
         # Handle auth errors explicitly BEFORE raise_for_status
         if resp.status_code == status.HTTP_401_UNAUTHORIZED:
             if "jwt_token" in st.session_state:
@@ -158,9 +160,9 @@ def fetch_job(job_id: str) -> dict[str, Any] | None:
     if not base:
         st.error(MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED)
         return None  # If you want literally one return, see alternative below.
-
+    jwt = st.session_state.get("jwt_token", "")
     try:
-        resp = _get(f"{base}/scrapes/{job_id}")
+        resp = _get_cached(f"{base}/scrapes/{job_id}", jwt)
         code = resp.status_code
 
         if code == status.HTTP_404_NOT_FOUND:
