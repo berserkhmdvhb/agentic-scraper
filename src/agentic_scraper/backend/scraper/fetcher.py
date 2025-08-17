@@ -61,7 +61,7 @@ def _is_canceled(
         return True
     if should_cancel:
         try:
-            return bool(should_cancel() is not None)
+            return bool(should_cancel())
         except Exception as e:  # noqa: BLE001
             # Fail-open: log but default to not canceled
             logger.debug("should_cancel() raised %r, ignoring", e)

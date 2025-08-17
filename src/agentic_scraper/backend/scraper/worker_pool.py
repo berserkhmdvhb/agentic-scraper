@@ -25,7 +25,6 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from agentic_scraper.backend.api.stores import job_store
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_POOL_CANCELLING_WORKERS,
     MSG_DEBUG_POOL_DONE,
@@ -33,7 +32,6 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_WORKER_CANCELLED,
     MSG_INFO_WORKER_POOL_START,
 )
-from agentic_scraper.backend.config.types import JobStatus
 from agentic_scraper.backend.scraper.agents import extract_structured_data
 from agentic_scraper.backend.scraper.models import (
     ScrapeRequest,
@@ -44,10 +42,7 @@ from agentic_scraper.backend.scraper.worker_pool_helpers import (
     _prepare_queue_and_ordering,
     build_request,
     call_progress_callback,
-    composite_should_cancel_factory,
     dequeue_next,
-    emit_initial_progress,
-    finalize_progress,
     handle_failure,
     handle_success_item,
     log_progress_verbose,
@@ -77,7 +72,6 @@ class _WorkerContext:
     total_inputs: int
     processed_count: int = 0
     processed_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    job_id: str | None = None
     openai: OpenAIConfig | None = None
     on_item_processed: OnSuccessCallback | None = None
     on_error: OnErrorCallback | None = None
@@ -88,15 +82,6 @@ class _WorkerContext:
     ordered_results: list[ScrapedItem | None] | None = None
     url_to_indices: dict[str, deque[int]] | None = None
     order_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-
-@dataclass
-class _RuntimeOpts:
-    """Runtime-only options (kept separate to reduce function arg count)."""
-
-    cancel_event: asyncio.Event | None = None
-    should_cancel: Callable[[], bool] | None = None
-    job_id: str | None = None
 
 
 logger = logging.getLogger(__name__)
@@ -146,7 +131,6 @@ async def worker(
                     )
                 else:
                     item = await extract_structured_data(request, settings=context.settings)
-
                 # Bail quickly if cancellation was signaled during extraction
                 early_cancel_or_raise(context.cancel_event, context.should_cancel)
 
@@ -179,11 +163,6 @@ async def worker(
                 # 2) Update processed counter (atomic-ish via lock in asyncio context).
                 async with context.processed_lock:
                     context.processed_count += 1
-                    # Emit fractional progress to job store.
-                    if context.job_id:
-                        total = max(1, context.total_inputs)
-                        prog = min(1.0, max(0.0, context.processed_count / total))
-                        job_store.update_job(context.job_id, progress=prog)
 
                 # 3) Verbose progress log (safe to call directly).
                 log_progress_verbose(
@@ -205,39 +184,39 @@ async def run_worker_pool(
     *,
     settings: Settings,
     config: WorkerPoolConfig,
-    runtime: _RuntimeOpts | None = None,
+    cancel_event: asyncio.Event | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[ScrapedItem]:
     """
     Launch and manage a pool of workers to process scraping inputs concurrently.
     """
-    if runtime is None:
-        runtime = _RuntimeOpts()
-
     start_t = time.perf_counter()
     total = len(inputs)
 
     # Early exit: nothing to do
     if total == 0:
-        emit_initial_progress(
-            total=0,
-            on_progress=config.on_progress,
-            cancel_event=runtime.cancel_event,
-            should_cancel=config.should_cancel,
-        )
+        sc = config.should_cancel or should_cancel
+
+        cb = config.on_progress
+        event_canceled = cancel_event and cancel_event.is_set()
+        manual_canceled = sc and sc()
+
+        if cb is not None and not event_canceled and not manual_canceled:
+            with suppress(Exception):
+                cb(0, 0)
         return []
 
-    # Initial progress for UIs (0 / total). Do not force 100% when canceled.
-    emit_initial_progress(
-        total=total,
-        on_progress=config.on_progress,
-        cancel_event=runtime.cancel_event,
-        should_cancel=config.should_cancel,
-    )
+    # Initial progress for UIs
+    # Do not force 100% when canceled; keep last honest counts
+    sc = config.should_cancel or should_cancel
 
-    # Mark job as RUNNING at pool start (best-effort).
-    if runtime.job_id:
+    cb = config.on_progress
+    event_canceled = cancel_event and cancel_event.is_set()
+    manual_canceled = sc and sc()
+
+    if cb is not None and not event_canceled and not manual_canceled:
         with suppress(Exception):
-            job_store.update_job(runtime.job_id, status=JobStatus.RUNNING, progress=0.0)
+            cb(0, total)
 
     # Prepare queue, results, and ordering structures
     (
@@ -253,23 +232,16 @@ async def run_worker_pool(
     # Cap worker count to available work (at least 1)
     worker_count = min(config.concurrency, max(1, total))
 
-    # Compose a cancel check that respects job-store CANCELED and external signals
-    composed_should_cancel = composite_should_cancel_factory(
-        should_cancel=config.should_cancel,
-        job_id=runtime.job_id,
-    )
-
     context = _WorkerContext(
         settings=settings,
         take_screenshot=config.take_screenshot,
         total_inputs=total,
-        job_id=runtime.job_id,
         openai=config.openai,
         on_item_processed=config.on_item_processed,
         on_error=config.on_error,
         on_progress=config.on_progress,
-        cancel_event=runtime.cancel_event,
-        should_cancel=composed_should_cancel,
+        cancel_event=cancel_event,
+        should_cancel=config.should_cancel or should_cancel,
         preserve_order=config.preserve_order,
         ordered_results=ordered_results,
         url_to_indices=url_to_indices,
@@ -291,23 +263,22 @@ async def run_worker_pool(
     logger.debug(MSG_DEBUG_POOL_SPAWNED_WORKERS.format(count=len(workers)))
 
     try:
-        await _await_join_with_optional_cancel(
-            queue,
-            runtime.cancel_event,
-            should_cancel=composed_should_cancel,
-        )
+        await _await_join_with_optional_cancel(queue, cancel_event)
     finally:
         logger.debug(MSG_DEBUG_POOL_CANCELLING_WORKERS)
         for w in workers:
             w.cancel()
         await asyncio.gather(*workers, return_exceptions=True)
 
-    finalize_progress(
-        total=total,
-        on_progress=config.on_progress,
-        cancel_event=runtime.cancel_event,
-        should_cancel=config.should_cancel,
-    )
+    sc = config.should_cancel or should_cancel
+
+    cb = config.on_progress
+    event_canceled = cancel_event and cancel_event.is_set()
+    manual_canceled = sc and sc()
+
+    if cb is not None and not event_canceled and not manual_canceled:
+        with suppress(Exception):
+            cb(total, total)
 
     elapsed = time.perf_counter() - start_t
     if config.preserve_order and context.ordered_results is not None:

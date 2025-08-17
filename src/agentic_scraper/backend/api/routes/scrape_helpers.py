@@ -12,7 +12,6 @@ from agentic_scraper.backend.api.stores.job_store import get_job, update_job
 from agentic_scraper.backend.api.stores.user_store import load_user_credentials
 from agentic_scraper.backend.config.constants import SCRAPER_CONFIG_FIELDS
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_FINALIZE_SUCCESS_SKIPPED,
     MSG_DEBUG_SCRAPE_CONFIG_MERGED,
     MSG_HTTP_MISSING_OPENAI_CREDS,
     MSG_INFO_INLINE_KEY_MASKED_FALLBACK,
@@ -20,10 +19,11 @@ from agentic_scraper.backend.config.messages import (
     MSG_JOB_SKIP_MARK_FAILED_TERMINAL,
     MSG_JOB_SKIP_MARK_RUNNING_TERMINAL,
     MSG_JOB_STARTED,
+    MSG_JOB_SUCCEEDED,
     MSG_LOG_DEBUG_DYNAMIC_EXTRAS,
     MSG_LOG_DYNAMIC_EXTRAS_ERROR,
 )
-from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIConfig
+from agentic_scraper.backend.config.types import AgentMode, OpenAIConfig
 from agentic_scraper.backend.core.settings import Settings, get_settings
 from agentic_scraper.backend.scraper.pipeline import PipelineOptions, scrape_with_stats
 
@@ -42,11 +42,11 @@ def _mark_running(job_id: str) -> None:
     current = get_job(job_id)
     if not current:
         return
-    status_val = current.get("status")
-    if status_val in {JobStatus.CANCELED, JobStatus.SUCCEEDED, JobStatus.FAILED}:
-        logger.debug(MSG_JOB_SKIP_MARK_RUNNING_TERMINAL.format(job_id=job_id, status=status_val))
+    status_lower = str(current.get("status", "")).lower()
+    if status_lower in {"canceled", "succeeded", "failed"}:
+        logger.debug(MSG_JOB_SKIP_MARK_RUNNING_TERMINAL.format(job_id=job_id, status=status_lower))
         return
-    update_job(job_id, status=JobStatus.RUNNING, updated_at=datetime.now(timezone.utc))
+    update_job(job_id, status="running", updated_at=datetime.now(timezone.utc))
     logger.info(MSG_JOB_STARTED.format(job_id=job_id))
 
 
@@ -72,7 +72,7 @@ def _resolve_openai_creds_or_fail(
     if needs_llm and not creds:
         update_job(
             job_id,
-            status=JobStatus.FAILED,
+            status="failed",
             error=MSG_HTTP_MISSING_OPENAI_CREDS,
             progress=0.0,
             updated_at=datetime.now(timezone.utc),
@@ -110,7 +110,7 @@ async def _run_pipeline_and_build_result(
         # Fallback: rely on cancel_event if job lookup isn't available
         if j is None:
             return bool(cancel_event and cancel_event.is_set())
-        return j.get("status") == JobStatus.CANCELED
+        return str(j.get("status", "")).lower() == "canceled"
 
     items, stats = await scrape_with_stats(
         urls,
@@ -120,7 +120,6 @@ async def _run_pipeline_and_build_result(
             cancel_event=cancel_event,
             should_cancel=_should_cancel,
             job_hooks=None,
-            job_id=job_id,
         ),
     )
 
@@ -162,12 +161,28 @@ def _debug_log_dynamic_extras(
 
 def _finalize_success_if_not_canceled(
     job_id: str,
+    result_model: ScrapeResultDynamic | ScrapeResultFixed,
 ) -> None:
     """
-    No-op: finalization moved to the pipeline (which also respects CANCELED).
-    Kept for backward compatibility.
+    Write SUCCEEDED only if the job hasn't been canceled/finished meanwhile.
+    This prevents overwriting a CANCELED job.
     """
-    logger.debug(MSG_DEBUG_FINALIZE_SUCCESS_SKIPPED.format(job_id=job_id))
+    current = get_job(job_id)
+    if not current:
+        return
+    status_lower = str(current.get("status", "")).lower()
+    if status_lower in {"canceled", "succeeded", "failed"}:
+        # Respect terminal state; do not overwrite
+        return
+
+    update_job(
+        job_id,
+        status="succeeded",
+        result=result_model.model_dump(),
+        progress=1.0,
+        updated_at=datetime.now(timezone.utc),
+    )
+    logger.info(MSG_JOB_SUCCEEDED.format(job_id=job_id))
 
 
 def _finalize_failure(job_id: str, e: Exception) -> None:
@@ -175,14 +190,14 @@ def _finalize_failure(job_id: str, e: Exception) -> None:
     current = get_job(job_id)
     if not current:
         return
-    status_val = current.get("status")
-    if status_val in {JobStatus.CANCELED, JobStatus.SUCCEEDED, JobStatus.FAILED}:
-        logger.debug(MSG_JOB_SKIP_MARK_FAILED_TERMINAL.format(job_id=job_id, status=status_val))
+    status_lower = str(current.get("status", "")).lower()
+    if status_lower in {"canceled", "succeeded", "failed"}:
+        logger.debug(MSG_JOB_SKIP_MARK_FAILED_TERMINAL.format(job_id=job_id, status=status_lower))
         return
     # Preserve last progress on failure; don't force to 0.0
     update_job(
         job_id,
-        status=JobStatus.FAILED,
+        status="failed",
         error=str(e),
         updated_at=datetime.now(timezone.utc),
     )

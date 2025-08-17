@@ -109,9 +109,6 @@ MSG_DEBUG_PIPELINE_INPUT = UI_SCRAPE_PREFIX + "URLs: valid={valid} invalid={inva
 MSG_DEBUG_CACHE_DECISION = UI_SCRAPE_PREFIX + "Cache {decision} key={key}"
 MSG_ERROR_MISSING_JWT = UI_SCRAPE_PREFIX + "Missing JWT in session state"
 
-MSG_ERROR_BACKEND_BASE_URL_NOT_CONFIGURED = UI_SCRAPE_PREFIX + "Backend base URL is not configured."
-
-
 # ui_runner_helpers.py
 MSG_DEBUG_PARSE_RESULT_SUMMARY = (
     UI_SCRAPE_PREFIX + "Parse: raw_items={raw} "
@@ -315,13 +312,7 @@ MSG_LOG_DEBUG_DYNAMIC_EXTRAS = (
     "DEBUG dynamic extras check | agent_mode={agent_mode} | first_item_keys={keys}"
 )
 MSG_LOG_DYNAMIC_EXTRAS_ERROR = (
-    "[API] [ROUTE] [SCRAPE] Failed to inspect first item for dynamic extras: {error}"
-)
-
-MSG_JOB_ROUTE_FAILED = "[API] [ROUTE] [SCRAPE] Scrape job {job_id} failed with unexpected error."
-
-MSG_DEBUG_FINALIZE_SUCCESS_SKIPPED = (
-    "[API] [ROUTE] [SCRAPE]Finalize-success helper skipped for job_id={job_id}; pipeline finalizes."
+    "[API] [ROUTE] [SCRAPE]Failed to inspect first item for dynamic extras: {error}"
 )
 
 
@@ -451,12 +442,7 @@ MSG_WARNING_ON_ITEM_CALLBACK_FAILED = (
 
 MSG_WARNING_ON_ITEM_PROCESSED_FAILED = WORKER_PREFIX + "on_item_processed callback failed: {error}"
 MSG_WARNING_ON_ERROR_CALLBACK_FAILED = WORKER_PREFIX + "on_error callback failed: {error}"
-MSG_DEBUG_JOB_PROGRESS_UPDATE_FAILED = (
-    WORKER_PREFIX + "Progress update failed for job_id={job_id}: {error}"
-)
-MSG_DEBUG_JOB_CANCEL_SNAPSHOT_FAILED = (
-    WORKER_PREFIX + "Cancel snapshot check failed for job_id={job_id}: {error}"
-)
+
 
 # pipeline.py
 MSG_DEBUG_SCRAPE_STATS_START = (
@@ -480,7 +466,6 @@ MSG_DEBUG_PIPELINE_WORKER_POOL_START = (
 )
 
 MSG_DEBUG_PIPELINE_FETCH_START = "[PIPELINE] Starting HTML fetch for {count} URLs..."
-MSG_DEBUG_ITEM_SERIALIZATION_FAILED = "Item serialization fallback triggered: {error}"
 
 # In backend/config/messages.py
 

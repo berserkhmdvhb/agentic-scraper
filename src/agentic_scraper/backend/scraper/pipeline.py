@@ -23,8 +23,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from agentic_scraper.backend.api.stores import job_store
-from agentic_scraper.backend.api.utils.serializer import serialize_items
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_PIPELINE_FETCH_START,
@@ -34,14 +32,14 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_SCRAPE_STATS_COMPLETE,
     MSG_INFO_VALID_SCRAPE_INPUTS,
 )
-from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIConfig
+from agentic_scraper.backend.config.types import AgentMode, OpenAIConfig
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import WorkerPoolConfig
 from agentic_scraper.backend.scraper.parser import extract_main_text
-from agentic_scraper.backend.scraper.worker_pool import _RuntimeOpts, run_worker_pool
+from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
 
 if TYPE_CHECKING:
-    from agentic_scraper.backend.config.aliases import ResultPayload, ScrapeInput
+    from agentic_scraper.backend.config.aliases import ScrapeInput
     from agentic_scraper.backend.core.settings import Settings
     from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
@@ -53,7 +51,6 @@ class PipelineOptions:
     cancel_event: asyncio.Event | None = None
     should_cancel: Callable[[], bool] | None = None
     job_hooks: object | None = None
-    job_id: str | None = None
 
 
 async def scrape_urls(
@@ -66,13 +63,13 @@ async def scrape_urls(
     """
     Run the scraping pipeline on the provided URLs using the configured agent mode.
     """
+    # Back-compat: allow legacy keyword args (cancel_event, should_cancel, job_hooks)
     if options is None:
         options = PipelineOptions()
     cancel_event = options.cancel_event
     should_cancel = options.should_cancel
     job_hooks = options.job_hooks
 
-    # Early exit if canceled before start
     if (cancel_event and cancel_event.is_set()) or (should_cancel and should_cancel()):
         if job_hooks and hasattr(job_hooks, "on_failed"):
             with contextlib.suppress(Exception):
@@ -90,11 +87,6 @@ async def scrape_urls(
     )
 
     logger.info(MSG_INFO_FETCH_COMPLETE.format(count=len(html_by_url)))
-
-    # Stage bump (fetch completed) — best-effort
-    if options.job_id:
-        with contextlib.suppress(Exception):
-            job_store.update_job(options.job_id, progress=0.1)
 
     scrape_inputs: list[ScrapeInput] = [
         (url, extract_main_text(html))
@@ -116,7 +108,6 @@ async def scrape_urls(
                 job_hooks.on_completed(success=0, failed=len(urls), duration_sec=0.0)
         return []
 
-    # Early exit if canceled before worker pool start
     if (cancel_event and cancel_event.is_set()) or (should_cancel and should_cancel()):
         if job_hooks and hasattr(job_hooks, "on_failed"):
             with contextlib.suppress(Exception):
@@ -149,11 +140,8 @@ async def scrape_urls(
         inputs=scrape_inputs,
         settings=settings,
         config=pool_config,
-        runtime=_RuntimeOpts(
-            cancel_event=cancel_event,
-            should_cancel=should_cancel,
-            job_id=options.job_id,
-        ),
+        cancel_event=cancel_event,
+        should_cancel=should_cancel,
     )
 
 
@@ -163,10 +151,11 @@ async def scrape_with_stats(
     openai: OpenAIConfig | None = None,
     *,
     options: PipelineOptions | None = None,
-) -> tuple[list[ScrapedItem], dict[str, float | int | bool]]:
+) -> tuple[list[ScrapedItem], dict[str, float | int]]:
     """
     Run the scraping pipeline and return both results and performance metrics.
     """
+    # Back-compat for legacy kwargs
     if options is None:
         options = PipelineOptions()
 
@@ -190,13 +179,6 @@ async def scrape_with_stats(
             options=options,
         )
     except Exception as e:
-        # Mark FAILED unless the job was already canceled (best-effort)
-        jid = options.job_id
-        if jid:
-            with contextlib.suppress(Exception):
-                snap: job_store.ScrapeJobRecord | None = job_store.get_job(jid)
-                if snap is None or snap["status"] != JobStatus.CANCELED:
-                    job_store.update_job(jid, status=JobStatus.FAILED, error=str(e))
         if job_hooks and hasattr(job_hooks, "on_failed"):
             with contextlib.suppress(Exception):
                 job_hooks.on_failed(e)
@@ -213,33 +195,16 @@ async def scrape_with_stats(
         )
     )
 
-    event_canceled = bool(cancel_event and cancel_event.is_set())
-    manual_canceled = bool(should_cancel is not None and should_cancel())
+    event_canceled = cancel_event and cancel_event.is_set()
+    manual_canceled = should_cancel and should_cancel()
     was_canceled = bool(event_canceled or manual_canceled)
-    stats: dict[str, float | int | bool] = {
+    stats = {
         "num_urls": len(urls),
         "num_success": len(results),
         "num_failed": len(urls) - len(results),
         "duration_sec": duration,
         "was_canceled": was_canceled,
     }
-
-    # If we own the job, finalize it unless it was canceled
-    jid = options.job_id
-    if jid:
-        with contextlib.suppress(Exception):
-            snap2: job_store.ScrapeJobRecord | None = job_store.get_job(jid)
-            if snap2 is None or snap2["status"] != JobStatus.CANCELED:
-                result_payload: ResultPayload = {
-                    "items": serialize_items(results),
-                    "stats": stats,
-                }
-                job_store.update_job(
-                    jid,
-                    status=JobStatus.SUCCEEDED,
-                    progress=1.0,
-                    result=result_payload,
-                )
 
     if job_hooks and hasattr(job_hooks, "on_completed"):
         with contextlib.suppress(Exception):

@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, TypedDict
 
 from typing_extensions import Required, Unpack
 
-from agentic_scraper.backend.config.aliases import JSONValue, ResultPayload
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_JOB_STATUS,
     MSG_JOB_CANCELED_BY_USER,
@@ -17,8 +16,11 @@ from agentic_scraper.backend.config.types import JobStatus
 
 # ----- Types -----------------------------------------------------------------
 
-JobRequest = JSONValue
-JobResult = ResultPayload
+# Open JSON-ish mapping alias. Using `object` avoids ANN401 while staying flexible.
+JSONObj = dict[str, object]
+
+JobResult = JSONObj
+JobRequest = JSONObj
 
 if TYPE_CHECKING:
     from agentic_scraper.backend.api.models import OwnerSub
@@ -99,7 +101,7 @@ def create_job(request_payload: JobRequest, owner_sub: OwnerSub) -> ScrapeJobRec
     Create a new scrape job in 'queued' status.
 
     Args:
-        request_payload (JSONValue): The validated request model as a JSON-ish mapping
+        request_payload (dict[str, object]): The validated request model as a dict
             (e.g., ScrapeCreate.model_dump()).
 
     Returns:
@@ -162,25 +164,32 @@ def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJobRecor
         if "status" in fields:
             new_status = _coerce_status(fields["status"])
 
-        # Hard terminal-state guard
+        # Hard terminal-state guard: once terminal, do not accept further mutations
+        # that change status/progress/result/error. (updated_at may still be set.)
         terminal = {JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELED}
         if job["status"] in terminal:
+            # Drop mutating fields silently; caller gets a snapshot back.
             fields.pop("status", None)
             fields.pop("progress", None)
             fields.pop("result", None)
             fields.pop("error", None)
+        # Only apply status if not terminal
         elif new_status is not None:
             job["status"] = new_status
 
+        # Assign fields individually (keep mypy-friendly and preserve deep copies)
         if "progress" in fields:
-            p = float(fields["progress"])
-            job["progress"] = 0.0 if p < 0.0 else min(p, 1.0)
+            job["progress"] = fields["progress"]
         if "error" in fields:
             job["error"] = fields["error"]
         if "result" in fields:
             job["result"] = deepcopy(fields["result"])
 
-        job["updated_at"] = fields.get("updated_at") or _utcnow()
+        # Ensure updated_at is always refreshed unless explicitly provided
+        if "updated_at" in fields and fields["updated_at"] is not None:
+            job["updated_at"] = fields["updated_at"]
+        else:
+            job["updated_at"] = _utcnow()
 
         return _job_snapshot(job)
 
@@ -206,6 +215,7 @@ def list_jobs(
             - A next_cursor (job_id) if more results remain; otherwise None.
     """
     with _LOCK:
+        # Stable order by created_at then id for deterministic paging
         jobs = sorted(
             _STORE.values(),
             key=lambda j: (j["created_at"], j["id"]),
@@ -216,9 +226,9 @@ def list_jobs(
 
         if owner_sub is not None:
             jobs = [j for j in jobs if j.get("owner_sub") == owner_sub]
-
         start_idx = 0
         if cursor:
+            # Find the index strictly after the cursor id
             for i, j in enumerate(jobs):
                 if j["id"] == cursor:
                     start_idx = i + 1
