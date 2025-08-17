@@ -62,20 +62,33 @@ def _track_task(t: asyncio.Task[None]) -> None:
 
 
 async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser) -> None:
-    """Background job runner that executes the pipeline and updates job state."""
+    """Execute the scrape pipeline for a job and persist its final state.
+
+    Flow:
+        1) Mark RUNNING (skips if already terminal).
+        2) Short-circuit if already CANCELED.
+        3) Resolve creds (fail job if missing for LLM modes).
+        4) Merge runtime settings and run pipeline with cancel awareness.
+        5) Finalize SUCCEEDED only if not canceled.
+        6) Always cleanup the cancel registry entry.
+    """
     try:
         _mark_running(job_id)
 
+        # Pre-run cancel short-circuit: respect terminal state.
+        snapshot = get_job(job_id)
+        if snapshot and snapshot["status"] == JobStatus.CANCELED:
+            return
+
         creds = _resolve_openai_creds_or_fail(job_id, payload, user)
-        # If LLM is required and creds were missing, the helper already failed the job.
         if payload.agent_mode != AgentMode.RULE_BASED and creds is None:
             return
 
         merged_settings = _merge_runtime_settings(payload)
 
         cancel_event = get_cancel_event(job_id) or register_cancel_event(job_id)
-        # Annotate payload with job_id for downstream _should_cancel closures
-        result_model = await _run_pipeline_and_build_result(
+
+        result_model, was_canceled = await _run_pipeline_and_build_result(
             payload=payload,
             merged_settings=merged_settings,
             creds=creds,
@@ -83,11 +96,12 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
             job_id=job_id,
         )
 
-        _finalize_success_if_not_canceled(job_id, result_model)
+        if not was_canceled:
+            _finalize_success_if_not_canceled(job_id, result_model)
 
     except (KeyboardInterrupt, SystemExit):
         raise
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001 - catch-all to ensure job is finalized as FAILED
         _finalize_failure(job_id, e)
     finally:
         cleanup(job_id)

@@ -308,7 +308,7 @@ MSG_INFO_INLINE_KEY_MASKED_FALLBACK = (
 
 
 MSG_LOG_DEBUG_DYNAMIC_EXTRAS = (
-    "[API] [ROUTE] [SCRAPE]"
+    "[API] [ROUTE] [SCRAPE] "
     "DEBUG dynamic extras check | agent_mode={agent_mode} | first_item_keys={keys}"
 )
 MSG_LOG_DYNAMIC_EXTRAS_ERROR = (

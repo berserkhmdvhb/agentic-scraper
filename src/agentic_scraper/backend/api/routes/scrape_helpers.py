@@ -97,7 +97,7 @@ async def _run_pipeline_and_build_result(
     creds: OpenAIConfig | None,
     cancel_event: asyncio.Event | None,
     job_id: str,
-) -> ScrapeResultDynamic | ScrapeResultFixed:
+) -> tuple[ScrapeResultDynamic | ScrapeResultFixed, bool]:
     """
     Execute the scrape pipeline and convert to the correct result model
     (fixed schema vs dynamic).
@@ -130,7 +130,9 @@ async def _run_pipeline_and_build_result(
         result_model = ScrapeResultDynamic.from_internal(items, stats)
 
     _debug_log_dynamic_extras(result_model, payload)
-    return result_model
+
+    was_canceled = bool(stats.get("was_canceled"))
+    return result_model, was_canceled
 
 
 def _debug_log_dynamic_extras(
