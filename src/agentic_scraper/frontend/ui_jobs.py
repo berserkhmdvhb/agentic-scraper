@@ -230,7 +230,7 @@ def _status_badge(status_: str) -> str:
         "RUNNING": "blue",
         "SUCCEEDED": "green",
         "FAILED": "red",
-        "CANCELED": "orange",
+        "CANCELED": "darkorange",
     }.get(s, "gray")
     return (
         f"<span style='"
@@ -329,20 +329,11 @@ def _render_job_detail(job: dict[str, Any]) -> None:
             items, skipped, duration = parse_job_result(job)
             fake_start = _time.perf_counter() - float(duration or 0.0)
             summarize_results(items, skipped, fake_start)
-            # Smaller, scoped download: the full job payload
+            # If backend provided stats.was_canceled, surface it here
+            stats = (job.get("result") or {}).get("stats") or {}
+            if isinstance(stats, dict) and "was_canceled" in stats:
+                st.caption(f"Canceled during run: {bool(stats.get('was_canceled'))}")
             _job_package_download_button(job)
-            st.caption(
-                "Includes job metadata, stats, and raw results. "
-                "For table-only exports, see the Results tab."
-            )
-
-            # Optional quick peek at extracted URLs (collapsed by default)
-            if items:
-                with st.expander("🔗 Quick view: URLs only", expanded=False):
-                    for it in items:
-                        url = it.get("url") if isinstance(it, dict) else getattr(it, "url", None)
-                        if url:
-                            st.write(f"- [{url}]({url})")
 
         with tab_results:
             screenshot_enabled = bool(
@@ -354,6 +345,11 @@ def _render_job_detail(job: dict[str, Any]) -> None:
             )
 
     elif status_lower in {"failed", "canceled"}:
+        if status_lower == "canceled":
+            st.caption("🛑 Job was canceled")
+            stats = (job.get("result") or {}).get("stats") or {}
+            if isinstance(stats, dict) and "was_canceled" in stats:
+                st.caption(f"(Backend recorded was_canceled = {bool(stats.get('was_canceled'))})")
         render_job_error(job)
 
     # Cancel button for queued/running

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -15,6 +16,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_HTTP_MISSING_OPENAI_CREDS,
     MSG_INFO_INLINE_KEY_MASKED_FALLBACK,
     MSG_JOB_FAILED,
+    MSG_JOB_SKIP_MARK_FAILED_TERMINAL,
+    MSG_JOB_SKIP_MARK_RUNNING_TERMINAL,
     MSG_JOB_STARTED,
     MSG_JOB_SUCCEEDED,
     MSG_LOG_DEBUG_DYNAMIC_EXTRAS,
@@ -22,7 +25,7 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.config.types import AgentMode, OpenAIConfig
 from agentic_scraper.backend.core.settings import Settings, get_settings
-from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
+from agentic_scraper.backend.scraper.pipeline import PipelineOptions, scrape_with_stats
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -36,6 +39,13 @@ def _masked(s: str | None) -> bool:
 
 def _mark_running(job_id: str) -> None:
     """Set job to RUNNING and log start."""
+    current = get_job(job_id)
+    if not current:
+        return
+    status_lower = str(current.get("status", "")).lower()
+    if status_lower in {"canceled", "succeeded", "failed"}:
+        logger.debug(MSG_JOB_SKIP_MARK_RUNNING_TERMINAL.format(job_id=job_id, status=status_lower))
+        return
     update_job(job_id, status="running", updated_at=datetime.now(timezone.utc))
     logger.info(MSG_JOB_STARTED.format(job_id=job_id))
 
@@ -85,13 +95,34 @@ async def _run_pipeline_and_build_result(
     payload: ScrapeCreate,
     merged_settings: Settings,
     creds: OpenAIConfig | None,
+    cancel_event: asyncio.Event | None,
+    job_id: str,
 ) -> ScrapeResultDynamic | ScrapeResultFixed:
     """
     Execute the scrape pipeline and convert to the correct result model
     (fixed schema vs dynamic).
     """
     urls = [str(u) for u in payload.urls]
-    items, stats = await scrape_with_stats(urls, settings=merged_settings, openai=creds)
+
+    # Expose a store-backed should_cancel() to handle cross-process events/races
+    def _should_cancel() -> bool:
+        j = get_job(job_id)
+        # Fallback: rely on cancel_event if job lookup isn't available
+        if j is None:
+            return bool(cancel_event and cancel_event.is_set())
+        return str(j.get("status", "")).lower() == "canceled"
+
+    items, stats = await scrape_with_stats(
+        urls,
+        settings=merged_settings,
+        openai=creds,
+        options=PipelineOptions(
+            cancel_event=cancel_event,
+            should_cancel=_should_cancel,
+            job_hooks=None,
+        ),
+    )
+
     result_model: ScrapeResultDynamic | ScrapeResultFixed
     if payload.agent_mode in {AgentMode.LLM_FIXED, AgentMode.RULE_BASED}:
         result_model = ScrapeResultFixed.from_internal(items, stats)
@@ -154,11 +185,18 @@ def _finalize_success_if_not_canceled(
 
 def _finalize_failure(job_id: str, e: Exception) -> None:
     """Mark job FAILED and log exception with traceback."""
+    current = get_job(job_id)
+    if not current:
+        return
+    status_lower = str(current.get("status", "")).lower()
+    if status_lower in {"canceled", "succeeded", "failed"}:
+        logger.debug(MSG_JOB_SKIP_MARK_FAILED_TERMINAL.format(job_id=job_id, status=status_lower))
+        return
+    # Preserve last progress on failure; don't force to 0.0
     update_job(
         job_id,
         status="failed",
         error=str(e),
-        progress=0.0,
         updated_at=datetime.now(timezone.utc),
     )
     logger.exception(MSG_JOB_FAILED.format(job_id=job_id))

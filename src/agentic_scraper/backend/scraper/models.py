@@ -118,3 +118,4 @@ class WorkerPoolConfig:
     on_error: OnErrorCallback | None = None
     on_progress: Callable[[int, int], None] | None = None
     preserve_order: bool = False
+    should_cancel: Callable[[], bool] | None = None

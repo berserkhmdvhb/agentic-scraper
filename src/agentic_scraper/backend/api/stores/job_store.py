@@ -199,6 +199,7 @@ def list_jobs(
     status: JobStatus | None = None,
     limit: int = DEFAULT_LIMIT,
     cursor: str | None = None,
+    owner_sub: OwnerSub | None = None,
 ) -> tuple[list[ScrapeJobRecord], str | None]:
     """
     List jobs with optional status filtering and a simple cursor for pagination.
@@ -223,6 +224,8 @@ def list_jobs(
         if status is not None:
             jobs = [j for j in jobs if j["status"] == status]
 
+        if owner_sub is not None:
+            jobs = [j for j in jobs if j.get("owner_sub") == owner_sub]
         start_idx = 0
         if cursor:
             # Find the index strictly after the cursor id

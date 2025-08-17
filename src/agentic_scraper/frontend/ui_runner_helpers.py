@@ -129,7 +129,10 @@ def summarize_results(items: Sequence[Mapping[str, Any]], skipped: int, start_ti
     col1.metric("✅ Extracted", f"{len(items)} URLs")
     col2.metric("⚠️ Skipped", f"{skipped} URLs")
     col3.metric("⏱️ Time", f"{elapsed:.2f}s")
-
+    st.caption(
+        "Includes job metadata, stats, and raw results. "
+        "For table-only exports, see the Results tab."
+    )
     with st.expander("🔍 Extracted URLs (Quick View)"):
         for item in items:
             # dict-safe access (fallbacks included)

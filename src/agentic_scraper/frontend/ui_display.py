@@ -132,7 +132,6 @@ def display_results(
     screenshot_enabled: bool,
 ) -> None:
     """Display extracted data with optional screenshots and download buttons."""
-    st.markdown("### 📊 **Display Results**")
 
     df_extracted = prepare_dataframe(items, screenshot_enabled=screenshot_enabled)
     st.session_state.results_df = df_extracted

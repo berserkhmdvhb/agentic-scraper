@@ -170,7 +170,7 @@ MSG_ERROR_OWNER_SUB_TYPE = "[API] owner_sub must be a string"
 MSG_ERROR_OWNER_SUB_FORMAT = "[API] Invalid owner_sub format: {value!r}"
 
 
-# user_store.py
+# stores/user_store.py
 MSG_ERROR_INVALID_CREDENTIALS = (
     "[API] [USERSTORE] Error saving credentials for user {user_id}: {error}"
 )
@@ -308,9 +308,33 @@ MSG_INFO_INLINE_KEY_MASKED_FALLBACK = (
 
 
 MSG_LOG_DEBUG_DYNAMIC_EXTRAS = (
+    "[API] [ROUTE] [SCRAPE]"
     "DEBUG dynamic extras check | agent_mode={agent_mode} | first_item_keys={keys}"
 )
-MSG_LOG_DYNAMIC_EXTRAS_ERROR = "Failed to inspect first item for dynamic extras: {error}"
+MSG_LOG_DYNAMIC_EXTRAS_ERROR = (
+    "[API] [ROUTE] [SCRAPE]Failed to inspect first item for dynamic extras: {error}"
+)
+
+
+# routes/scrape_cancel_registry.py
+
+MSG_DEBUG_CANCEL_EVENT_REGISTERED = (
+    "[API] [ROUTE] [SCRAPE] Cancel event registered for job {job_id}."
+)
+MSG_DEBUG_CANCEL_EVENT_REUSED = (
+    "[API] [ROUTE] [SCRAPE] Cancel event reused for job {job_id} (preserved state)."
+)
+MSG_DEBUG_CANCEL_EVENT_SET = "[API] [ROUTE] [SCRAPE] Cancel event set for job {job_id}."
+MSG_DEBUG_CANCEL_EVENT_CLEANED = "[API] [ROUTE] [SCRAPE] Cancel event cleaned for job {job_id}."
+MSG_DEBUG_POOL_CANCEL_DETECTED = (
+    "[API] [ROUTE] [SCRAPE] Cancel detected; draining queue and shutting down workers."
+)
+MSG_JOB_SKIP_MARK_RUNNING_TERMINAL = (
+    "[API] [ROUTE] [SCRAPE] Job {job_id} already terminal ({status}); skipping RUNNING."
+)
+MSG_JOB_SKIP_MARK_FAILED_TERMINAL = (
+    "[API] [ROUTE] [SCRAPE] Job {job_id} already terminal ({status}); skipping FAILED."
+)
 
 # ---------------------------------------------------------------------
 # core/

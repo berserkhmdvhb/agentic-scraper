@@ -11,7 +11,7 @@ import asyncio
 import logging
 from collections import deque
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_POOL_ENQUEUED_URL,
@@ -44,10 +44,48 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# ───────────────────────────
+# Cancel helpers
+# ───────────────────────────
+
+
+def _safe_should_cancel(should_cancel: Callable[[], bool] | None) -> bool:
+    """
+    Safely evaluate a user-supplied cancel predicate.
+    Any exception is logged at debug and treated as "not canceled".
+    """
+    if not should_cancel:
+        return False
+    try:
+        return bool(should_cancel())
+    except Exception as e:  # noqa: BLE001 - user predicate may raise arbitrary exceptions
+        logger.debug("should_cancel predicate raised: %r", e)
+        return False
+
+
 def early_cancel_or_raise(cancel_event: asyncio.Event | None) -> None:
-    """Raise CancelledError if the cancel_event is set."""
+    """Raise CancelledError if the cancel_event is set (legacy signature)."""
     if cancel_event and cancel_event.is_set():
         raise asyncio.CancelledError
+
+
+def early_cancel_or_raise_ext(
+    cancel_event: asyncio.Event | None,
+    should_cancel: Callable[[], bool] | None = None,
+) -> None:
+    """
+    Raise CancelledError if either the event is set or the predicate returns True.
+    Separated from the legacy signature to avoid TRY301: no raise inside a try.
+    """
+    if cancel_event and cancel_event.is_set():
+        raise asyncio.CancelledError
+    if _safe_should_cancel(should_cancel):
+        raise asyncio.CancelledError
+
+
+# ───────────────────────────
+# Queue / request helpers
+# ───────────────────────────
 
 
 async def dequeue_next(
@@ -81,6 +119,11 @@ def build_request(
     request = scrape_request_cls(**kwargs)
     logger.debug(MSG_DEBUG_WORKER_CREATED_REQUEST.format(worker_id=worker_id, url=url))
     return request
+
+
+# ───────────────────────────
+# Result / callback helpers
+# ───────────────────────────
 
 
 def handle_success_item(
@@ -164,6 +207,11 @@ def call_progress_callback(
         logger.warning(MSG_WARNING_PROGRESS_CALLBACK_FAILED.format(error=error))
 
 
+# ───────────────────────────
+# Ordering helpers
+# ───────────────────────────
+
+
 async def _prepare_queue_and_ordering(
     inputs: list[ScrapeInput],
     config: WorkerPoolConfig,
@@ -180,7 +228,6 @@ async def _prepare_queue_and_ordering(
     results: list[ScrapedItem] = []
 
     ordered_results: list[ScrapedItem | None] | None = None
-
     url_to_indices: dict[str, deque[int]] | None = None
 
     if config.preserve_order:
@@ -242,30 +289,62 @@ async def place_ordered_result(
         return False
 
 
+# ───────────────────────────
+# Join / cancellation helpers
+# ───────────────────────────
+
+
+async def _poll_cancel_predicate(
+    should_cancel: Callable[[], bool],
+    interval_sec: float = 0.1,
+) -> None:
+    """Periodically poll a cancel predicate; return when it indicates cancel."""
+    while True:
+        if _safe_should_cancel(should_cancel):
+            return
+        await asyncio.sleep(interval_sec)
+
+
 async def _await_join_with_optional_cancel(
     queue: asyncio.Queue[ScrapeInput],
     cancel_event: asyncio.Event | None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> None:
     """
-    Await queue.join(), supporting early cancellation via cancel_event.
-    Extracted from run_worker_pool() to reduce branching/complexity.
+    Await queue.join(), with optional early cancellation (event and/or predicate).
     """
-    if cancel_event is None:
+    if cancel_event is None and not should_cancel:
         await queue.join()
         return
 
-    join_task = asyncio.create_task(queue.join(), name="queue-join")
-    cancel_task = asyncio.create_task(cancel_event.wait(), name="cancel-wait")
-    done, _ = await asyncio.wait({join_task, cancel_task}, return_when=asyncio.FIRST_COMPLETED)
+    join_task: asyncio.Task[Any] = asyncio.create_task(queue.join(), name="queue-join")
+    waiters: set[asyncio.Task[Any]] = {join_task}
 
-    if cancel_task in done and not join_task.done():
-        # Drain remaining items so join can complete deterministically.
-        # Exception-in-loop is the robust concurrent pattern; qsize() can race.
+    cancel_task: asyncio.Task[Any] | None = None
+    if cancel_event is not None:
+        cancel_task = asyncio.create_task(cancel_event.wait(), name="cancel-wait")
+        waiters.add(cancel_task)
+
+    poll_task: asyncio.Task[Any] | None = None
+    if should_cancel is not None:
+        poll_task = asyncio.create_task(_poll_cancel_predicate(should_cancel), name="cancel-poll")
+        waiters.add(poll_task)
+
+    done, _ = await asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED)
+
+    if join_task not in done:
+        # Drain queue so join() can complete deterministically.
         while True:
             try:
                 _ = queue.get_nowait()
-            except asyncio.QueueEmpty:  # noqa: PERF203 - acceptable here to avoid racey qsize checks
+            except asyncio.QueueEmpty:  # noqa: PERF203 - acceptable to avoid racing qsize()
                 break
             else:
                 queue.task_done()
         await join_task
+
+    # Cleanup extra tasks
+    for t in (cancel_task, poll_task):
+        if t and not t.done():
+            t.cancel()
+    await asyncio.gather(*(t for t in (cancel_task, poll_task) if t), return_exceptions=True)
