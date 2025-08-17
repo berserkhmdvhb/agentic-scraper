@@ -19,6 +19,7 @@ Example:
         return user
 """
 
+import itertools
 import logging
 
 from fastapi import Depends
@@ -43,6 +44,7 @@ __all__ = ["get_current_user"]
 
 logger = logging.getLogger(__name__)
 auth_scheme = HTTPBearer(auto_error=True)
+_auth_dep_counter = itertools.count()
 
 
 async def get_current_user(
@@ -67,7 +69,8 @@ async def get_current_user(
     token = credentials.credentials
 
     try:
-        logger.debug(MSG_DEBUG_VERIFYING_JWT_TOKEN.format(token=token))
+        if next(_auth_dep_counter) % 50 == 0:
+            logger.debug(MSG_DEBUG_VERIFYING_JWT_TOKEN.format(token=token))
         payload = await verify_jwt(token)
 
     except JWTError as err:

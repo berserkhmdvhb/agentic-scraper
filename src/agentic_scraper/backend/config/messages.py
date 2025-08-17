@@ -200,8 +200,8 @@ MSG_WARNING_JWT_VERIFICATION_FAILED = "[API] [AUTH] [DEP] JWT verification faile
 MSG_ERROR_MISSING_SUB_CLAIM = "[API] [AUTH] [DEP] Missing 'sub' in token payload"
 
 # auth/auth0_helpers.py
-MSG_INFO_FETCHING_JWKS = "[API] [AUTH] [AUTH0] Fetching JWKS from {url}..."
-MSG_INFO_JWKS_FETCHED = "[API] [AUTH] [AUTH0] {num_keys} keys fetched from JWKS."
+MSG_DEBUG_FETCHING_JWKS = "[API] [AUTH] [AUTH0] Fetching JWKS from {url}..."
+MSG_DEBUG_JWKS_FETCHED = "[API] [AUTH] [AUTH0] {num_keys} keys fetched from JWKS."
 MSG_INFO_DECODING_JWT = "[API] [AUTH] [AUTH0] Decoding JWT..."
 
 MSG_ERROR_FETCHING_JWKS = "[API] [AUTH] [AUTH0] Error fetching JWKS: {error}"
@@ -221,7 +221,7 @@ MSG_DEBUG_MISSING_SCOPES = (
     "User's current scopes: {user_scopes}."
 )
 MSG_DEBUG_CURRENT_ISSUER = "[API] [AUTH] [AUTH0] Current issuer is: {issuer}"
-MSG_INFO_DECODED_TOKEN = "[API] [AUTH] [AUTH0] Decoded token: {decoded_token}"
+MSG_DEBUG_DECODED_TOKEN = "[API] [AUTH] [AUTH0] Decoded token: {decoded_token}"
 
 # auth/log_helpers.py
 MSG_WARNING_USER_FAILED_AUTHORIZATION = "[API] [AUTH] [AUTH0] User {user_id} failed to authorize."
