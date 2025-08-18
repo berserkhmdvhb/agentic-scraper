@@ -195,6 +195,12 @@ def _render_header_chip_row(settings: Settings) -> None:
             st.markdown(f"**Frontend:** [{settings.frontend_domain}]({settings.frontend_domain})")
         if getattr(settings, "backend_domain", None):
             st.markdown(f"**Backend:** [{settings.backend_domain}]({settings.backend_domain})")
+    # Make sure Jobs tab can read these even if the sidebar wasn't opened again
+    st.session_state.setdefault("environment", env)
+    if getattr(settings, "frontend_domain", None):
+        st.session_state["frontend_domain"] = settings.frontend_domain
+    if getattr(settings, "backend_domain", None):
+        st.session_state["backend_domain"] = settings.backend_domain
 
 
 def _render_auth_and_env(agent_mode: AgentMode) -> None:
