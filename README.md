@@ -362,10 +362,6 @@ docker pull hmdvhb/agentic-scraper-backend
 
 ### Prerequisites
 
-## ▶️ Running the App
-
-### Prerequisites
-
 * ✅ Python 3.10+
 * ✅ `.env` configured (see [🔧 Environment Configuration (.env)](#-environment-configuration-env))
 * ✅ Auth0 application + API configured (issuer/audience/client id & client secret/scopes).
