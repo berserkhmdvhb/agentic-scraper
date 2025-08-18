@@ -291,7 +291,7 @@ def _render_filters() -> tuple[str, int, bool, bool]:
     with col2:
         limit = st.slider("Limit", 5, 50, 20)
     with col3:
-        auto_refresh = st.toggle("Auto-refresh", value=False, help="Refresh every few seconds")
+        auto_refresh = st.toggle("Auto-refresh", value=True, help="Refresh every few seconds")
     with col4:
         refresh = st.button("🔄 Refresh")
     return status_filter, limit, auto_refresh, refresh
