@@ -115,7 +115,9 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         st.divider()
 
         # 1) Authentication & Environment details (credentials shown only for LLM modes)
-        _render_auth_and_env(AgentMode(st.session_state.get("agent_mode_select", settings.agent_mode.value)))
+        _render_auth_and_env(
+            AgentMode(st.session_state.get("agent_mode_select", settings.agent_mode.value))
+        )
 
         # 2) Agent Mode
         selected_agent_mode = _render_agent_mode_selector(settings)
@@ -146,7 +148,19 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     st.session_state[SESSION_KEYS["agent_mode"]] = selected_agent_mode
     st.session_state[SESSION_KEYS["retry_attempts"]] = int(retry_attempts)
 
-    # Always set llm_schema_retries
+    # Always set llm_schema_retries in session to a safe int value
+    st.session_state[SESSION_KEYS["llm_schema_retries"]] = int(llm_schema_retries)
+
+    return SidebarConfig(
+        screenshot_enabled=bool(st.session_state[SESSION_KEYS["screenshot_enabled"]]),
+        fetch_concurrency=int(fetch_concurrency),
+        llm_concurrency=int(llm_concurrency),
+        verbose=bool(verbose),
+        openai_model=selected_model,
+        agent_mode=selected_agent_mode,
+        retry_attempts=int(retry_attempts),
+        llm_schema_retries=int(llm_schema_retries),
+    )
 
 
 # -------------------------
