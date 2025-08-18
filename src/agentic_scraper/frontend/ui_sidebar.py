@@ -96,8 +96,6 @@ PRESETS: dict[str, Preset] = {
 # -------------------------
 # Public API
 # -------------------------
-
-
 def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     """
     Render sidebar controls for login, OpenAI credentials, agent mode, performance, and retries.
@@ -122,37 +120,19 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
         # 2) Authentication & Environment details (credentials shown only for LLM modes)
         _render_auth_and_env(selected_agent_mode)
 
-        # 3) Preset selector (applies defaults; user tweaks create a 'Custom' state)
-        selected_preset = _render_preset_selector()
+        # 3) LLM model + screenshot toggle (no presets involved)
+        selected_model = _render_llm_controls(settings, selected_agent_mode)
 
-        # --- Apply preset immediately when it changes so widgets reflect it ---
-        prev_preset = st.session_state.get("ui_sidebar_prev_preset")
-        if selected_preset not in {prev_preset, "Custom"}:
-            p = PRESETS.get(selected_preset, PRESETS["Balanced"])
-            st.session_state[SESSION_KEYS["screenshot_enabled"]] = bool(p["screenshot_enabled"])
-            st.session_state[SESSION_KEYS["fetch_concurrency"]] = int(p["fetch_concurrency"])
-            st.session_state[SESSION_KEYS["llm_concurrency"]] = int(
-                p["llm_concurrency"] if p["llm_concurrency"] is not None else p["fetch_concurrency"]
-            )
-            st.session_state[SESSION_KEYS["retry_attempts"]] = int(p["retry_attempts"])
-            st.session_state[SESSION_KEYS["llm_schema_retries"]] = int(p["llm_schema_retries"])
-        st.session_state["ui_sidebar_prev_preset"] = selected_preset
-        # ---------------------------------------------------------------------
-
-        # 4) LLM model + screenshot toggle
-        selected_model = _render_llm_controls(settings, selected_agent_mode, selected_preset)
-
-        # 5) Advanced (concurrency, retries, verbosity)
+        # 4) Advanced (now in a closed expander by default)
         (
             fetch_concurrency,
             llm_concurrency,
             verbose,
             retry_attempts,
             llm_schema_retries,
-            effective_preset_name,
-        ) = _render_advanced_settings(settings, selected_agent_mode, selected_preset)
+        ) = _render_advanced_settings(settings, selected_agent_mode)
 
-        # 6) Jobs / status entry point (compact)
+        # 5) Jobs / status entry point (compact)
         _render_jobs_footer()
 
     # Persist values in session (single source of truth for the rest of the app)
@@ -169,10 +149,6 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     # Always set llm_schema_retries in session to a safe int value,
     # even when not in Adaptive mode, to avoid downstream "missing key" issues.
     st.session_state[SESSION_KEYS["llm_schema_retries"]] = int(llm_schema_retries)
-
-    # Store current preset for reference (e.g., to display “Custom” when diverged)
-    st.session_state.setdefault("ui_sidebar_preset", effective_preset_name)
-    st.session_state["ui_sidebar_preset"] = effective_preset_name
 
     return SidebarConfig(
         screenshot_enabled=bool(st.session_state[SESSION_KEYS["screenshot_enabled"]]),
@@ -235,7 +211,7 @@ def _render_auth_and_env(agent_mode: AgentMode) -> None:
 
 def _render_agent_mode_selector(settings: Settings) -> AgentMode:
     """Agent Mode selection with concise help and an auth overlay toggle."""
-    st.subheader("Agent Mode", anchor=False)
+    st.subheader("🧠 Agent Mode", anchor=False)
 
     agent_mode_values = [m.value for m in AgentMode]
     default_index = (
@@ -287,7 +263,6 @@ def _render_preset_selector() -> str:
 def _render_llm_controls(
     settings: Settings,
     agent_mode: AgentMode,
-    selected_preset: str,
 ) -> OpenAIModel:
     """
     Render model selection for LLM modes and the Screenshot toggle for all modes.
@@ -322,18 +297,10 @@ def _render_llm_controls(
         # Rule-based mode does not expose a model picker; keep a valid value for downstream logic.
         selected_model = settings.openai_model
 
-    # Screenshot toggle (applies to all modes)
-    # Apply preset default on first render of this control (non-destructive on user change)
-    preset_default = (
-        PRESETS.get(selected_preset, PRESETS["Balanced"])["screenshot_enabled"]
-        if selected_preset != "Custom"
-        else None
-    )
-    current_default = st.session_state.get(
+    # Screenshot toggle (applies to all modes); simple defaulting (no presets)
+    initial_value = st.session_state.get(
         SESSION_KEYS["screenshot_enabled"], settings.screenshot_enabled
     )
-    initial_value = preset_default if preset_default is not None else current_default
-
     screenshot_enabled = st.checkbox(
         "📸 Enable Screenshot",
         value=bool(initial_value),
@@ -352,19 +319,12 @@ def _render_llm_controls(
 def _render_advanced_settings(
     settings: Settings,
     agent_mode: AgentMode,
-    selected_preset: str,
-) -> tuple[int, int, bool, int, int, str]:
+) -> tuple[int, int, bool, int, int]:
     """
-    Render advanced performance and reliability settings.
+    Render advanced performance and reliability settings inside a closed expander.
 
     Returns:
-        (
-            fetch_concurrency,
-            llm_concurrency,
-            verbose, retry_attempts,
-            llm_schema_retries,
-            effective_preset_name
-        )
+        (fetch_concurrency, llm_concurrency, verbose, retry_attempts, llm_schema_retries)
     """
     is_llm_agent = agent_mode != AgentMode.RULE_BASED
 
@@ -375,88 +335,66 @@ def _render_advanced_settings(
     retry_default = int(getattr(settings, "retry_attempts", 1))
     schema_retry_default = int(getattr(settings, "llm_schema_retries", 1))
 
-    # Apply preset defaults if not "Custom"
-    if selected_preset != "Custom":
-        p = PRESETS.get(selected_preset, PRESETS["Balanced"])
-        fetch_default = p["fetch_concurrency"]
-        llm_default = p["llm_concurrency"] if p["llm_concurrency"] is not None else fetch_default
-        verbose_default = p["verbose"]
-        retry_default = p["retry_attempts"]
-        schema_retry_default = p["llm_schema_retries"]
-        # Screenshot default handled in _render_llm_controls
+    fetch_conc = fetch_default
+    llm_conc = llm_default if is_llm_agent else 0
+    verbose = verbose_default
+    retry_attempts = retry_default
+    llm_schema_retries = schema_retry_default
 
-    st.subheader("Performance & Reliability (Advanced)", anchor=False)
+    with st.expander("⚙️ Performance Settings (Advanced)", expanded=False):
+        # Remember user's preference for split vs combined
+        split_key = "ui_sidebar_split_concurrency"
+        split_default = bool(st.session_state.get(split_key, False))
 
-    # Remember user's preference for split vs combined
-    split_key = "ui_sidebar_split_concurrency"
-    split_default = bool(st.session_state.get(split_key, False))
-
-    st.markdown("**Concurrency**")
-    split = is_llm_agent and st.checkbox(
-        "Separate Fetch and LLM Controls",
-        value=split_default,
-        help="Tune network fetch and model processing separately.",
-        key=split_key,
-    )
-
-    # Sliders (with units in labels)
-    if split and is_llm_agent:
-        fetch_conc = st.slider("🌐 Fetch Concurrency (requests)", 1, 20, int(fetch_default))
-        llm_conc = st.slider("🤖 LLM Concurrency (requests)", 1, 20, int(llm_default))
-    else:
-        label = (
-            "🔁 Combined Concurrency (requests)"
-            if is_llm_agent
-            else "🌐 Fetch Concurrency (requests)"
+        st.markdown("🔁 **Concurrency**")
+        split = is_llm_agent and st.checkbox(
+            "Separate Fetch and LLM Controls",
+            value=split_default,
+            help="Tune network fetch and model processing separately.",
+            key=split_key,
         )
-        combined = st.slider(label, 1, 20, int(fetch_default))
-        fetch_conc = combined
-        llm_conc = combined if is_llm_agent else 0
 
-    st.markdown("**Retry Strategy**")
-    retry_attempts = st.slider("Retry Attempts", 0, 5, int(retry_default))
-
-    # Adaptive-only schema retries; always keep a safe session value
-    llm_schema_retries = int(schema_retry_default)
-    placeholder = st.empty()
-    if agent_mode == AgentMode.LLM_DYNAMIC_ADAPTIVE:
-        with placeholder:
-            llm_schema_retries = st.slider(
-                "🧠 LLM Schema Retries",
-                0,
-                5,
-                int(schema_retry_default),
-                key=SESSION_KEYS["llm_schema_retries"],
-                help=(
-                    "Extra attempts if required fields are missing. "
-                    "Increases latency and token cost."
-                ),
+        # Sliders (with units in labels)
+        if split and is_llm_agent:
+            fetch_conc = st.slider("🌐 Fetch Concurrency (requests)", 1, 20, int(fetch_default))
+            llm_conc = st.slider("🤖 LLM Concurrency (requests)", 1, 20, int(llm_default))
+        else:
+            label = (
+                "🔁 Combined Concurrency (requests)"
+                if is_llm_agent
+                else "🌐 Fetch Concurrency (requests)"
             )
-    else:
-        placeholder.empty()
+            combined = st.slider(label, 1, 20, int(fetch_default))
+            fetch_conc = combined
+            llm_conc = combined if is_llm_agent else 0
 
-    st.markdown("**Verbosity**")
-    verbose = st.checkbox(
-        "🐞 Verbose Error Tracebacks",
-        value=bool(verbose_default),
-        help="Enable for debugging; disable for cleaner logs.",
-    )
+        st.markdown("♻️ **Retry Strategy**")
+        retry_attempts = st.slider("Retry Attempts", 0, 5, int(retry_default))
 
-    effective_preset = _compute_effective_preset(
-        selected_preset,
-        PresetControls(
-            fetch_conc=fetch_conc,
-            llm_conc=llm_conc,
-            verbose=verbose,
-            retry_attempts=retry_attempts,
-            llm_schema_retries=llm_schema_retries,
-        ),
-    )
+        # Adaptive-only schema retries; always keep a safe session value
+        placeholder = st.empty()
+        if agent_mode == AgentMode.LLM_DYNAMIC_ADAPTIVE:
+            with placeholder:
+                llm_schema_retries = st.slider(
+                    "🧠 LLM Schema Retries",
+                    0,
+                    5,
+                    int(schema_retry_default),
+                    key=SESSION_KEYS["llm_schema_retries"],
+                    help=(
+                        "Extra attempts if required fields are missing. "
+                        "Increases latency and token cost."
+                    ),
+                )
+        else:
+            placeholder.empty()
 
-    # Persist effective preset label for display elsewhere if needed
-    st.caption(f"Active preset: **{effective_preset}**")
-
-    st.divider()
+        st.markdown("**Verbosity**")
+        verbose = st.checkbox(
+            "🐞 Verbose Error Tracebacks",
+            value=bool(verbose_default),
+            help="Enable for debugging; disable for cleaner logs.",
+        )
 
     return (
         int(fetch_conc),
@@ -464,7 +402,6 @@ def _render_advanced_settings(
         bool(verbose),
         int(retry_attempts),
         int(llm_schema_retries),
-        effective_preset,
     )
 
 
