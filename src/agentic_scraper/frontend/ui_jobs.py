@@ -246,15 +246,18 @@ def _status_badge(status_: str) -> str:
 
 
 def _job_package_download_button(job: dict[str, Any]) -> None:
-    """Download the full job payload (metadata + stats + raw results)."""
+    """Download the full job payload (metadata + stats + raw results) with frontend config."""
     if (job.get("status") or "").lower() != "succeeded":
         return
     try:
-        # Export the entire backend payload for this job
-        payload_str = json.dumps(job, indent=2)
+        # Merge a safe, frontend-only config snapshot under a namespaced key
+        payload = dict(job)
+        payload.setdefault("_meta", {})
+        payload["_meta"]["frontend_config"] = _current_run_config()
+        payload_str = json.dumps(payload, indent=2)
     except (TypeError, ValueError):
         return
-    # Put the button in a right-aligned column so it doesn't look like a wide primary CTA
+
     _, right = st.columns([3, 1])
     with right:
         st.download_button(
@@ -262,7 +265,7 @@ def _job_package_download_button(job: dict[str, Any]) -> None:
             data=payload_str,
             file_name=f"scrape_{job.get('id', 'job')}.job.json",
             mime="application/json",
-            help="Full payload including job metadata, stats, and raw results.",
+            help="Full payload including job metadata, stats, results, and frontend config.",
             use_container_width=True,
         )
 
@@ -422,7 +425,7 @@ def _handle_selected_job(
             st.caption(f"🔄 Auto-refreshing every {_AUTO_REFRESH_SECONDS} seconds…")
             st_autorefresh(interval=_AUTO_REFRESH_SECONDS * 1000, key="jobs_auto_refresh")
         else:
-            _time.sleep(_AUTO_REFRESH_SECONDS)
+            _time.sleep(max(_AUTO_REFRESH_SECONDS, 2))
             st.rerun()
 
 
@@ -456,3 +459,70 @@ def render_jobs_tab(preselect_job_id: str | None = None) -> None:
     _handle_selected_job(
         selected_id, auto_refresh=auto_refresh, manual_refresh_clicked=refresh_clicked
     )
+
+
+def _current_run_config() -> dict[str, object]:
+    """Snapshot selected frontend config at time of export (no secrets).
+    Prefers session (actual run-time choices), falls back to settings/env.
+    """
+    ss = st.session_state
+
+    # --- core mode/model ---
+    agent_mode = (
+        getattr(ss.get("agent_mode"), "value", None)
+        or ss.get("agent_mode_select")
+        or getattr(getattr(settings, "agent_mode", None), "value", None)
+    )
+    openai_model = (
+        getattr(ss.get("openai_model"), "value", None)
+        or ss.get("openai_model")
+        or getattr(getattr(settings, "openai_model", None), "value", None)
+        or getattr(settings, "OPENAI_MODEL", None)  # last-ditch env passthrough if present
+    )
+
+    # --- booleans / numbers (session -> settings -> safe default) ---
+    screenshot_enabled = bool(
+        ss.get(SESSION_KEYS["screenshot_enabled"], getattr(settings, "screenshot_enabled", False))
+    )
+    fetch_concurrency = int(
+        ss.get(SESSION_KEYS["fetch_concurrency"], getattr(settings, "max_concurrent_requests", 0))
+        or 0
+    )
+
+    # settings may or may not expose a dedicated llm concurrency; default to fetch_concurrency
+    llm_concurrency = int(
+        ss.get(
+            SESSION_KEYS["llm_concurrency"], getattr(settings, "llm_concurrency", fetch_concurrency)
+        )
+        or 0
+    )
+
+    retry_attempts = int(
+        ss.get(SESSION_KEYS["retry_attempts"], getattr(settings, "retry_attempts", 0)) or 0
+    )
+    llm_schema_retries = int(
+        ss.get(SESSION_KEYS["llm_schema_retries"], getattr(settings, "llm_schema_retries", 0)) or 0
+    )
+    verbose = bool(ss.get(SESSION_KEYS["verbose"], getattr(settings, "verbose", False)))
+
+    url_count = int(ss.get("url_count", 0) or 0)
+
+    # --- environment / domains (settings first; session fallback) ---
+    environment = getattr(settings, "environment", None) or ss.get("environment") or "unknown"
+    frontend_domain = getattr(settings, "frontend_domain", None) or ss.get("frontend_domain")
+    backend_domain = getattr(settings, "backend_domain", None) or ss.get("backend_domain")
+
+    return {
+        "agent_mode": agent_mode,
+        "openai_model": openai_model,
+        "screenshot_enabled": screenshot_enabled,
+        "fetch_concurrency": fetch_concurrency,
+        "llm_concurrency": llm_concurrency,
+        "retry_attempts": retry_attempts,
+        "llm_schema_retries": llm_schema_retries,
+        "verbose": verbose,
+        "url_count": url_count,
+        "environment": environment,
+        "frontend_domain": frontend_domain,
+        "backend_domain": backend_domain,
+    }
