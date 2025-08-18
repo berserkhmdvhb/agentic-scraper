@@ -433,32 +433,30 @@ Then open:
 
 ## 🔧 Environment Configuration (.env)
 
-See [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as example.
-Two values are mandatory for backend to run:
+Use [`sample.env`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/sample.env) as a reference and create a `.env` in the project root. The backend will refuse to start without valid values for the required keys below.
 
-1. `ENCRYPTION_SECRET`: Ensure you generate the `ENCRYPTION_SECRET` value using the `cryptography.fernet` command provided in `sample.env` and replace it with the command. The command to generate is following:
+### Required (minimum to boot)
 
+- `ENCRYPTION_SECRET`: 32‑byte Fernet key used to encrypt per‑user OpenAI credentials.
+
+  - Generate one:
 ```bash
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-If you haven't installed the dependencies (from ), you need at least the package `cryptography` to produce the command above. It can be installed as following;
+If you haven't installed the dependencies, you need at least the package `cryptography` for this:
 
 ```bash
 pip install cryptography
 ```
-2. `AUTH0_ISSUER`: In `sample.env` the value is `https://dev-xxxxxx.us.auth0.com/`. But it should be replaced with a correct one, otherwise FastAPI will raise following error:
-   
-```
-httpx.HTTPStatusError: Client error '404 Not Found' for url 'https://dev-xxxxxx.us.auth0.com/.well-known/jwks.json'
-```
 
-The file [`src\backend\api\auth\auth0_helpers.py`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/src/agentic_scraper/backend/api/auth/auth0_helpers.py) is responsible for fetching JWKS.
-Although providing `ENCRYPTION_SECRET` and `AUTH0_ISSUER` will be enough for both frontend and backend to launch, but the following operations require proper setup of auth0:
-- Authenticate users on auth0
-- Authenticated users log in on the frontend domain.
-- Authenticated users submit their openai-credentials.
-- Authenticated users with saved openai-credentials could now feed URLs and perform scraping.
+2. `AUTH0_ISSUER`: Your Auth0 tenant issuer with trailing slash, e.g.
+
+`https://dev-xxxxx.us.auth0.com/`
+
+3. `AUTH0_API_AUDIENCE`: Your API identifier, which should be set as your backend domain:
+
+`https://your-backend-domain.com/`
 
 
 To setup auth0, see [Setup Auth0](#setup-auth0).
@@ -468,15 +466,37 @@ To setup auth0, see [Setup Auth0](#setup-auth0).
 Example of `.env` values:
 
 ```ini
+# Logging
 LOG_LEVEL=INFO
-AGENT_MODE=llm-dynamic-adaptive
-BACKEND_DOMAIN=https://api-agenticscraper.onrender.com
+
+# Public domains (used in UI and redirects)
 FRONTEND_DOMAIN=https://agenticscraper.onrender.com
-ENCRYPTION_SECRET=<python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+BACKEND_DOMAIN=https://api-agenticscraper.onrender.com
+
+# Auth0 (REQUIRED)
+AUTH0_ISSUER=https://dev-xxxxx.us.auth0.com/
+AUTH0_API_AUDIENCE=https://6d35bd763370.ngrok-free.app/
+
+# Crypto (REQUIRED)
+ENCRYPTION_SECRET=<paste Fernet key here>
+
+# Defaults
+AGENT_MODE=llm-dynamic
+SCREENSHOTS_ENABLED=false
+FETCH_CONCURRENCY=6
+LLM_CONCURRENCY=2
+OPENAI_MODEL=gpt-4o
 ...
+
 ```
 
-The UI overrides `.env` if sidebar values are selected.
+
+### Notes
+
+* The Streamlit UI can override some settings at runtime via the sidebar.
+* Auth flows and scraping require a working Auth0 setup (see [Setup Auth0](#setup-auth0)).
+* OpenAI API key & project ID are provided by the user in the UI and stored encrypted by the backend using `ENCRYPTION_SECRET`.
+
 
 ---
 
@@ -739,7 +759,13 @@ Content-Type: application/json
 ## 🔐 Security & Authentication 
 
 ### Setup Auth0
-To 
+The file [`src\backend\api\auth\auth0_helpers.py`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/src/agentic_scraper/backend/api/auth/auth0_helpers.py) is responsible for fetching JWKS.
+Although providing `ENCRYPTION_SECRET` and `AUTH0_ISSUER` will be enough for both frontend and backend to launch, but the following operations require proper setup of auth0:
+- Authenticate users on auth0
+- Authenticated users log in on the frontend domain.
+- Authenticated users submit their openai-credentials.
+- Authenticated users with saved openai-credentials could now feed URLs and perform scraping.
+
 ...
 
 
