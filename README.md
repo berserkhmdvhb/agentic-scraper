@@ -74,14 +74,16 @@
 
 * 🔗 Accepts URLs via paste or `.txt` file upload
 * 🔐 Auth0-secured API access using JWT tokens and scope-based control
-* 🔒 Encrypted OpenAI credential storage per user
+* 🔒 Encrypted per-user storage of OpenAI API key + project ID
 * 🌐 Multiple agent modes (`rule-based`, `llm-fixed`, `llm-dynamic`, `llm-dynamic-adaptive`)
-* 🧠 Adaptive retry logic that self-heals missing fields via prompt regeneration
-* ⚡ Concurrent scraping pipeline with `httpx`, `asyncio`, and retries via `tenacity`
-* ✔️ Structured schema validation using `pydantic v2`
+* 🧠 `llm-dynamic` agent automatically decides which fields to extract based on page context and hints.
+* 🧠 `llm-dynamic-adaptive` employs retry logic with field scoring, placeholder detection, and self-healing prompt regeneration
+* ⚡ Concurrent scraping pipeline with `asyncio` worker pool, granular job progress tracking, and cancellation support
+* ✔️ Structured schema validation with `pydantic v2`
 * 📸 Optional full-page screenshots via Playwright
-* 🔧 UI controls for agent config, model selection, concurrency, retries, and verbosity
-* 📤 Export scraped data to CSV, JSON, or SQLite
+* 🔧 Streamlit UI controls for agent mode, model, concurrency, retries, screenshots, and verbosity
+* 📊 Jobs tab with real-time job status, cancel button, results overview, and table exports
+* 📤 Export scraped data to JSON, CSV, SQLite, or a bundled job package (metadata + results)
 * 🧱 Modular backend with FastAPI and dependency-injected authentication & settings
 
 ---
@@ -93,14 +95,14 @@ https://github.com/user-attachments/assets/b342d0f3-6bed-477f-b657-8c10e0db3eaf
 ---
 
 
-# ⚙️ Tech Stack
+## ⚙️ Tech Stack
 
 | Layer                    | Tools                                                |
 | ------------------------ | ---------------------------------------------------- |
 | **Frontend (UI)**        | `Streamlit`, `streamlit-aggrid`                      |
-| **Backend API**          | `FastAPI`, `Pydantic`, `uvicorn`                     |
+| **Backend API**          | `FastAPI`, `Pydantic v2`, `uvicorn`                  |
 | **Authentication**       | Auth0, OAuth2 (JWT, scopes, tokens)                  |
-| **LLM Integration**      | OpenAI ChatCompletion API (`gpt-4`, `gpt-3.5-turbo`) |
+| **LLM Integration**      | OpenAI Chat API (`gpt-4`, `gpt-3.5-turbo`)           |
 | **Async Fetching**       | `httpx`, `asyncio`, `tenacity`                       |
 | **HTML Parsing**         | `BeautifulSoup4`                                     |
 | **Screenshots**          | `playwright.async_api`                               |
@@ -111,6 +113,7 @@ https://github.com/user-attachments/assets/b342d0f3-6bed-477f-b657-8c10e0db3eaf
 | **Linting & Typing**     | `ruff`, `mypy`                                       |
 | **Tooling & Automation** | `Makefile`, `Docker`, GitHub Actions                 |
 | **Deployment**           | `Render.com`, Docker Hub (frontend & backend images) |
+
 
 ---
 
@@ -123,124 +126,143 @@ agentic_scraper/
 ├── .env, sample.env, Makefile, README.md, docker-compose.yml
 ├── Dockerfile.backend, Dockerfile.frontend
 ├── pyproject.toml, requirements.txt, poetry.lock
-├── run.py, run_api.py, run_batch.py, run_experiments.py
+├── run_frontend.py, run_backend.py, run_batch.py
 ├── .github/workflows/             # GitHub Actions CI/CD workflows
 ├── docs/                          # Developer and testing docs
 ├── input/                         # URL input files
+├── screenshots/                   # Captured screenshots per scrape
 ├── tests/                         # Unit and integration tests
-├── src/
-│   └── agentic_scraper/
-│       ├── backend/
-│       │   ├── api/               # FastAPI app and routes
-│       │   ├── config/            # Constants, aliases, enums, messages
-│       │   ├── core/              # Logger and settings
-│       │   ├── scraper/
-│       │   │   ├── agent/         # Modular agent strategies (LLMs, rules)
-│       │   │   ├── fetcher, parser, pipeline, screenshotter, worker_pool
-│       │   └── utils/             # Validators and shared helpers
-│       └── frontend/              # Streamlit UI (core, display, runner)
+└── src/
+    └── agentic_scraper/
+        ├── backend/               # FastAPI backend
+        │   ├── api/               # Routes, auth, lifecycle, schemas, stores
+        │   ├── config/            # Constants, messages, aliases, types
+        │   ├── core/              # Logger + settings
+        │   ├── scraper/           # Fetcher, parser, pipeline, worker pool
+        │   └── utils/             # Crypto + validators
+        └── frontend/              # Streamlit frontend
+            ├── ui_auth*, ui_sidebar, ui_runner, ui_jobs
+            └── helpers + display modules
 ```
+
 
 ### Detailed
 
 ```
 agentic_scraper/
-├── .env                         # Local config
-├── Makefile                     # Dev commands
-├── pyproject.toml               # Project dependencies and tool config
-├── run.py                       # CLI launcher for Streamlit
-├── README.md                    # Project documentation
-├── sample.env                   # Example environment file
-├── requirements.txt             # Exported requirements (pip)
-├── poetry.lock                  # Poetry lock file
-├── remove_bom.py                # Utility script
-├── run_api.py                   # CLI launcher for FastAPI backend
-├── run_batch.py                 # CLI for batch scraping
-├── run_experiments.py           # Concurrency benchmarking script
-├── mock_api.py                  # Local mock server for experiments testing
-├── docker-compose.yml           # Orchestrates frontend and backend containers
-├── Dockerfile.backend           # Builds the FastAPI backend image
-├── Dockerfile.frontend          # Builds the Streamlit frontend image
-├── logo.jpg                     # Project logo (used in README/demo)
-├── LICENSE                      # License file
-├── .github/workflows/           # GitHub Actions CI/CD workflows
+├── .env                          # Local env config (see sample.env)
+├── sample.env                    # Example environment file
+├── Makefile                      # Dev commands (lint, type-check, test, docker)
+├── README.md                     # Project documentation
+├── docker-compose.yml            # Orchestrates frontend and backend containers
+├── Dockerfile.backend            # Builds the FastAPI backend image
+├── Dockerfile.frontend           # Builds the Streamlit frontend image
+├── pyproject.toml                # Project dependencies and tool config
+├── requirements.txt              # Exported requirements (pip)
+├── poetry.lock                   # Poetry lock file
+├── LICENSE                       # License file
+├── .github/workflows/            # GitHub Actions CI/CD workflows
 │   ├── badge-refresh.yml
 │   ├── check-requirements.yml
 │   ├── docker-build-backend.yml
 │   ├── docker-build-frontend.yml
 │   └── tests.yml
-├── docs/                        # Additional documentation
-├── input/                       # Sample input files
+├── docs/                         # Additional documentation
+├── input/                        # Sample input files
 │   ├── urls1.txt
 │   └── urls2.txt
-├── screenshots/                 # Captured screenshots per scrape
-├── tests/                       # Unit and manual tests
+├── screenshots/                  # Captured screenshots per scrape
+├── tests/                        # Unit and manual tests
 │   ├── backend/core/test_settings.py
 │   ├── manual/screenshotter_test.py
 │   └── manual/validators_test.py
-src/
-└── agentic_scraper/
-    ├── __init__.py                    # Project version + API version
-    ├── backend/
-    │   ├── api/
-    │   │   ├── lifecycle.py           # Lifespan hooks and shutdown events
-    │   │   ├── main.py                # FastAPI app factory and router registration
-    │   │   ├── models.py              # Internal shared models
-    │   │   ├── openapi.py             # Custom OpenAPI schema and JWT support
-    │   │   ├── user_store.py          # Secure OpenAI credential storage
-    │   │   ├── auth/
-    │   │   │   ├── auth0_helpers.py   # JWKS fetching, token decoding, Auth0 utilities
-    │   │   │   ├── dependencies.py    # FastAPI auth dependencies (e.g. get_current_user)
-    │   │   │   ├── scope_helpers.py   # Scope validation logic for API access control
-    │   │   ├── routes/
-    │   │   │   └── v1/
-    │   │   │       ├── auth.py        # Endpoint for token and session verification
-    │   │   │       ├── scrape.py      # Main scraping initiation endpoint
-    │   │   │       ├── user.py        # User profile, credential, and config routes
-    │   │   ├── schemas/
-    │   │   │   ├── scrape.py          # Pydantic models for scrape requests/responses
-    │   │   │   ├── user.py            # Pydantic models for user authentication and config
-    │   │   ├── utils/
-    │   │   │   ├── log_helpers.py     # Logging utilities for API events
-    │   ├── config/
-    │   │   ├── aliases.py             # Field alias mappings
-    │   │   ├── constants.py           # Global default values and limits
-    │   │   ├── messages.py            # Centralized UI/logging message constants
-    │   │   ├── types.py               # Enums and strong-typed field definitions
-    │   ├── core/
-    │   │   ├── logger_helpers.py      # Helpers for structured log output
-    │   │   ├── logger_setup.py        # Loguru configuration and rotation
-    │   │   ├── settings.py            # Pydantic settings model with env validation
-    │   │   ├── settings_helpers.py    # Custom parsing, coercion, and default resolution
-    │   ├── scraper/
-    │   │   ├── fetcher.py             # HTML fetcher with `httpx`, headers, and retry logic
-    │   │   ├── models.py              # Shared `ScrapedItem` schema
-    │   │   ├── parser.py              # HTML cleanup and content distillation
-    │   │   ├── pipeline.py            # Orchestration logic for full scrape flow
-    │   │   ├── screenshotter.py       # Playwright screenshot capture (optional)
-    │   │   ├── worker_pool.py         # Async scraping task manager using asyncio.Queue
-    │   │   └── agent/
-    │   │       ├── agent_helpers.py   # Agent-level utilities (scoring, error handling)
-    │   │       ├── field_utils.py     # Field normalization, scoring, placeholder detection
-    │   │       ├── llm_dynamic.py     # LLM agent for context-based dynamic field extraction
-    │   │       ├── llm_dynamic_adaptive.py  # LLM agent with retries and field prioritization
-    │   │       ├── llm_fixed.py       # Fixed-schema extractor using a static prompt
-    │   │       ├── prompt_helpers.py  # Prompt construction for first and retry passes
-    │   │       ├── rule_based.py      # Fast, deterministic parser without LLMs
-    │   ├── utils/
-    │       ├── crypto.py              # AES encryption/decryption of user credentials
-    │       ├── validators.py          # URL and input validation logic
-    └── frontend/
-        ├── app.py                     # Streamlit entrypoint for launching the UI
-        ├── models.py                  # Sidebar config model and pipeline config
-        ├── ui_auth.py                 # Auth0 login + token management
-        ├── ui_auth_credentials.py     # OpenAI credential input and validation
-        ├── ui_display.py              # Grid/table visualization of extracted results
-        ├── ui_effects.py              # UI effects: spinners, banners, toasts
-        ├── ui_page_config.py          # Layout, environment badge, log path config
-        ├── ui_runner.py               # Async scrape runner using backend API
-        ├── ui_runner_helpers.py       # URL deduplication, fetch pre-processing, display
-        ├── ui_sidebar.py              # Full sidebar rendering: model, agent, retries, etc.
+├── run_frontend.py               # CLI launcher for Streamlit UI
+├── run_backend.py                # CLI launcher for FastAPI backend
+├── run_batch.py                  # CLI for batch scraping via the backend
+└── src/
+    └── agentic_scraper/
+        ├── __init__.py                 # Project version + API version
+        ├── backend/
+        │   ├── api/
+        │   │   ├── lifecycle.py        # Lifespan hooks and shutdown events
+        │   │   ├── main.py             # FastAPI app instance and router registration
+        │   │   ├── models.py           # Internal/shared API models
+        │   │   ├── openapi.py          # Custom OpenAPI schema + JWT bearer support
+        │   │   ├── __init__.py
+        │   │   ├── auth/
+        │   │   │   ├── auth0_helpers.py    # JWKS fetching, token verification
+        │   │   │   ├── dependencies.py     # get_current_user dependency (Auth0 JWT)
+        │   │   │   ├── scope_helpers.py    # Scope validation for API access control
+        │   │   │   └── __init__.py
+        │   │   ├── routes/
+        │   │   │   ├── auth.py              # Auth/session verification endpoints
+        │   │   │   ├── scrape.py            # Start scraping job; list/get jobs
+        │   │   │   ├── scrape_cancel_registry.py # In-memory cancel registry helpers
+        │   │   │   ├── scrape_helpers.py    # Shared helpers for scrape routes
+        │   │   │   ├── user.py              # User profile & OpenAI credential routes
+        │   │   │   └── __init__.py
+        │   │   ├── schemas/
+        │   │   │   ├── items.py             # Shared item schemas for API responses
+        │   │   │   ├── scrape.py            # Scrape request/response models
+        │   │   │   ├── user.py              # User & credential models
+        │   │   │   └── __init__.py
+        │   │   ├── stores/
+        │   │   │   ├── job_store.py         # In-memory job store (status, progress, pagination)
+        │   │   │   ├── user_store.py        # Encrypted OpenAI credentials store
+        │   │   │   └── __init__.py
+        │   │   └── utils/
+        │   │       ├── log_helpers.py       # Logging utilities for API events
+        │   │       └── __init__.py
+        │   ├── config/
+        │   │   ├── aliases.py               # Field alias mappings
+        │   │   ├── constants.py             # Global defaults/limits
+        │   │   ├── messages.py              # Centralized logging/UI message constants
+        │   │   ├── types.py                 # Enums and strong-typed field definitions
+        │   │   └── __init__.py
+        │   ├── core/
+        │   │   ├── logger_helpers.py        # Helpers for structured logging output
+        │   │   ├── logger_setup.py          # Loguru configuration and rotation
+        │   │   ├── settings.py              # Pydantic settings model with env validation
+        │   │   ├── settings_helpers.py      # Custom parsing/coercion/default resolution
+        │   │   └── __init__.py
+        │   ├── scraper/
+        │   │   ├── fetcher.py               # Async HTML fetcher (httpx + retries)
+        │   │   ├── models.py                # ScrapedItem and related models
+        │   │   ├── parser.py                # HTML cleanup & content distillation
+        │   │   ├── pipeline.py              # Orchestration of full scrape flow
+        │   │   ├── schemas.py               # Internal scraping schemas
+        │   │   ├── screenshotter.py         # Playwright screenshots (optional)
+        │   │   ├── worker_pool.py           # Async workers, progress updates, cancellation
+        │   │   ├── worker_pool_helpers.py   # Worker pool utilities
+        │   │   ├── __init__.py
+        │   │   └── agents/
+        │   │       ├── agent_helpers.py     # Agent utilities (scoring, error handling)
+        │   │       ├── field_utils.py       # Field normalization, scoring, placeholder detection
+        │   │       ├── llm_dynamic.py       # Context-driven LLM extraction (recommended)
+        │   │       ├── llm_dynamic_adaptive.py # Adaptive retries + discovery for completeness
+        │   │       ├── llm_fixed.py         # Fixed-schema extraction with static prompt
+        │   │       ├── prompt_helpers.py    # Prompt construction (initial + retry)
+        │   │       ├── rule_based.py        # Heuristic baseline without LLM
+        │   │       └── __init__.py
+        │   └── utils/
+        │       ├── crypto.py                # AES encrypt/decrypt user credentials
+        │       ├── validators.py            # URL & input validation
+        │       └── __init__.py
+        └── frontend/
+            ├── __init__.py
+            ├── app.py                       # Streamlit entrypoint
+            ├── app_helpers.py               # Frontend helpers (formatting, utilities)
+            ├── models.py                    # Sidebar + pipeline config models
+            ├── ui_auth.py                   # Auth0 login + token flow
+            ├── ui_auth_credentials.py       # OpenAI credential input & validation
+            ├── ui_auth_helpers.py           # Auth helpers (fetch status, error handling)
+            ├── ui_display.py                # Grid/table visualization of results
+            ├── ui_effects.py                # Spinners, banners, toasts
+            ├── ui_jobs.py                   # Jobs tab: overview, results, exports, cancel
+            ├── ui_page_config.py            # Layout, environment badges, log path
+            ├── ui_runner.py                 # Async scrape runner (calls backend API)
+            ├── ui_runner_helpers.py         # URL dedupe, pre-processing, progress UI
+            └── ui_sidebar.py                # Full sidebar rendering: model/agent/retries
 ```
 
 
@@ -362,7 +384,7 @@ streamlit run src/agentic_scraper/frontend/app.py
 Or, use the shortcut:
 
 ```bash
-python run.py
+python run_frontend.py
 ```
 
 To launch the backend, run the Uvicorn server:
@@ -371,6 +393,11 @@ To launch the backend, run the Uvicorn server:
  uvicorn src.agentic_scraper.backend.api.main:app --reload
 ```
 
+Or, use the shortcut:
+
+```bash
+python run_backend.py
+```
 
 
 ### 🐳 Run via Docker
