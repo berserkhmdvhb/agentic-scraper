@@ -11,16 +11,24 @@ This module:
 import asyncio
 import sys
 
+import httpx
 import streamlit as st
-
-from agentic_scraper.backend.core.logger_setup import setup_logging
 
 # Windows asyncio compatibility
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-# Setup logging once when the app starts
-setup_logging(reset=True)
+LOGO_URL = "https://raw.githubusercontent.com/berserkhmdvhb/agentic-scraper/main/logo.png"
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _load_logo_bytes(url: str) -> bytes | None:
+    """Cache the project logo to avoid a network fetch on every rerun."""
+    try:
+        with httpx.Client() as client:
+            return client.get(url, timeout=10).content
+    except (httpx.RequestError, httpx.HTTPStatusError):
+        return None
 
 
 def configure_page() -> None:
@@ -31,9 +39,9 @@ def configure_page() -> None:
         None
     """
     st.set_page_config(page_title="Agentic Scraper", layout="wide")
-    st.image(
-        "https://raw.githubusercontent.com/berserkhmdvhb/agentic-scraper/main/logo.png", width=300
-    )
+    logo = _load_logo_bytes(LOGO_URL)
+    if logo:
+        st.image(logo, width=300)
     st.markdown("Extract structured data from any list of URLs using LLM-powered parsing.")
 
 

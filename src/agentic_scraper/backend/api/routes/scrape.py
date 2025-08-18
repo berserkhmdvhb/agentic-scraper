@@ -1,144 +1,110 @@
+import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from agentic_scraper.backend.api.auth.dependencies import get_current_user
 from agentic_scraper.backend.api.auth.scope_helpers import check_required_scopes
 from agentic_scraper.backend.api.models import AuthUser, RequiredScopes
+from agentic_scraper.backend.api.routes.scrape_cancel_registry import (
+    cleanup,
+    get_cancel_event,
+    register_cancel_event,
+    set_canceled,
+)
+from agentic_scraper.backend.api.routes.scrape_helpers import (
+    _finalize_failure,
+    _finalize_success_if_not_canceled,
+    _mark_running,
+    _merge_runtime_settings,
+    _resolve_openai_creds_or_fail,
+    _run_pipeline_and_build_result,
+)
 from agentic_scraper.backend.api.schemas.scrape import (
     ScrapeCreate,
     ScrapeJob,
     ScrapeList,
-    ScrapeResultDynamic,
-    ScrapeResultFixed,
 )
 from agentic_scraper.backend.api.stores.job_store import (
     cancel_job,
     create_job,
     get_job,
     list_jobs,
-    update_job,
 )
-from agentic_scraper.backend.api.stores.user_store import load_user_credentials
-from agentic_scraper.backend.config.constants import SCRAPER_CONFIG_FIELDS
 from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_SCRAPE_CONFIG_MERGED,
     MSG_ERROR_INVALID_JOB_STATUS,
     MSG_HTTP_FORBIDDEN_JOB_ACCESS,
     MSG_HTTP_JOB_NOT_CANCELABLE,
     MSG_HTTP_JOB_NOT_FOUND_DETAIL,
     MSG_HTTP_LOCATION_HEADER_SET,
-    MSG_HTTP_MISSING_OPENAI_CREDS,
-    MSG_INFO_INLINE_KEY_MASKED_FALLBACK,
     MSG_INFO_SCRAPE_REQUEST_RECEIVED,
     MSG_JOB_CANCEL_REQUESTED,
     MSG_JOB_CANCELED,
     MSG_JOB_CREATED,
-    MSG_JOB_FAILED,
     MSG_JOB_LIST_REQUESTED,
     MSG_JOB_NOT_FOUND,
-    MSG_JOB_STARTED,
-    MSG_JOB_SUCCEEDED,
-    MSG_LOG_DEBUG_DYNAMIC_EXTRAS,
-    MSG_LOG_DYNAMIC_EXTRAS_ERROR,
 )
 from agentic_scraper.backend.config.types import AgentMode, JobStatus
-from agentic_scraper.backend.core.settings import get_settings
-from agentic_scraper.backend.scraper.pipeline import scrape_with_stats
 
 router = APIRouter(prefix="/scrapes", tags=["Scrape"])
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
 
+# Keep a reference to background tasks (RUF006) and auto-clean when done
+_pending_tasks: set[asyncio.Task[None]] = set()
 
-def _masked(s: str | None) -> bool:
-    if not s:
-        return False
-    return any(ch in s for ch in ("*", "•", "●", "·"))
+
+def _track_task(t: asyncio.Task[None]) -> None:
+    _pending_tasks.add(t)
+    t.add_done_callback(_pending_tasks.discard)
 
 
 async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser) -> None:
-    """Background job runner that executes the pipeline and updates job state."""
-    try:
-        update_job(job_id, status="running", updated_at=datetime.now(timezone.utc))
-        logger.info(MSG_JOB_STARTED.format(job_id=job_id))
+    """Execute the scrape pipeline for a job and persist its final state.
 
-        # Resolve OpenAI creds (if agent requires them)
-        inline = payload.openai_credentials
-        if inline and _masked(getattr(inline, "api_key", None)):
-            logger.info(MSG_INFO_INLINE_KEY_MASKED_FALLBACK)
-            inline = None
-        needs_llm = payload.agent_mode != AgentMode.RULE_BASED
-        creds = inline or load_user_credentials(user["sub"])
-        if needs_llm and not creds:
-            # Fail early if creds are missing for LLM modes
-            update_job(
-                job_id,
-                status="failed",
-                error=MSG_HTTP_MISSING_OPENAI_CREDS,
-                progress=0.0,
-                updated_at=datetime.now(timezone.utc),
-            )
-            logger.error(MSG_JOB_FAILED.format(job_id=job_id, error=MSG_HTTP_MISSING_OPENAI_CREDS))
+    Flow:
+        1) Mark RUNNING (skips if already terminal).
+        2) Short-circuit if already CANCELED.
+        3) Resolve creds (fail job if missing for LLM modes).
+        4) Merge runtime settings and run pipeline with cancel awareness.
+        5) Finalize SUCCEEDED only if not canceled.
+        6) Always cleanup the cancel registry entry.
+    """
+    try:
+        _mark_running(job_id)
+
+        # Pre-run cancel short-circuit: respect terminal state.
+        snapshot = get_job(job_id)
+        if snapshot and snapshot["status"] == JobStatus.CANCELED:
             return
 
-        # Merge runtime settings from request
-        config_values = payload.model_dump(include=set(SCRAPER_CONFIG_FIELDS))
-        merged_settings = settings.model_copy(update=config_values)
-        logger.debug(MSG_DEBUG_SCRAPE_CONFIG_MERGED.format(config=config_values))
+        creds = _resolve_openai_creds_or_fail(job_id, payload, user)
+        if payload.agent_mode != AgentMode.RULE_BASED and creds is None:
+            return
 
-        # Execute pipeline
-        urls = [str(u) for u in payload.urls]
-        items, stats = await scrape_with_stats(urls, settings=merged_settings, openai=creds)
-        result_model: ScrapeResultDynamic | ScrapeResultFixed
-        # Persist final result
-        if payload.agent_mode in {AgentMode.LLM_FIXED, AgentMode.RULE_BASED}:
-            result_model = ScrapeResultFixed.from_internal(items, stats)
-        else:
-            # Dynamic mode keeps extra fields
-            result_model = ScrapeResultDynamic.from_internal(items, stats)
+        merged_settings = _merge_runtime_settings(payload)
 
-        # DEBUG: check if dynamic extras made it into the result payload
-        try:
-            items_list: list[Any] = getattr(result_model, "items", [])
-            first: dict[str, Any] = {}
-            if items_list:
-                first_item = items_list[0]
-                if hasattr(first_item, "model_dump"):
-                    first = first_item.model_dump()
-                elif isinstance(first_item, dict):
-                    first = first_item
-            logger.debug(
-                MSG_LOG_DEBUG_DYNAMIC_EXTRAS.format(
-                    agent_mode=payload.agent_mode,
-                    keys=sorted(first.keys()),
-                )
-            )
-        except (AttributeError, IndexError, TypeError, ValueError) as e:
-            logger.debug(MSG_LOG_DYNAMIC_EXTRAS_ERROR.format(error=e))
+        cancel_event = get_cancel_event(job_id) or register_cancel_event(job_id)
 
-        update_job(
-            job_id,
-            status="succeeded",
-            result=result_model.model_dump(),
-            progress=1.0,
-            updated_at=datetime.now(timezone.utc),
+        result_model, was_canceled = await _run_pipeline_and_build_result(
+            payload=payload,
+            merged_settings=merged_settings,
+            creds=creds,
+            cancel_event=cancel_event,
+            job_id=job_id,
         )
-        logger.info(MSG_JOB_SUCCEEDED.format(job_id=job_id))
 
-    except Exception as e:
-        update_job(
-            job_id,
-            status="failed",
-            error=str(e),
-            progress=0.0,
-            updated_at=datetime.now(timezone.utc),
-        )
-        logger.exception(MSG_JOB_FAILED.format(job_id=job_id))
+        if not was_canceled:
+            _finalize_success_if_not_canceled(job_id, result_model)
+
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as e:  # noqa: BLE001 - catch-all to ensure job is finalized as FAILED
+        _finalize_failure(job_id, e)
+    finally:
+        cleanup(job_id)
 
 
 @router.post(
@@ -148,7 +114,6 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
 async def create_scrape_job(
     payload: ScrapeCreate,
     response: Response,
-    background: BackgroundTasks,
     user: CurrentUser,
     request: Request,
 ) -> ScrapeJob:
@@ -165,9 +130,14 @@ async def create_scrape_job(
     job = create_job(request_payload, owner_sub=user["sub"])
     logger.info(MSG_JOB_CREATED.format(job_id=job["id"]))
 
-    # Schedule background execution (async callable supported by BackgroundTasks)
-    background.add_task(_run_scrape_job, job["id"], payload, user)
+    # Register cancel event at creation to avoid cancel-before-register gaps
+    register_cancel_event(job["id"])
 
+    # Schedule background execution explicitly as an asyncio task
+    task: asyncio.Task[None] = asyncio.create_task(
+        _run_scrape_job(job["id"], payload, user), name=f"scrape-job-{job['id']}"
+    )
+    _track_task(task)
     # Set Location header for polling (absolute)
     response_url = str(request.url_for("get_scrape_job", job_id=job["id"]))
     response.headers["Location"] = response_url
@@ -231,17 +201,17 @@ async def list_scrape_jobs(
     status_filter: JobStatus | None = None
     if status_ is not None:
         try:
-            status_filter = JobStatus(status_)
+            status_filter = JobStatus(status_.lower())
         except ValueError as err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=MSG_ERROR_INVALID_JOB_STATUS.format(status=status_),
             ) from err
 
-    items, next_cursor = list_jobs(status=status_filter, limit=limit, cursor=cursor)
-
-    # Filter to owner's jobs only (optional policy)
-    items = [j for j in items if j.get("owner_sub") == user["sub"]]
+    # Filter by owner inside the store so pagination is correct
+    items, next_cursor = list_jobs(
+        status=status_filter, limit=limit, cursor=cursor, owner_sub=user["sub"]
+    )
 
     return ScrapeList(items=[ScrapeJob(**j) for j in items], next_cursor=next_cursor)
 
@@ -274,15 +244,19 @@ async def cancel_scrape_job(job_id: str, user: CurrentUser) -> Response:
             status_code=status.HTTP_403_FORBIDDEN, detail=MSG_HTTP_FORBIDDEN_JOB_ACCESS
         )
 
-    # Attempt cancel
     ok = cancel_job(job_id, user_sub=user["sub"])
     if not ok:
-        # Not cancelable (already finished, failed, or canceled)
+        # Not cancelable (already finished or already canceled)
         current_status = job.get("status")
+        if str(current_status).lower() == "canceled":
+            # Idempotent: already canceled → 204
+            set_canceled(job_id)  # ensure any waiting workers wake up
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=MSG_HTTP_JOB_NOT_CANCELABLE.format(status=current_status),
         )
 
     logger.info(MSG_JOB_CANCELED.format(job_id=job_id))
+    set_canceled(job_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

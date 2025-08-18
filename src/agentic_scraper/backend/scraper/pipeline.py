@@ -19,6 +19,8 @@ import asyncio
 import contextlib
 import logging
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
@@ -44,38 +46,31 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class PipelineOptions:
+    cancel_event: asyncio.Event | None = None
+    should_cancel: Callable[[], bool] | None = None
+    job_hooks: object | None = None
+
+
 async def scrape_urls(
     urls: list[str],
     settings: Settings,
     openai: OpenAIConfig | None = None,
     *,
-    cancel_event: asyncio.Event | None = None,
-    job_hooks: object | None = None,
+    options: PipelineOptions | None = None,
 ) -> list[ScrapedItem]:
     """
     Run the scraping pipeline on the provided URLs using the configured agent mode.
-
-    This function:
-    - Fetches HTML content for each URL.
-    - Extracts the main text from HTML.
-    - Runs the extraction workers with LLM or non-LLM agents.
-
-    Args:
-        urls (list[str]): List of target URLs to scrape.
-        settings (Settings): Runtime settings (agent mode, concurrency, etc.).
-        openai (OpenAIConfig | None): OpenAI credentials for LLM agents. Optional.
-        cancel_event (asyncio.Event | None): If set during execution, the pipeline should
-            stop early where possible. (Checked before worker dispatch; deeper checks can
-            be added in worker_pool.)
-        job_hooks (object | None): Optional object with any of:
-            - on_started(total: int) -> None
-            - on_completed(success: int, failed: int, duration_sec: float) -> None
-            - on_failed(error: Exception) -> None
-
-    Returns:
-        list[ScrapedItem]: List of successfully scraped and structured items.
     """
-    if cancel_event and cancel_event.is_set():
+    # Back-compat: allow legacy keyword args (cancel_event, should_cancel, job_hooks)
+    if options is None:
+        options = PipelineOptions()
+    cancel_event = options.cancel_event
+    should_cancel = options.should_cancel
+    job_hooks = options.job_hooks
+
+    if (cancel_event and cancel_event.is_set()) or (should_cancel and should_cancel()):
         if job_hooks and hasattr(job_hooks, "on_failed"):
             with contextlib.suppress(Exception):
                 job_hooks.on_failed(RuntimeError("Scrape canceled before start."))
@@ -87,6 +82,8 @@ async def scrape_urls(
         urls=urls,
         settings=settings,
         concurrency=settings.fetch_concurrency,
+        cancel_event=cancel_event,
+        should_cancel=should_cancel,
     )
 
     logger.info(MSG_INFO_FETCH_COMPLETE.format(count=len(html_by_url)))
@@ -104,14 +101,14 @@ async def scrape_urls(
         with contextlib.suppress(Exception):
             job_hooks.on_started(len(scrape_inputs))
 
-    # early exit if no valid scrape inputs
+    # Early exit if no valid scrape inputs
     if not scrape_inputs:
         if job_hooks and hasattr(job_hooks, "on_completed"):
             with contextlib.suppress(Exception):
                 job_hooks.on_completed(success=0, failed=len(urls), duration_sec=0.0)
         return []
 
-    if cancel_event and cancel_event.is_set():
+    if (cancel_event and cancel_event.is_set()) or (should_cancel and should_cancel()):
         if job_hooks and hasattr(job_hooks, "on_failed"):
             with contextlib.suppress(Exception):
                 job_hooks.on_failed(RuntimeError("Scrape canceled before worker pool start."))
@@ -132,6 +129,7 @@ async def scrape_urls(
         on_error=getattr(job_hooks, "on_error", None),
         preserve_order=getattr(settings, "preserve_order", False),
         max_queue_size=getattr(settings, "max_queue_size", None),
+        should_cancel=should_cancel,
     )
 
     logger.debug(
@@ -143,6 +141,7 @@ async def scrape_urls(
         settings=settings,
         config=pool_config,
         cancel_event=cancel_event,
+        should_cancel=should_cancel,
     )
 
 
@@ -151,29 +150,19 @@ async def scrape_with_stats(
     settings: Settings,
     openai: OpenAIConfig | None = None,
     *,
-    cancel_event: asyncio.Event | None = None,
-    job_hooks: object | None = None,
+    options: PipelineOptions | None = None,
 ) -> tuple[list[ScrapedItem], dict[str, float | int]]:
     """
     Run the scraping pipeline and return both results and performance metrics.
-
-    This function wraps `scrape_urls` and collects timing and outcome statistics.
-
-    Args:
-        urls (list[str]): List of URLs to scrape.
-        settings (Settings): Runtime scraper configuration.
-        openai (OpenAIConfig | None): Optional OpenAI API credentials.
-        cancel_event (asyncio.Event | None): Optional cancellation signal to stop early.
-        job_hooks (object | None): Optional lifecycle hooks:
-            - on_started(total: int) -> None
-            - on_completed(success: int, failed: int, duration_sec: float) -> None
-            - on_failed(error: Exception) -> None
-
-    Returns:
-        tuple[list[ScrapedItem], dict[str, float | int]]:
-            - List of successfully scraped items.
-            - Dictionary of scrape stats including duration and counts.
     """
+    # Back-compat for legacy kwargs
+    if options is None:
+        options = PipelineOptions()
+
+    cancel_event = options.cancel_event
+    should_cancel = options.should_cancel
+    job_hooks = options.job_hooks
+
     logger.debug(
         MSG_DEBUG_SCRAPE_STATS_START.format(
             agent_mode=settings.agent_mode, has_openai=openai is not None
@@ -187,8 +176,7 @@ async def scrape_with_stats(
             urls,
             settings=settings,
             openai=openai,
-            cancel_event=cancel_event,
-            job_hooks=job_hooks,
+            options=options,
         )
     except Exception as e:
         if job_hooks and hasattr(job_hooks, "on_failed"):
@@ -207,11 +195,15 @@ async def scrape_with_stats(
         )
     )
 
+    event_canceled = cancel_event and cancel_event.is_set()
+    manual_canceled = should_cancel and should_cancel()
+    was_canceled = bool(event_canceled or manual_canceled)
     stats = {
         "num_urls": len(urls),
         "num_success": len(results),
         "num_failed": len(urls) - len(results),
         "duration_sec": duration,
+        "was_canceled": was_canceled,
     }
 
     if job_hooks and hasattr(job_hooks, "on_completed"):

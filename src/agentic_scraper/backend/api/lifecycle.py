@@ -1,21 +1,25 @@
 """
 FastAPI lifespan handler for startup and shutdown tasks.
 
-This module defines an `asynccontextmanager` for:
-- Preloading Auth0 JWKS on app startup.
-- Logging the service status and any startup errors.
-- Optionally cleaning up resources during shutdown.
+This module defines an `asynccontextmanager` that:
+- Preloads Auth0 JWKS on app startup (non-fatal if it fails).
+- Logs service status and startup/shutdown events.
+- Clears the in-memory cancel-event registry on shutdown.
 
-The `lifespan` function is passed into the FastAPI app instance.
+The `lifespan` function is passed to the FastAPI app.
 """
 
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
+import httpx
 from fastapi import FastAPI
 from httpx import TimeoutException
 
 from agentic_scraper.backend.api.auth.auth0_helpers import jwks_cache_instance
+from agentic_scraper.backend.api.routes.scrape_cancel_registry import (
+    clear_all as clear_cancel_events,
+)
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_LIFESPAN_STARTED,
     MSG_ERROR_PRELOADING_JWKS,
@@ -28,32 +32,25 @@ from agentic_scraper.backend.core.logger_setup import get_logger
 
 logger = get_logger()
 
-# Timeout duration for the get_jwks call (in seconds)
-JWKS_TIMEOUT = 10
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Preload JWKS from Auth0 during app startup and perform cleanup on shutdown.
 
-    Startup behavior is non-fatal for production readiness: if JWKS preload fails,
-    the app will still start and JWKS will be fetched lazily on the first
-    authenticated request.
-
-    Args:
-        app (FastAPI): The FastAPI app instance being managed by this context manager.
-
-    Returns:
-        None: Indicates that the app is now ready to serve requests.
+    Startup behavior is non-fatal: if JWKS preload fails, the app will still start
+    and JWKS will be fetched lazily on the first authenticated request.
     """
-    # ─── Startup Logic ───
+    # ─── Startup ───
     logger.info(MSG_INFO_PRELOADING_JWKS)
     try:
+        # Preload Auth0 JWKS (network/HTTP errors are tolerated)
         await jwks_cache_instance.get_jwks()
         logger.info(MSG_INFO_JWKS_PRELOAD_SUCCESSFUL)
     except TimeoutException:
-        # Non-fatal: log and proceed; JWKS will be fetched lazily on demand
+        logger.exception(MSG_ERROR_PRELOADING_JWKS)
+        logger.warning(MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY)
+    except httpx.HTTPError:
         logger.exception(MSG_ERROR_PRELOADING_JWKS)
         logger.warning(MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY)
     except Exception:
@@ -65,6 +62,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         yield
     finally:
-        # ─── Shutdown Logic ───
+        # ─── Shutdown ───
         logger.info(MSG_INFO_SHUTDOWN_LOG)
-        # Any additional teardown logic (e.g., closing DB sessions) can be added here.
+
+        with suppress(Exception):
+            clear_cancel_events()

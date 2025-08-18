@@ -7,9 +7,9 @@ import streamlit as st
 
 from agentic_scraper.backend.config.messages import MSG_UI_RESET_COMPLETE
 from agentic_scraper.backend.config.types import AgentMode
-from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.app_helpers import (
     configure_app_page,
+    load_settings,
     make_render_jobs,
     make_render_run,
     render_main_tabs,
@@ -29,7 +29,7 @@ def main() -> None:
     logger = setup_logging_and_logger()
 
     # --- SETTINGS LOAD ---
-    settings = get_settings()
+    settings = load_settings()
 
     # --- AUTH FIRST (so sidebar can reflect pending state) ---
     authenticate_user()

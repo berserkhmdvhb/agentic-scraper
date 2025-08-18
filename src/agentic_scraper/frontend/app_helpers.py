@@ -12,6 +12,7 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.config.types import AllowedTab
 from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
+from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.models import PipelineConfig, SidebarConfig
 from agentic_scraper.frontend.ui_jobs import render_jobs_tab
 from agentic_scraper.frontend.ui_page_config import configure_page, render_input_section
@@ -20,6 +21,14 @@ from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
 
 if TYPE_CHECKING:
     from agentic_scraper.backend.core.settings import Settings
+
+
+@st.cache_resource
+def load_settings() -> Settings:
+    """
+    Cached settings loader to avoid re-parsing env/config on every rerun.
+    """
+    return get_settings()
 
 
 # --------------------------------------------------------------------
@@ -70,13 +79,18 @@ def render_main_tabs(
     qp_val = qp[0] if isinstance(qp, list) and qp else AllowedTab.RUN.value
     tab_from_query = coerce_tab_value(qp_val)
 
-    # 2) Migrate/normalize legacy session values before widget creation
+    # 2) Migrate/normalize legacy session values BEFORE widget creation
     legacy = st.session_state.get("main_tab", None)
     if legacy is None:
         # migrate from old 'active_tab' if present
         legacy = st.session_state.pop("active_tab", None)
 
-    st.session_state["main_tab"] = coerce_tab_value(legacy, default=tab_from_query)
+    # 2.5) Apply any pending navigation intent BEFORE creating the widget
+    pending = st.session_state.pop("pending_main_tab", None)
+    if pending is not None:
+        st.session_state["main_tab"] = coerce_tab_value(pending, default=tab_from_query)
+    else:
+        st.session_state["main_tab"] = coerce_tab_value(legacy, default=tab_from_query)
 
     # 3) Create the control with safe defaults and coerce the return to AllowedTab
     main_tab: AllowedTab = coerce_tab_value(
@@ -95,15 +109,19 @@ def render_main_tabs(
     if main_tab is AllowedTab.RUN:
         render_run()
     else:
-        pre_id = st.session_state.get("last_job_id")
+        # Prefer one-shot preselect set by switch_to_jobs(), fallback to last_job_id
+        pre_id = st.session_state.pop("preselect_job_id", None)
+        if pre_id is None:
+            pre_id = st.session_state.get("last_job_id")
         render_jobs(pre_id)
 
 
 def switch_to_jobs(preselect_job_id: str | None = None) -> None:
     """Switch to Jobs and optionally remember a job to preselect."""
     if preselect_job_id:
+        st.session_state["preselect_job_id"] = preselect_job_id
         st.session_state["last_job_id"] = preselect_job_id
-    st.session_state["main_tab"] = AllowedTab.JOBS
+    st.session_state["pending_main_tab"] = AllowedTab.JOBS
     st.rerun()
 
 

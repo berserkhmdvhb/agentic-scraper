@@ -10,6 +10,7 @@ Used by FastAPI dependencies to authenticate users via Auth0.
 """
 
 import asyncio
+import itertools
 import logging
 from secrets import randbelow
 from time import time
@@ -22,22 +23,23 @@ from jose.exceptions import ExpiredSignatureError, JWTError
 
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_CURRENT_ISSUER,
+    MSG_DEBUG_DECODED_TOKEN,
+    MSG_DEBUG_FETCHING_JWKS,
+    MSG_DEBUG_JWKS_FETCHED,
     MSG_ERROR_FETCHING_JWKS,
     MSG_ERROR_INVALID_JWT_HEADER,
     MSG_ERROR_JWT_EXPIRED,
     MSG_ERROR_JWT_UNEXPECTED,
     MSG_ERROR_JWT_VERIFICATION,
     MSG_ERROR_NO_RSA_KEY,
-    MSG_INFO_DECODED_TOKEN,
     MSG_INFO_DECODING_JWT,
-    MSG_INFO_FETCHING_JWKS,
-    MSG_INFO_JWKS_FETCHED,
     MSG_INFO_RETRYING,
 )
 from agentic_scraper.backend.core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+_auth_log_counter = itertools.count()
 
 RETRY_LIMIT = 2  # Retry limit for JWKS fetch attempts
 
@@ -93,12 +95,12 @@ class JWKSCache:
         attempt = 0
         while attempt <= RETRY_LIMIT:
             try:
-                logger.info(MSG_INFO_FETCHING_JWKS.format(url=url))
+                logger.debug(MSG_DEBUG_FETCHING_JWKS.format(url=url))
                 async with httpx.AsyncClient(timeout=10) as client:
                     response = await client.get(url)
                     response.raise_for_status()
                     jwks = response.json().get("keys", [])
-                    logger.info(MSG_INFO_JWKS_FETCHED.format(num_keys=len(jwks)))
+                    logger.info(MSG_DEBUG_JWKS_FETCHED.format(num_keys=len(jwks)))
                     self.jwks_cache = jwks
                     self.cache_timestamp = time()
                     return cast("list[dict[str, Any]]", jwks)
@@ -165,7 +167,7 @@ async def verify_jwt(token: str) -> dict[str, Any]:
                 ValueError("No matching RSA key"),
             )
 
-        logger.info(MSG_INFO_DECODING_JWT)
+        logger.debug(MSG_INFO_DECODING_JWT)
         decoded_token = jwt.decode(
             token,
             rsa_key,
@@ -174,7 +176,8 @@ async def verify_jwt(token: str) -> dict[str, Any]:
             audience=settings.auth0_api_audience,
             issuer=settings.auth0_issuer,
         )
-        logger.info(MSG_INFO_DECODED_TOKEN.format(decoded_token=decoded_token))
+        if next(_auth_log_counter) % 50 == 0 and settings.verbose:
+            logger.debug(MSG_DEBUG_DECODED_TOKEN.format(decoded_token=decoded_token))
         return cast("dict[str, Any]", decoded_token)
 
     except ExpiredSignatureError as e:

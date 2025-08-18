@@ -53,7 +53,6 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_POLL_TIMEOUT,
 )
 from agentic_scraper.backend.config.types import AgentMode
-from agentic_scraper.backend.core.settings import get_settings
 from agentic_scraper.frontend.ui_auth_helpers import api_base
 from agentic_scraper.frontend.ui_runner_helpers import (
     attach_openai_config,
@@ -66,7 +65,6 @@ if TYPE_CHECKING:
     from agentic_scraper.frontend.models import PipelineConfig
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 _LOG_TRUNCATE = 500
 

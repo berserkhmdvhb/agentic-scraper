@@ -170,7 +170,7 @@ MSG_ERROR_OWNER_SUB_TYPE = "[API] owner_sub must be a string"
 MSG_ERROR_OWNER_SUB_FORMAT = "[API] Invalid owner_sub format: {value!r}"
 
 
-# user_store.py
+# stores/user_store.py
 MSG_ERROR_INVALID_CREDENTIALS = (
     "[API] [USERSTORE] Error saving credentials for user {user_id}: {error}"
 )
@@ -200,8 +200,8 @@ MSG_WARNING_JWT_VERIFICATION_FAILED = "[API] [AUTH] [DEP] JWT verification faile
 MSG_ERROR_MISSING_SUB_CLAIM = "[API] [AUTH] [DEP] Missing 'sub' in token payload"
 
 # auth/auth0_helpers.py
-MSG_INFO_FETCHING_JWKS = "[API] [AUTH] [AUTH0] Fetching JWKS from {url}..."
-MSG_INFO_JWKS_FETCHED = "[API] [AUTH] [AUTH0] {num_keys} keys fetched from JWKS."
+MSG_DEBUG_FETCHING_JWKS = "[API] [AUTH] [AUTH0] Fetching JWKS from {url}..."
+MSG_DEBUG_JWKS_FETCHED = "[API] [AUTH] [AUTH0] {num_keys} keys fetched from JWKS."
 MSG_INFO_DECODING_JWT = "[API] [AUTH] [AUTH0] Decoding JWT..."
 
 MSG_ERROR_FETCHING_JWKS = "[API] [AUTH] [AUTH0] Error fetching JWKS: {error}"
@@ -221,7 +221,7 @@ MSG_DEBUG_MISSING_SCOPES = (
     "User's current scopes: {user_scopes}."
 )
 MSG_DEBUG_CURRENT_ISSUER = "[API] [AUTH] [AUTH0] Current issuer is: {issuer}"
-MSG_INFO_DECODED_TOKEN = "[API] [AUTH] [AUTH0] Decoded token: {decoded_token}"
+MSG_DEBUG_DECODED_TOKEN = "[API] [AUTH] [AUTH0] Decoded token: {decoded_token}"
 
 # auth/log_helpers.py
 MSG_WARNING_USER_FAILED_AUTHORIZATION = "[API] [AUTH] [AUTH0] User {user_id} failed to authorize."
@@ -308,9 +308,33 @@ MSG_INFO_INLINE_KEY_MASKED_FALLBACK = (
 
 
 MSG_LOG_DEBUG_DYNAMIC_EXTRAS = (
+    "[API] [ROUTE] [SCRAPE] "
     "DEBUG dynamic extras check | agent_mode={agent_mode} | first_item_keys={keys}"
 )
-MSG_LOG_DYNAMIC_EXTRAS_ERROR = "Failed to inspect first item for dynamic extras: {error}"
+MSG_LOG_DYNAMIC_EXTRAS_ERROR = (
+    "[API] [ROUTE] [SCRAPE]Failed to inspect first item for dynamic extras: {error}"
+)
+
+
+# routes/scrape_cancel_registry.py
+
+MSG_DEBUG_CANCEL_EVENT_REGISTERED = (
+    "[API] [ROUTE] [SCRAPE] Cancel event registered for job {job_id}."
+)
+MSG_DEBUG_CANCEL_EVENT_REUSED = (
+    "[API] [ROUTE] [SCRAPE] Cancel event reused for job {job_id} (preserved state)."
+)
+MSG_DEBUG_CANCEL_EVENT_SET = "[API] [ROUTE] [SCRAPE] Cancel event set for job {job_id}."
+MSG_DEBUG_CANCEL_EVENT_CLEANED = "[API] [ROUTE] [SCRAPE] Cancel event cleaned for job {job_id}."
+MSG_DEBUG_POOL_CANCEL_DETECTED = (
+    "[API] [ROUTE] [SCRAPE] Cancel detected; draining queue and shutting down workers."
+)
+MSG_JOB_SKIP_MARK_RUNNING_TERMINAL = (
+    "[API] [ROUTE] [SCRAPE] Job {job_id} already terminal ({status}); skipping RUNNING."
+)
+MSG_JOB_SKIP_MARK_FAILED_TERMINAL = (
+    "[API] [ROUTE] [SCRAPE] Job {job_id} already terminal ({status}); skipping FAILED."
+)
 
 # ---------------------------------------------------------------------
 # core/

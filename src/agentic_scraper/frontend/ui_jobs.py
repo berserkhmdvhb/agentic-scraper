@@ -57,8 +57,9 @@ _AUTO_REFRESH_SECONDS = 2
 # -------------------------
 
 
-def _get(url: str, *, timeout: int = 30) -> httpx.Response:
-    headers = build_auth_headers()
+@st.cache_data(ttl=2, show_spinner=False)
+def _get_cached(url: str, jwt: str, *, timeout: int = 30) -> httpx.Response:
+    headers = {"Authorization": f"Bearer {jwt}"}
     with httpx.Client() as client:
         return client.get(url, headers=headers, timeout=timeout)
 
@@ -108,6 +109,7 @@ def fetch_jobs(
     if not base:
         st.error(MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED)
         return [], None
+    jwt = st.session_state.get("jwt_token", "")
 
     params: dict[str, str] = {}
     if status_filter and status_filter.lower() != "all":
@@ -122,7 +124,7 @@ def fetch_jobs(
         url = f"{url}?{query_str}"
 
     try:
-        resp = _get(url)
+        resp = _get_cached(url, jwt)
         # Handle auth errors explicitly BEFORE raise_for_status
         if resp.status_code == status.HTTP_401_UNAUTHORIZED:
             if "jwt_token" in st.session_state:
@@ -158,9 +160,9 @@ def fetch_job(job_id: str) -> dict[str, Any] | None:
     if not base:
         st.error(MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED)
         return None  # If you want literally one return, see alternative below.
-
+    jwt = st.session_state.get("jwt_token", "")
     try:
-        resp = _get(f"{base}/scrapes/{job_id}")
+        resp = _get_cached(f"{base}/scrapes/{job_id}", jwt)
         code = resp.status_code
 
         if code == status.HTTP_404_NOT_FOUND:
@@ -230,7 +232,7 @@ def _status_badge(status_: str) -> str:
         "RUNNING": "blue",
         "SUCCEEDED": "green",
         "FAILED": "red",
-        "CANCELED": "orange",
+        "CANCELED": "darkorange",
     }.get(s, "gray")
     return (
         f"<span style='"
@@ -243,21 +245,26 @@ def _status_badge(status_: str) -> str:
     )
 
 
-def _result_download_button(job: dict[str, Any]) -> None:
+def _job_package_download_button(job: dict[str, Any]) -> None:
+    """Download the full job payload (metadata + stats + raw results)."""
     if (job.get("status") or "").lower() != "succeeded":
         return
-    result = job.get("result") or {}
     try:
-        json_str = json.dumps(result, indent=2)
+        # Export the entire backend payload for this job
+        payload_str = json.dumps(job, indent=2)
     except (TypeError, ValueError):
         return
-    st.download_button(
-        "⬇️ Download result JSON",
-        data=json_str,
-        file_name=f"scrape_{job.get('id', 'job')}.json",
-        mime="application/json",
-        use_container_width=True,
-    )
+    # Put the button in a right-aligned column so it doesn't look like a wide primary CTA
+    _, right = st.columns([3, 1])
+    with right:
+        st.download_button(
+            "⬇️ Download job package (JSON)",
+            data=payload_str,
+            file_name=f"scrape_{job.get('id', 'job')}.job.json",
+            mime="application/json",
+            help="Full payload including job metadata, stats, and raw results.",
+            use_container_width=True,
+        )
 
 
 def _build_rows(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -311,23 +318,40 @@ def _render_job_detail(job: dict[str, Any]) -> None:
     st.markdown(f"Status: {_status_badge(job.get('status', ''))}", unsafe_allow_html=True)
 
     progress = float(job.get("progress", 0.0) or 0.0)
-    if 0.0 <= progress <= 1.0:
+    if (job.get("status") or "").lower() in {"queued", "running"} and 0.0 <= progress <= 1.0:
         st.progress(progress, text=f"Progress: {int(progress * 100)}%")
 
     status_lower = (job.get("status") or "").lower()
 
     if status_lower == "succeeded":
-        # Rich result summary using your helpers
-        items, skipped, duration = parse_job_result(job)
-        # summarize_results expects a start_time; synthesize from duration
-        fake_start = _time.perf_counter() - float(duration or 0.0)
-        summarize_results(items, skipped, fake_start)
-        _result_download_button(job)
-        # Render the interactive table + downloads
-        screenshot_enabled = bool(st.session_state.get(SESSION_KEYS["screenshot_enabled"], False))
-        display_results(items, screenshot_enabled=screenshot_enabled)
+        # Split success view into tabs to reduce vertical sprawl
+        tab_overview, tab_results = st.tabs(["Overview", "Results"])
+
+        with tab_overview:
+            items, skipped, duration = parse_job_result(job)
+            fake_start = _time.perf_counter() - float(duration or 0.0)
+            summarize_results(items, skipped, fake_start)
+            # If backend provided stats.was_canceled, surface it here
+            stats = (job.get("result") or {}).get("stats") or {}
+            if isinstance(stats, dict) and "was_canceled" in stats:
+                st.caption(f"Canceled during run: {bool(stats.get('was_canceled'))}")
+            _job_package_download_button(job)
+
+        with tab_results:
+            screenshot_enabled = bool(
+                st.session_state.get(SESSION_KEYS["screenshot_enabled"], False)
+            )
+            # Pass job_id so the table export filenames can include it
+            display_results(
+                items, job_id=str(job.get("id", "")), screenshot_enabled=screenshot_enabled
+            )
 
     elif status_lower in {"failed", "canceled"}:
+        if status_lower == "canceled":
+            st.caption("🛑 Job was canceled")
+            stats = (job.get("result") or {}).get("stats") or {}
+            if isinstance(stats, dict) and "was_canceled" in stats:
+                st.caption(f"(Backend recorded was_canceled = {bool(stats.get('was_canceled'))})")
         render_job_error(job)
 
     # Cancel button for queued/running

@@ -30,6 +30,7 @@ from agentic_scraper.frontend.ui_auth_helpers import (
     build_login_url,
     build_logout_url,
     fetch_openai_credentials,
+    fetch_openai_credentials_status,
     fetch_user_profile,
     get_jwt_token_from_url_or_session,
 )
@@ -53,7 +54,11 @@ def authenticate_user() -> None:
         logger.info(MSG_INFO_TOKEN_SESSION_LENGTH.format(length=len(jwt_token)))
         # Fetch profile & creds (logout on 401)
         fetch_user_profile(on_unauthorized=logout_user)
-        fetch_openai_credentials(on_unauthorized=logout_user)
+        status = fetch_openai_credentials_status(on_unauthorized=logout_user)
+        if status is not None:
+            st.session_state["has_openai_credentials"] = bool(status.get("has_credentials"))
+            if st.session_state["has_openai_credentials"]:
+                fetch_openai_credentials(on_unauthorized=logout_user)
         st.session_state["auth_pending"] = False
         st.rerun()
     else:
@@ -69,6 +74,7 @@ def logout_user() -> None:
     st.session_state.pop("openai_credentials_preview", None)
     st.session_state.pop("auth_pending", None)
     st.session_state["show_logged_out_banner"] = True
+    st.session_state.pop("has_openai_credentials", None)
     st.rerun()
 
 

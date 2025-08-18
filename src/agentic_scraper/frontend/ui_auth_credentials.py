@@ -14,7 +14,10 @@ import streamlit as st
 from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.core.settings import get_settings
-from agentic_scraper.frontend.ui_auth_helpers import fetch_openai_credentials
+from agentic_scraper.frontend.ui_auth_helpers import (
+    fetch_openai_credentials,
+    fetch_openai_credentials_status,
+)
 
 settings = get_settings()
 
@@ -30,9 +33,21 @@ def render_credentials_form() -> None:
         None
     """
     st.markdown("### 🔑 Enter OpenAI Credentials")
+    # Lazy-init the status flag if it's missing (e.g., deep-link into this tab)
+    if "has_openai_credentials" not in st.session_state:
+        status = fetch_openai_credentials_status()
+        if status is not None:
+            st.session_state["has_openai_credentials"] = bool(status.get("has_credentials"))
 
-    if "openai_credentials" in st.session_state:
+    # If user already has credentials, show actions
+    # (and optional masked preview), not the initial form
+    if st.session_state.get("has_openai_credentials"):
         st.success("✅ Credentials already stored.")
+        preview = st.session_state.get("openai_credentials_preview")
+        if isinstance(preview, dict):
+            # Safe to display: api_key should be masked by the backend helper
+            st.write(f"**Project ID:** `{preview.get('project_id', '')}`")
+            st.write(f"**API Key:** `{preview.get('api_key', '****')}`")
         render_credentials_actions()
         return
 
@@ -50,6 +65,7 @@ def render_credentials_form() -> None:
                 return
 
             if put_openai_credentials(api_key, project_id):
+                st.session_state["has_openai_credentials"] = True
                 st.rerun()
 
 
@@ -81,6 +97,7 @@ def render_credentials_actions() -> None:
                 st.session_state.pop("openai_credentials", None)
                 st.session_state.pop("openai_credentials_preview", None)
                 st.session_state.pop("confirm_delete", None)
+                st.session_state["has_openai_credentials"] = False
                 st.success("✅ Credentials deleted successfully.")
                 st.rerun()
 
@@ -166,4 +183,5 @@ def delete_openai_credentials() -> bool:
             st.exception(e)
         return False
     else:
+        st.session_state["has_openai_credentials"] = False
         return True

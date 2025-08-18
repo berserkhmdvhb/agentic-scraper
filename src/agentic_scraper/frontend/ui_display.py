@@ -127,11 +127,11 @@ def display_data_table(df: pd.DataFrame) -> None:
 
 def display_results(
     items: list[Any],
+    job_id: str | None = None,
     *,
     screenshot_enabled: bool,
 ) -> None:
     """Display extracted data with optional screenshots and download buttons."""
-    st.markdown("### 📊 **Display Results**")
 
     df_extracted = prepare_dataframe(items, screenshot_enabled=screenshot_enabled)
     st.session_state.results_df = df_extracted
@@ -149,30 +149,43 @@ def display_results(
     with tab1:
         display_data_table(df_extracted)
 
-        # Exports
-        st.download_button(
-            "📅 Download JSON",
-            df_extracted.to_json(orient="records", indent=2),
-            "results.json",
-            mime="application/json",
-        )
-        st.download_button(
-            "📄 Download CSV",
-            df_extracted.to_csv(index=False),
-            "results.csv",
-            mime="text/csv",
-        )
-        try:
-            sqlite_bytes = dataframe_to_sqlite_bytes(df_extracted)
-        except (sqlite3.Error, ValueError, TypeError) as e:
-            st.error(f"❌ Failed to generate SQLite export: {e}")
-            sqlite_bytes = BytesIO()
-        st.download_button(
-            "🗃️ Download SQLite",
-            data=sqlite_bytes,
-            file_name="results.sqlite",
-            mime="application/x-sqlite3",
-        )
+        # Compose filenames with job_id for clarity
+        file_prefix = f"scrape_{job_id}" if job_id else "results"
+
+        # Compact, single-row export toolbar
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.download_button(
+                "Export table (JSON)",
+                df_extracted.to_json(orient="records", indent=2),
+                f"{file_prefix}_results.json",
+                mime="application/json",
+                help="Only the rows shown in the results table.",
+                use_container_width=True,
+            )
+        with c2:
+            st.download_button(
+                "Export table (CSV)",
+                df_extracted.to_csv(index=False),
+                f"{file_prefix}_results.csv",
+                mime="text/csv",
+                help="Only the rows shown in the results table.",
+                use_container_width=True,
+            )
+        with c3:
+            try:
+                sqlite_bytes = dataframe_to_sqlite_bytes(df_extracted)
+            except (sqlite3.Error, ValueError, TypeError) as e:
+                st.error(f"❌ Failed to generate SQLite export: {e}")
+                sqlite_bytes = BytesIO()
+            st.download_button(
+                "Export table (SQLite)",
+                data=sqlite_bytes,
+                file_name=f"{file_prefix}_results.sqlite",
+                mime="application/x-sqlite3",
+                help="Only the rows shown in the results table.",
+                use_container_width=True,
+            )
 
     if screenshot_enabled:
         with tab2:

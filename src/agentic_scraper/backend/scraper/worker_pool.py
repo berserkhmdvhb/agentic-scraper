@@ -43,11 +43,13 @@ from agentic_scraper.backend.scraper.worker_pool_helpers import (
     build_request,
     call_progress_callback,
     dequeue_next,
-    early_cancel_or_raise,
     handle_failure,
     handle_success_item,
     log_progress_verbose,
     place_ordered_result,
+)
+from agentic_scraper.backend.scraper.worker_pool_helpers import (
+    early_cancel_or_raise_ext as early_cancel_or_raise,
 )
 
 if TYPE_CHECKING:
@@ -75,6 +77,7 @@ class _WorkerContext:
     on_error: OnErrorCallback | None = None
     on_progress: Callable[[int, int], None] | None = None
     cancel_event: asyncio.Event | None = None
+    should_cancel: Callable[[], bool] | None = None
     preserve_order: bool = False
     ordered_results: list[ScrapedItem | None] | None = None
     url_to_indices: dict[str, deque[int]] | None = None
@@ -102,14 +105,14 @@ async def worker(
     try:
         while True:
             # Early cancel before blocking on the queue.
-            early_cancel_or_raise(context.cancel_event)
+            early_cancel_or_raise(context.cancel_event, context.should_cancel)
 
             url, text = await dequeue_next(queue, worker_id=worker_id)
 
             try:
                 # Check cancellation again immediately after we dequeue, but keep it inside
                 # the try/finally so task_done() will always be called.
-                early_cancel_or_raise(context.cancel_event)
+                early_cancel_or_raise(context.cancel_event, context.should_cancel)
 
                 request = build_request(
                     scrape_input=(url, text),
@@ -128,6 +131,8 @@ async def worker(
                     )
                 else:
                     item = await extract_structured_data(request, settings=context.settings)
+                # Bail quickly if cancellation was signaled during extraction
+                early_cancel_or_raise(context.cancel_event, context.should_cancel)
 
                 # Success handling + callbacks
                 handle_success_item(
@@ -180,6 +185,7 @@ async def run_worker_pool(
     settings: Settings,
     config: WorkerPoolConfig,
     cancel_event: asyncio.Event | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[ScrapedItem]:
     """
     Launch and manage a pool of workers to process scraping inputs concurrently.
@@ -189,15 +195,28 @@ async def run_worker_pool(
 
     # Early exit: nothing to do
     if total == 0:
-        if config.on_progress:
+        sc = config.should_cancel or should_cancel
+
+        cb = config.on_progress
+        event_canceled = cancel_event and cancel_event.is_set()
+        manual_canceled = sc and sc()
+
+        if cb is not None and not event_canceled and not manual_canceled:
             with suppress(Exception):
-                config.on_progress(0, 0)
+                cb(0, 0)
         return []
 
     # Initial progress for UIs
-    if config.on_progress:
+    # Do not force 100% when canceled; keep last honest counts
+    sc = config.should_cancel or should_cancel
+
+    cb = config.on_progress
+    event_canceled = cancel_event and cancel_event.is_set()
+    manual_canceled = sc and sc()
+
+    if cb is not None and not event_canceled and not manual_canceled:
         with suppress(Exception):
-            config.on_progress(0, total)
+            cb(0, total)
 
     # Prepare queue, results, and ordering structures
     (
@@ -222,6 +241,7 @@ async def run_worker_pool(
         on_error=config.on_error,
         on_progress=config.on_progress,
         cancel_event=cancel_event,
+        should_cancel=config.should_cancel or should_cancel,
         preserve_order=config.preserve_order,
         ordered_results=ordered_results,
         url_to_indices=url_to_indices,
@@ -250,9 +270,15 @@ async def run_worker_pool(
             w.cancel()
         await asyncio.gather(*workers, return_exceptions=True)
 
-    if config.on_progress:
+    sc = config.should_cancel or should_cancel
+
+    cb = config.on_progress
+    event_canceled = cancel_event and cancel_event.is_set()
+    manual_canceled = sc and sc()
+
+    if cb is not None and not event_canceled and not manual_canceled:
         with suppress(Exception):
-            config.on_progress(total, total)
+            cb(total, total)
 
     elapsed = time.perf_counter() - start_t
     if config.preserve_order and context.ordered_results is not None:

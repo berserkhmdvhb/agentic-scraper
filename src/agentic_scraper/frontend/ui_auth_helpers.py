@@ -211,6 +211,64 @@ def fetch_openai_credentials(on_unauthorized: Callable[[], None] | None = None) 
     logger.info(MSG_INFO_CREDENTIALS_SUCCESS)
 
 
+def fetch_openai_credentials_status(
+    on_unauthorized: Callable[[], None] | None = None,
+) -> dict[str, bool] | None:
+    """
+    Fetch /user/openai-credentials/status and return {"has_credentials": bool}.
+    Does not modify UI directly; callers can set st.session_state flags as needed.
+    If 401, optionally call `on_unauthorized()` (e.g., logout) and return None.
+    """
+    # Build headers or fail fast
+    try:
+        headers = build_auth_headers()
+    except RuntimeError:
+        st.error("User is not authenticated!")
+        return None
+
+    # Resolve API base or fail fast
+    base = api_base()
+    if not base:
+        st.error("Backend domain is not configured.")
+        return None
+
+    result: dict[str, bool] | None
+
+    try:
+        resp = httpx.get(f"{base}/user/openai-credentials/status", headers=headers, timeout=15)
+        if resp.status_code == status.HTTP_401_UNAUTHORIZED:
+            st.warning("Session expired. Please log in again.")
+            if on_unauthorized:
+                on_unauthorized()
+            result = None
+        else:
+            resp.raise_for_status()
+            # Parse JSON payload safely
+            try:
+                data = resp.json()
+            except ValueError:
+                # JSON decoding error; treat as "no credentials"
+                logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS)
+                result = {"has_credentials": False}
+            else:
+                if isinstance(data, dict) and "has_credentials" in data:
+                    result = {"has_credentials": bool(data.get("has_credentials"))}
+                else:
+                    result = {"has_credentials": False}
+    except httpx.HTTPStatusError as e:
+        # Server returned an error status (non-2xx)
+        logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS)
+        st.error(f"Failed to fetch OpenAI credentials status: {e.response.text}")
+        result = None
+    except httpx.RequestError as e:
+        # Network / transport errors
+        logger.exception(MSG_EXCEPTION_OPENAI_CREDENTIALS_NETWORK)
+        st.error(f"Network error while fetching OpenAI credentials status: {e}")
+        result = None
+
+    return result
+
+
 # ---- Log in and log out helpers ----
 
 
