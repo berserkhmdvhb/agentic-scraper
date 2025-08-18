@@ -114,16 +114,16 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
 
         st.divider()
 
-        # 1) Agent Mode
+        # 1) Authentication & Environment details (credentials shown only for LLM modes)
+        _render_auth_and_env(AgentMode(st.session_state.get("agent_mode_select", settings.agent_mode.value)))
+
+        # 2) Agent Mode
         selected_agent_mode = _render_agent_mode_selector(settings)
 
-        # 2) Authentication & Environment details (credentials shown only for LLM modes)
-        _render_auth_and_env(selected_agent_mode)
-
-        # 3) LLM model + screenshot toggle (no presets involved)
+        # 3) LLM model + screenshot toggle (paired with Agent Mode)
         selected_model = _render_llm_controls(settings, selected_agent_mode)
 
-        # 4) Advanced (now in a closed expander by default)
+        # 4) Advanced (closed expander by default)
         (
             fetch_concurrency,
             llm_concurrency,
@@ -146,20 +146,7 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     st.session_state[SESSION_KEYS["agent_mode"]] = selected_agent_mode
     st.session_state[SESSION_KEYS["retry_attempts"]] = int(retry_attempts)
 
-    # Always set llm_schema_retries in session to a safe int value,
-    # even when not in Adaptive mode, to avoid downstream "missing key" issues.
-    st.session_state[SESSION_KEYS["llm_schema_retries"]] = int(llm_schema_retries)
-
-    return SidebarConfig(
-        screenshot_enabled=bool(st.session_state[SESSION_KEYS["screenshot_enabled"]]),
-        fetch_concurrency=int(fetch_concurrency),
-        llm_concurrency=int(llm_concurrency),
-        verbose=bool(verbose),
-        openai_model=selected_model,
-        agent_mode=selected_agent_mode,
-        retry_attempts=int(retry_attempts),
-        llm_schema_retries=int(llm_schema_retries),
-    )
+    # Always set llm_schema_retries
 
 
 # -------------------------
