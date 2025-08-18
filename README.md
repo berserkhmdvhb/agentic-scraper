@@ -374,29 +374,34 @@ docker pull hmdvhb/agentic-scraper-backend
 - 🔗 **Backend (FastAPI API):** [![CD: Backend Deploy](https://img.shields.io/badge/backend-render-blueviolet?logo=render)](https://api-agenticscraper.onrender.com)
 
 ### Local
-
-To launch the frontend, start the Streamlit UI:
-
-```bash
-streamlit run src/agentic_scraper/frontend/app.py
-```
-
-Or, use the shortcut:
+#### Frontend UI (Streamlit):
 
 ```bash
 python run_frontend.py
 ```
 
-To launch the backend, run the Uvicorn server:
+or directly:
+
+```bash
+streamlit run src/agentic_scraper/frontend/app.py
+```
+
+#### Backend API (FastAPI):
+
+```bash
+python run_backend.py
+```
+
+or directly:
 
 ```bash
  uvicorn src.agentic_scraper.backend.api.main:app --reload
 ```
 
-Or, use the shortcut:
+#### Batch mode (CLI trigger via backend):
 
 ```bash
-python run_backend.py
+python run_batch.py --input input/urls1.txt --agent-mode llm-dynamic --model gpt-4o
 ```
 
 
@@ -407,14 +412,14 @@ To launch both frontend and backend locally using Docker Compose:
 ```bash
 docker-compose up --build
 ```
-Or use the Makefile shortcuts:
+Makefile shortcuts:
 
 ```bash
 make docker-up
 make docker-build
 ```
 
-Then visit:
+Then open:
 
 - Frontend: http://localhost:8501
 - Backend: http://localhost:8000
