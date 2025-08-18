@@ -362,10 +362,15 @@ docker pull hmdvhb/agentic-scraper-backend
 
 ### Prerequisites
 
+## ▶️ Running the App
 
-> ⚙️ Ensure you have `.env` configured before running. See [🔧 Environment Configuration (.env)](#-environment-configuration-env).
+### Prerequisites
 
-> Some `.env` variables are available after you setup auth0. Authenticating users, submitting openai-credentials, and feeding URLs to start the scraping requires to setup auth0, see [Setup Auth0](#setup-auth0).
+* ✅ Python 3.10+
+* ✅ `.env` configured (see [🔧 Environment Configuration (.env)](#-environment-configuration-env))
+* ✅ Auth0 application + API configured (issuer/audience/client id & client secret/scopes).
+Required for login, saving OpenAI creds, and starting scrapes (see [Setup Auth0](#setup-auth0)).
+* *(Optional)* Playwright installed if you enable screenshots: `playwright install`
 
 ### Online
  Visit the hosted version domains here:  
