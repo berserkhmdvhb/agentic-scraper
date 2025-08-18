@@ -181,15 +181,11 @@ def _render_header_chip_row(settings: Settings) -> None:
     env, _log_dir = _env_info()
     authed = "jwt_token" in st.session_state
 
-    c1, c2, c3 = st.columns([1, 1, 1])
+    c1, c2 = st.columns([1, 1])
     with c1:
         st.markdown(f"**🔐 Auth:** {'✅' if authed else '❌'}")
     with c2:
         st.markdown(f"**🌐 Env:** `{env}`")
-    with c3:
-        # Placeholder for quick action, e.g., docs or Swagger link if you have it.
-        # Keep minimal to avoid coupling.
-        st.markdown("**📄 Logs:** `…`")
 
     with st.expander("Environment Details", expanded=False):
         env, log_dir = _env_info()
