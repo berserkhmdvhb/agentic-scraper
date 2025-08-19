@@ -183,7 +183,10 @@ class Settings(BaseSettings):
     auth0_client_id: str = Field(..., validation_alias="AUTH0_CLIENT_ID")
     auth0_client_secret: str = Field(..., validation_alias="AUTH0_CLIENT_SECRET")
 
-    auth0_algorithms: list[str] = Field(default=[DEFAULT_AUTH0_ALGORITHM])
+    auth0_algorithms: list[str] = Field(
+        default=[DEFAULT_AUTH0_ALGORITHM],
+        validation_alias="AUTH0_ALGORITHMS",
+    )
     encryption_secret: str = Field(..., validation_alias="ENCRYPTION_SECRET")
 
     # Frontend & Backend Domains
@@ -198,7 +201,8 @@ class Settings(BaseSettings):
     # Derived
     @property
     def is_verbose_mode(self) -> bool:
-        return self.env.upper() == "DEV" or self.verbose
+        env_upper = (self.env.value if hasattr(self.env, "value") else str(self.env)).upper()
+        return env_upper == "DEV" or self.verbose
 
     @model_validator(mode="before")
     @classmethod
@@ -268,4 +272,4 @@ def get_log_backup_count() -> int:
 
 
 def get_log_format() -> str:
-    return get_settings().log_format
+    return get_settings().log_format.value

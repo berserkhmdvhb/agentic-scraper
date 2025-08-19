@@ -2,6 +2,12 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from agentic_scraper.backend.config.constants import (
+    MAX_LLM_SCHEMA_RETRIES,
+    MAX_LLM_TEMPERATURE,
+    MIN_LLM_SCHEMA_RETRIES,
+    MIN_LLM_TEMPERATURE,
+)
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SETTING_OVERRIDDEN,
     MSG_DEBUG_SETTING_SKIPPED,
@@ -77,8 +83,18 @@ def _coerce_and_validate(
         except Exception as e:
             logger.warning(MSG_WARNING_SETTING_INVALID.format(key=key, original=raw, error=e))
             raise
-    else:
-        logger.debug(MSG_DEBUG_SETTING_SKIPPED.format(key=key))
+        return
+
+    # Any other type (int, float, bool, etc.): validate as-is
+    try:
+        validated = validator(raw)
+        values[key] = validated
+        logger.debug(
+            MSG_DEBUG_SETTING_OVERRIDDEN.format(key=key, validated=validated, original=raw)
+        )
+    except Exception as e:
+        logger.warning(MSG_WARNING_SETTING_INVALID.format(key=key, original=raw, error=e))
+        raise
 
 
 def _validate_optional_openai_model(values: dict[str, Any]) -> None:
@@ -139,5 +155,20 @@ def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     _validate_optional_str(values, "auth0_api_audience", validate_api_audience)
     _validate_optional_str(values, "encryption_secret", validate_encryption_secret)
     _validate_optional_list(values, "auth0_algorithms", validate_auth0_algorithms)
+    # Strict numeric validations: DO NOT clamp; raise if out-of-range
+    _validate_optional_float(
+        values,
+        "llm_temperature",
+        lambda v: v
+        if (MIN_LLM_TEMPERATURE <= v <= MAX_LLM_TEMPERATURE)
+        else (_ for _ in ()).throw(ValueError(f"llm_temperature out of bounds: {v}")),
+    )
+    _validate_optional_int(
+        values,
+        "llm_schema_retries",
+        lambda v: v
+        if (MIN_LLM_SCHEMA_RETRIES <= v <= MAX_LLM_SCHEMA_RETRIES)
+        else (_ for _ in ()).throw(ValueError(f"llm_schema_retries out of bounds: {v}")),
+    )
 
     return values

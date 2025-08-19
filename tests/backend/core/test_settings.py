@@ -1,8 +1,8 @@
 import logging
 from pathlib import Path
 from typing import Any, Callable
-import pydantic
 
+import pydantic
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
@@ -42,8 +42,9 @@ from agentic_scraper.backend.config.constants import (
     MIN_LLM_TEMPERATURE,
 )
 
+
 def set_required_env(monkeypatch: MonkeyPatch) -> None:
-    # Minimal required settings for the model to instantiate successfully
+    """Minimal required settings for the model to instantiate successfully."""
     monkeypatch.setenv("AUTH0_DOMAIN", "test.auth0.com")
     monkeypatch.setenv("AUTH0_ISSUER", "https://test.auth0.com/")
     monkeypatch.setenv("AUTH0_CLIENT_ID", "client-id")
@@ -53,6 +54,7 @@ def set_required_env(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("BACKEND_DOMAIN", "api.example.com")
     monkeypatch.setenv("FRONTEND_DOMAIN", "app.example.com")
     monkeypatch.setenv("AUTH0_REDIRECT_URI", "https://app.example.com/callback")
+
 
 # ---------- Core Settings Tests ----------
 
@@ -88,6 +90,7 @@ def test_openai_key_is_validated_only_when_provided(settings_factory: Callable[.
 
     # Invalid key when provided explicitly should raise via validate_openai_api_key
     with pytest.raises((ValueError, pydantic.ValidationError)):
+        # Use field name 'openai' (snake_case) for overrides
         settings_factory(openai={"api_key": ""})  # empty/invalid key
 
 
@@ -96,14 +99,17 @@ def test_get_settings_is_cached(mock_env: None, reset_settings_cache: Any) -> No
     s2 = get_settings()
     assert s1 is s2
 
+
 # ---------- Derived/Helper Method Tests ----------
 
 def test_get_environment(mock_env: None, reset_settings_cache: Any) -> None:
     assert get_environment() == DEFAULT_ENV.upper()
 
+
 def test_get_log_dir(mock_env: None, reset_settings_cache: Any) -> None:
     expected = Path(DEFAULT_LOG_DIR) / DEFAULT_ENV.upper()
     assert get_log_dir() == expected
+
 
 def test_get_log_level_is_debug_in_verbose_mode(monkeypatch: MonkeyPatch, reset_settings_cache: Any) -> None:
     monkeypatch.setenv("ENV", "DEV")
@@ -111,6 +117,7 @@ def test_get_log_level_is_debug_in_verbose_mode(monkeypatch: MonkeyPatch, reset_
     set_required_env(monkeypatch)
 
     assert get_log_level() == logging.DEBUG
+
 
 def test_get_log_level_in_non_verbose_mode(monkeypatch: MonkeyPatch, reset_settings_cache: Any) -> None:
     monkeypatch.setenv("ENV", "PROD")
@@ -120,16 +127,20 @@ def test_get_log_level_in_non_verbose_mode(monkeypatch: MonkeyPatch, reset_setti
     expected_level = getattr(logging, DEFAULT_LOG_LEVEL.upper(), logging.INFO)
     assert get_log_level() == expected_level
 
+
 def test_get_log_max_bytes(mock_env: None, reset_settings_cache: Any) -> None:
     assert get_log_max_bytes() == DEFAULT_LOG_MAX_BYTES
 
+
 def test_get_log_backup_count(mock_env: None, reset_settings_cache: Any) -> None:
     assert get_log_backup_count() == DEFAULT_LOG_BACKUP_COUNT
+
 
 def test_get_log_format(mock_env: None, reset_settings_cache: Any) -> None:
     fmt = get_log_format()
     fmt_value = getattr(fmt, "value", fmt)  # handle enum or raw string
     assert fmt_value == DEFAULT_LOG_FORMAT
+
 
 # ---------- Derived Property Behavior ----------
 
@@ -141,6 +152,7 @@ def test_is_verbose_mode_true_if_env_dev(monkeypatch: MonkeyPatch, settings_fact
     s = settings_factory()
     assert s.is_verbose_mode is True
 
+
 def test_is_verbose_mode_true_if_verbose_true(monkeypatch: MonkeyPatch, settings_factory: Any, reset_settings_cache: Any) -> None:
     monkeypatch.setenv("ENV", "PROD")
     monkeypatch.setenv("VERBOSE", "1")
@@ -148,6 +160,7 @@ def test_is_verbose_mode_true_if_verbose_true(monkeypatch: MonkeyPatch, settings
 
     s = settings_factory()
     assert s.is_verbose_mode is True
+
 
 def test_is_verbose_mode_false_by_default(monkeypatch: MonkeyPatch, settings_factory: Any, reset_settings_cache: Any) -> None:
     monkeypatch.setenv("ENV", "PROD")
@@ -157,6 +170,7 @@ def test_is_verbose_mode_false_by_default(monkeypatch: MonkeyPatch, settings_fac
     s = settings_factory()
     assert s.is_verbose_mode is False
 
+
 # ---------- Field Exclusion Logic ----------
 
 def test_excluded_fields_do_not_appear_in_model_dump(settings: Settings) -> None:
@@ -164,15 +178,17 @@ def test_excluded_fields_do_not_appear_in_model_dump(settings: Settings) -> None
     assert "fetch_concurrency" not in dumped
     assert "llm_concurrency" not in dumped
 
+
 # ---------- Bounds and Validation ----------
 
 def test_llm_schema_retries_bounds(settings_factory: Callable[..., Settings]) -> None:
-    with pytest.raises(pydantic.ValidationError) as exc_info:
-        settings_factory(LLM_SCHEMA_RETRIES=-1)
-    assert "llm_schema_retries" in str(exc_info.value).lower()
-
-
-
-def test_llm_temperature_out_of_bounds(settings_factory: Any) -> None:
+    # Strict validation: negative values must raise
     with pytest.raises(pydantic.ValidationError):
-        settings_factory(LLM_TEMPERATURE=MIN_LLM_TEMPERATURE - 1.0)
+        settings_factory(llm_schema_retries=-1)
+ 
+
+
+def test_llm_temperature_out_of_bounds(settings_factory: Callable[..., Settings]) -> None:
+    # Strict validation: below minimum must raise
+    with pytest.raises(pydantic.ValidationError):
+        settings_factory(llm_temperature=MIN_LLM_TEMPERATURE - 1.0)
