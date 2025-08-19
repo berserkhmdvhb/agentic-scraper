@@ -58,7 +58,7 @@
 - [🔬 Scraping Pipeline](#-scraping-pipeline)
   - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
   - [🧬 Agent Extraction](#-agent-extraction-in-agent)
-- [📊 Jobs & Exports](#-jobs-exports)
+- [📊 Jobs & Exports](#-jobs--exports)
 - [🔌 API (FastAPI)](#-api-fastapi)
 - [🔐 Security & Authentication](#-security--authentication)
 - [🚀 CI/CD & Deployment](#-cicd--deployment)
@@ -810,18 +810,52 @@ Content-Type: application/json
 
 
 
-## 🔐 Security & Authentication 
+## 🔐 Security & Authentication
 
-### Setup Auth0
-The file [`src\backend\api\auth\auth0_helpers.py`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/src/agentic_scraper/backend/api/auth/auth0_helpers.py) is responsible for fetching JWKS.
-Although providing `ENCRYPTION_SECRET` and `AUTH0_ISSUER` will be enough for both frontend and backend to launch, but the following operations require proper setup of auth0:
-- Authenticate users on auth0
-- Authenticated users log in on the frontend domain.
-- Authenticated users submit their openai-credentials.
-- Authenticated users with saved openai-credentials could now feed URLs and perform scraping.
+AgenticScraper uses **Auth0** for authentication and **JWT Bearer tokens** for securing the API. Tokens are verified against Auth0 **JWKS** and checked for expiration and scopes.
 
-...
+### How it works
 
+* **Frontend (Streamlit)** initiates login and receives a redirect to the backend.
+* **Backend** handles the OAuth2 callback at `/api/v1/auth/callback`, exchanges the `code` for an access token, and redirects back to the frontend with `?token=...` (or `?error=...`).
+* The **JWT** is stored in the Streamlit session and attached to API calls as `Authorization: Bearer ...`.
+* FastAPI dependencies (`get_current_user`) validate the token using Auth0 JWKS. Scopes are enforced with `scope_helpers.py`.
+
+### Required Auth0 Configuration
+
+1. **Applications**
+
+   * Create a **Regular Web Application** for the Streamlit UI.
+   * Enable **Machine-to-Machine** access if you need server-to-server token flows (optional).
+2. **API**
+
+   * Create an **Auth0 API** with an identifier (the **audience**) — **must end with a trailing slash** (e.g., `https://your-ngrok-or-domain/`).
+3. **Allowed Callback URLs** (on the Application)
+
+   * Set to your backend callback URL, e.g., `https://<BACKEND_DOMAIN>/api/v1/auth/callback`.
+4. **Allowed Logout / CORS URLs**
+
+   * Include both `FRONTEND_DOMAIN` and `BACKEND_DOMAIN`.
+5. **Scopes**
+
+   * At minimum: `read:user_profile` (used for all protected routes in the current setup).
+   * You can introduce granular scopes later (e.g., `create:openai_credentials`) and enforce them in `scope_helpers.py`.
+
+### .env settings
+
+* `AUTH0_ISSUER` — e.g., `https://dev-xxxxx.us.auth0.com/` (**trailing slash required**)
+* `AUTH0_API_AUDIENCE` — e.g., `https://6d35bd763370.ngrok-free.app/` (**trailing slash required**)
+* `FRONTEND_DOMAIN` / `BACKEND_DOMAIN` — used in redirects and CORS.
+
+### Implementation Notes
+
+* **JWT verification** & JWKS caching: `backend/api/auth/auth0_helpers.py`
+* **Dependency** (`get_current_user`): `backend/api/auth/dependencies.py`
+* **Scope checks**: `backend/api/auth/scope_helpers.py`
+* **OAuth2 callback**: `backend/api/routes/auth.py`
+* **Message constants** (no raw strings): `backend/config/messages.py`
+
+> If JWKS fetch fails (wrong issuer or missing slash), token verification will fail. Double‑check the issuer and audience values in `.env`.
 
 
 
@@ -829,40 +863,44 @@ Although providing `ENCRYPTION_SECRET` and `AUTH0_ISSUER` will be enough for bot
 
 ## 🚀 CI/CD & Deployment
 
-Agentic Scraper now supports **full CI/CD** with Docker-based builds and continuous deployment to Render.com.
-
 ### 🧪 Continuous Integration
-Automated tests, linting, and type checks are run via [GitHub Actions](https://github.com/berserkhmdvhb/agentic-scraper/actions) on every push and PR.
 
-### 🚀 Continuous Delivery (Render)
-Production deployments are triggered automatically when changes are pushed to `main`.
-To see the hosted domains, visit [Running the App](#%EF%B8%8F-running-the-app)
+* **GitHub Actions** run on every push/PR:
+
+  * Linting (`ruff`) and type checks (`mypy`)
+  * Unit tests (`pytest`)
+  * Requirements drift check (Poetry → requirements.txt)
+
+### 🚀 Delivery / Hosting
+
+* Reference deployments are hosted on **Render.com** (Frontend & Backend). See the links in the header.
+* Docker images can be built locally or pulled from Docker Hub.
 
 ### 📦 Docker Support
-Production-ready Docker configuration are provided as following files:
-- `Dockerfile.backend` – builds the FastAPI backend
-- `Dockerfile.frontend` – builds the Streamlit frontend
-- `docker-compose.yml` – orchestrates both services for local dev or deployment
 
-> Use `docker-compose up` to spin up the app locally with both services.
+* `Dockerfile.backend` — builds the FastAPI backend
+* `Dockerfile.frontend` — builds the Streamlit frontend
+* `docker-compose.yml` — orchestrates both services for local dev or a single-box deployment
 
-#### 🐳 Docker Hub Images
+**Local with Docker Compose:**
 
-Pre-built Docker images for both frontend and backend are available:
+```bash
+docker-compose up --build
+```
 
-* **Frontend:**
-  [![Docker: Frontend](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend)
+**Pull prebuilt images:**
 
-  `docker pull hmdvhb/agentic-scraper-frontend`
+```bash
+docker pull hmdvhb/agentic-scraper-frontend
+docker pull hmdvhb/agentic-scraper-backend
+```
 
-* **Backend:**
-  [![Docker: Backend](https://img.shields.io/badge/docker-backend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-backend)
+### Notes
 
-  `docker pull hmdvhb/agentic-scraper-backend`
+* Production deployments should configure `FRONTEND_DOMAIN` and `BACKEND_DOMAIN` with HTTPS.
+* For uptime checks, consider adding a public `/health` endpoint to the backend.
+* Secrets (Auth0 keys, encryption key) must be provided via environment variables in your host.
 
-
-
-These images are automatically published on every versioned release and push to `main`. Use them to quickly deploy the app without building locally.
 
 ---
 
