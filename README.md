@@ -58,6 +58,7 @@
 - [🔬 Scraping Pipeline](#-scraping-pipeline)
   - [🔗 URL Fetching](#-url-fetching-in-fetcherpy)
   - [🧬 Agent Extraction](#-agent-extraction-in-agent)
+- [📊 Jobs & Exports](#-jobs-exports)
 - [🔌 API (FastAPI)](#-api-fastapi)
 - [🔐 Security & Authentication](#-security--authentication)
 - [🚀 CI/CD & Deployment](#-cicd--deployment)
@@ -490,10 +491,11 @@ OPENAI_MODEL=gpt-4o
 
 ```
 
+### Notes
 
-> The Streamlit UI can override some settings at runtime via the sidebar.
-> Auth flows and scraping require a working Auth0 setup (see [Setup Auth0](#setup-auth0)).
-> OpenAI API key & project ID are provided by the user in the UI and stored encrypted by the backend using `ENCRYPTION_SECRET`.
+* The Streamlit UI can override some settings at runtime via the sidebar.
+* Auth flows and scraping require a working Auth0 setup (see [Setup Auth0](#setup-auth0)).
+* OpenAI API key & project ID are provided by the user in the UI and stored encrypted by the backend using `ENCRYPTION_SECRET`.
 
 
 ---
@@ -626,13 +628,13 @@ Input URL: https://www.amazon.com/Beats-Solo-Wireless-Headphones-Matte/dp/B0CZPL
 | `llm-dynamic`          | Context-driven LLM extraction that automatically decides which fields to extract per page     |
 | `llm-dynamic-adaptive` | Retry-aware variant: adds field scoring, placeholder detection, and self-healing retries for maximum completeness  |
 
-> 💡 Recommended: Use `llm-dynamic` for the best balance of quality and performance.
+### Notes
 
-> The UI dynamically adapts to the selected mode — model selection and retry sliders appear only for LLM-based modes.
+* 💡 Recommended: Use `llm-dynamic` for the best balance of quality and performance.
 
-> All LLM modes use the OpenAI ChatCompletion API (`gpt-4`, `gpt-3.5-turbo`).
+* The UI dynamically adapts to the selected mode — model selection and retry sliders appear only for LLM-based modes.
 
-See [`agents.md`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/docs/agents.md) 
+* All LLM modes use the OpenAI ChatCompletion API (`gpt-4`, `gpt-3.5-turbo`). See [`agents.md`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/docs/agents.md) 
 
 
 ---
@@ -650,7 +652,7 @@ The scraping pipeline has three main stages:
 
 These stages are modular and can be extended independently.
 
----
+
 
 ### 🔗 URL Fetching (in `fetcher.py`)
 
@@ -670,7 +672,7 @@ These stages are modular and can be extended independently.
 * Realistic headers & timeouts
 * Optionally triggers screenshot capture
 
----
+
 
 ### 🧹 Parse Stage (in `parser.py`)
 
@@ -684,7 +686,6 @@ These stages are modular and can be extended independently.
 * Reduces token and noise for LLMs, improving extraction quality and speed.
 * Provides consistent fields (title/body/meta) regardless of source markup quirks.
 
----
 
 ### 🧬 Agent Extraction (in `agents/`)
 
@@ -698,7 +699,7 @@ These stages are modular and can be extended independently.
 * Validates results against `ScrapedItem` schema.
 * Adaptive retries regenerate prompts for missing/placeholder fields.
 
----
+
 
 ### Progress, Cancellation, Jobs
 
@@ -707,76 +708,105 @@ These stages are modular and can be extended independently.
 * Cancel requests are honored mid-run: canceled jobs never flip back to succeeded.
 * On completion, jobs finalize with `SUCCEEDED` or `FAILED`, plus results + stats.
 
+---
 
+
+## 📊 Jobs & Exports
+
+All scraping runs are tracked as **jobs** in the backend. Jobs provide real‑time progress, cancellation, and export options.
+
+### Job Lifecycle
+
+* Jobs are created with status `QUEUED` → `RUNNING` → `SUCCEEDED`/`FAILED`.
+* Progress (`0.0 – 1.0`) updates as items are processed.
+* Cancel requests set status to `CANCELED` and prevent overwriting with success.
+* Each job stores results, errors, and execution stats.
+
+### Jobs Tab (Frontend)
+
+* **Overview** tab: status, progress bar, timestamps, config.
+* **Results** tab: interactive Ag‑Grid table with filtering/sorting.
+* **Cancel button** for active jobs.
+* Compact UI for quick inspection of URLs.
+
+### Export Options
+
+* **Table exports**: JSON, CSV, SQLite (filenames include `job_id`).
+* **Job package download**: full payload with results + metadata + stats.
+* Exports are available directly from the Jobs tab.
 ## 🔌 API (FastAPI)
 
-The AgenticScraper backend is powered by **FastAPI** and exposes a versioned REST API under the `/api/v1/` prefix. All routes use **JWT Bearer authentication** via Auth0 and enforce **scope-based access control**.
+The backend exposes a **versioned REST API** under `/api/v1/`, powered by FastAPI. Most routes use **Auth0 JWT Bearer authentication** with **scope-based access control** — **except** the OAuth2 callback, which is public by design.
 
+### Authentication
 
+* Endpoints require a valid Bearer token:
 
-### 🔐 Authentication
+  ```http
+  Authorization: Bearer eyJhbGciOiJ...
+  ```
+* Tokens are verified against Auth0 JWKS.
+* Scope validation is done via `scope_helpers.check_required_scopes()`.
 
-All endpoints (except `/auth/callback`) require a valid **Bearer token** issued by Auth0:
+### Key Routes (as implemented)
+
+#### `auth/`
+
+| Endpoint                | Method | Description                                                               | Scope                |
+| ----------------------- | ------ | ------------------------------------------------------------------------- | -------------------- |
+| `/api/v1/auth/callback` | GET    | OAuth2 callback: exchanges Auth0 `code` → access token, then redirects UI | **public (no auth)** |
+
+#### `user/`
+
+| Endpoint                                 | Method | Description                                          | Scope                 |
+| ---------------------------------------- | ------ | ---------------------------------------------------- | --------------------- |
+| `/api/v1/user/me`                        | GET    | Return authenticated user's profile                  | `read:user_profile`   |
+| `/api/v1/user/openai-credentials`        | GET    | Retrieve stored OpenAI API key + project ID (if any) | `read:user_profile`   |
+| `/api/v1/user/openai-credentials/status` | GET    | Return existence/health status of saved credentials  | `read:user_profile`   |
+| `/api/v1/user/openai-credentials`        | PUT    | Create/update encrypted OpenAI credentials           | `read:user_profile`\* |
+| `/api/v1/user/openai-credentials`        | DELETE | Delete stored OpenAI credentials                     | `read:user_profile`\* |
+
+> \*Use the exact scopes you enforce in your codebase; diagram indicates user-scope gating. Adjust if you later introduce more granular scopes (e.g., `create:openai_credentials`).
+
+#### `scrape/`
+
+| Endpoint                  | Method | Description                              | Scope               |
+| ------------------------- | ------ | ---------------------------------------- | ------------------- |
+| `/api/v1/scrape/`         | POST   | Start a scraping job (returns `job_id`)  | `read:user_profile` |
+| `/api/v1/scrape/`         | GET    | List jobs (pagination/filters supported) | `read:user_profile` |
+| `/api/v1/scrape/{job_id}` | GET    | Get job status and results               | `read:user_profile` |
+| `/api/v1/scrape/{job_id}` | DELETE | Cancel a running job                     | `read:user_profile` |
+
+### Example: Start a Job
 
 ```http
-Authorization: Bearer eyJhbGciOiJ...
-```
-
-Tokens are verified using Auth0's JWKS endpoint and validated for expiration, signature, and required scopes.
-
-
-
-### 🧭 Available Routes
-
-| Endpoint                          | Method | Description                                          | Auth Scope           |
-| --------------------------------- | ------ | ---------------------------------------------------- | -------------------- |
-| `/api/v1/auth/callback`           | GET    | OAuth2 callback: exchanges Auth0 code for JWT        | public (no auth)     |
-| `/api/v1/user/me`                 | GET    | Returns authenticated user's profile                 | `read:user_profile`  |
-| `/api/v1/user/openai-credentials` | GET    | Retrieves stored OpenAI API key & project ID         | `read:user_profile`  |
-| `/api/v1/user/openai-credentials` | POST   | Stores OpenAI credentials for future scrape requests | `create:openai_credentials` |
-| `/api/v1/scrape/start`            | POST   | Launches scraping pipeline with given URL list       | `read:user_profile`  |
-
-
-
-### 🧪 Example: Scrape Request
-
-```http
-POST /api/v1/scrape/start
-Authorization: Bearer <your_token>
+POST /api/v1/scrape/
+Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "urls": [
-    "https://example.com/page1",
-    "https://example.com/page2"
-  ],
+  "urls": ["https://example.com/page1", "https://example.com/page2"],
   "agent_mode": "llm-dynamic",
   "llm_model": "gpt-4"
 }
 ```
 
-#### Response
+**Response:**
 
 ```json
 {
-  "results": [...],
-  "stats": {
-    "total": 2,
-    "successful": 2,
-    "duration_seconds": 6.2
-  }
+  "job_id": "abc123",
+  "status": "QUEUED"
 }
 ```
 
+### Notes
 
+* Interactive API docs at `/docs` (Swagger UI) with JWT auth.
+* Schemas defined in `backend/api/schemas/*`.
+* Job lifecycle & cancellation logic enforced by `job_store.py`.
+* OAuth2 callback uses `settings.auth0_redirect_uri` and redirects to `FRONTEND_DOMAIN` with `?token=...` or `?error=...`.
 
-### 🧩 API Design Notes
-
-* **Versioning**: All endpoints are served under `/api/v1/`
-* **Schemas**: Defined with `pydantic` in the `schemas/` module
-* **Security**: JWT validation via FastAPI dependencies (`get_current_user`)
-* **Scope Enforcement**: Done via `check_required_scopes()` helper
-* **OpenAPI UI**: Visit `/docs` (with token input) for interactive API explorer
 
 
 
