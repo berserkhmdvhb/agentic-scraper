@@ -491,11 +491,9 @@ OPENAI_MODEL=gpt-4o
 ```
 
 
-### Notes
-
-* The Streamlit UI can override some settings at runtime via the sidebar.
-* Auth flows and scraping require a working Auth0 setup (see [Setup Auth0](#setup-auth0)).
-* OpenAI API key & project ID are provided by the user in the UI and stored encrypted by the backend using `ENCRYPTION_SECRET`.
+> The Streamlit UI can override some settings at runtime via the sidebar.
+> Auth flows and scraping require a working Auth0 setup (see [Setup Auth0](#setup-auth0)).
+> OpenAI API key & project ID are provided by the user in the UI and stored encrypted by the backend using `ENCRYPTION_SECRET`.
 
 
 ---
@@ -505,70 +503,66 @@ OPENAI_MODEL=gpt-4o
 
 https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
 
-<img width="6563" height="6563" alt="diagram" src="https://github.com/user-attachments/assets/128f4fac-711e-4463-9b25-04c257ef50a9" />
+<img width="5550" height="6305" alt="AS_Architecture_online" src="https://github.com/user-attachments/assets/76339473-df86-426a-a356-ecff3f2c5e54" />
 
 
 ---
 
-
 ## 🧪 How It Works
 
-1. **User Input**
+1. **Authenticate & Provide Credentials**
 
-   * URLs are provided via Streamlit UI (paste or `.txt` file).
-   * OpenAI credentials are securely stored using encrypted local store.
-   * User must authenticate via Auth0 (JWT token required for API access).
+   * User signs in via **Auth0** from the Streamlit UI.
+   * User optionally saves **OpenAI API key** and **Project ID** to the backend; they’re AES‑encrypted with `ENCRYPTION_SECRET`.
 
-2. **API Request (FastAPI)**
+2. **Submit URLs from the UI**
 
-   * Frontend sends a scrape request to the FastAPI backend (`/api/v1/scrape/start`) with the list of URLs and user config.
-   * Backend validates JWT token and user scopes.
+   * Paste URLs or upload a `.txt` file.
+   * Pick the **agent mode** (recommended: `llm-dynamic`), **model**, and performance settings (concurrency, retries, screenshots).
 
-3. **Fetch HTML**
+3. **Backend Receives a Scrape Job**
 
-   * Backend fetches page content using `httpx` with retry logic.
-   * Optionally stores raw HTML if needed for debugging.
+   * The UI calls `POST /api/v1/scrape/start` with URLs + config.
+   * A job is created in the **in‑memory job store** with status `QUEUED` → `RUNNING`.
+   * The job id is returned to the UI for progress tracking.
 
-4. **Extract Structured Data**
+4. **Fetch Stage (Async)**
 
-   * [The Scraping Pipeline](#-scraping-pipeline) runs agents per URL:
+   * `fetcher.py` uses `httpx.AsyncClient` + retries to download HTML concurrently.
+   * Each fetched item includes original/final URL, status, headers, and HTML.
 
-     * `rule_based`: uses `BeautifulSoup` heuristics.
-     * `llm_fixed`: strict schema LLM extraction.
-     * `llm_dynamic`: free-form LLM extraction.
-     * `llm_dynamic_adaptive`: retry-aware LLM with field scoring + self-healing.
-   * Agents are configurable via sidebar in the frontend.
+5. **Parse Stage**
 
-5. **Validate Output**
+   * `parser.py` cleans HTML and distills main content (title/body/meta) for the agents.
 
-   * Extracted output is validated using a `ScrapedItem` Pydantic schema.
-   * If invalid, adaptive agents retry with refined prompts.
+6. **Agent Extraction**
 
-6. **Retry (Adaptive Agent Only)**
+   * `agents/` run per‑URL. Modes:
 
-   * If required fields are missing or placeholders are returned (e.g. "N/A"),
+     * `rule_based` — heuristic, fast, no LLM.
+     * `llm_fixed` — strict fixed schema.
+     * `llm_dynamic` — **context‑driven selection of fields** for better quality/perf (recommended default).
+     * `llm_dynamic_adaptive` — adds retries with field scoring + placeholder detection to maximize completeness.
 
-     * The agent retries up to `LLM_SCHEMA_RETRIES` times.
-     * Prompts adapt based on previously missing fields.
+7. **Validation & Retries**
 
-7. **Screenshot (Optional)**
+   * Outputs are validated against `ScrapedItem` schemas.
+   * Adaptive mode may retry with refined prompts targeting missing/placeholder fields.
 
-   * If enabled, Playwright captures a screenshot for each page.
-   * Screenshots are saved and included in the final output.
+8. **Optional Screenshots**
 
-8. **Display in Streamlit**
+   * If enabled, `screenshotter.py` captures page screenshots via Playwright and associates paths with results.
 
-   * Results are shown in the frontend using Ag-Grid.
-   * Users can filter, sort, and inspect structured data and screenshots.
+9. **Progress, Cancellation, Finalization**
 
-9. **Export Results**
+   * `worker_pool.py` emits granular progress updates to the job store.
+   * The job can be **canceled** mid‑run; the backend honors cancelability.
+   * On completion, the job is finalized with `SUCCEEDED`/`FAILED` and includes **results + stats**.
 
-   * Scraped data can be exported as:
+10. **UI: Results & Exports**
 
-     * **JSON**
-     * **CSV**
-     * **SQLite**
-   * Export options are available from the UI.
+* The Streamlit UI polls job status, shows progress and results.
+* The **Jobs** tab provides Overview/Results views, **cancel** button, and exports: **JSON / CSV / SQLite** or a **full job package** (results + metadata).
 
 ---
 
@@ -627,10 +621,10 @@ Input URL: https://www.amazon.com/Beats-Solo-Wireless-Headphones-Matte/dp/B0CZPL
 
 | Mode                   | Description                                                                  |
 |------------------------|------------------------------------------------------------------------------|
-| `rule-based`           | Heuristic parser using BeautifulSoup — fast, LLM-free baseline               |
-| `llm-fixed`            | Extracts a fixed predefined schema (e.g. title, price)                        |
-| `llm-dynamic`          | LLM selects relevant fields based on page content and contextual hints       |
-| `llm-dynamic-adaptive` | Adds retries, field scoring, and placeholder detection for better coverage   |
+| `rule-based`           | Heuristic parser using regex and basic rules — fast, LLM-free baseline               |
+| `llm-fixed`            | Extracts a fixed predefined schema (e.g. title, price, author)                        |
+| `llm-dynamic`          | Context-driven LLM extraction that automatically decides which fields to extract per page     |
+| `llm-dynamic-adaptive` | Retry-aware variant: adds field scoring, placeholder detection, and self-healing retries for maximum completeness  |
 
 > 💡 Recommended: Use `llm-dynamic` for the best balance of quality and performance.
 
@@ -646,14 +640,13 @@ See [`agents.md`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/doc
 
 ## 🔬 Scraping Pipeline
 
-<img width="815" height="538" alt="pipeline" src="https://github.com/user-attachments/assets/11940f42-b1e4-4889-a1a7-49e694f1c793" />
+<img width="2774" height="971" alt="ScrapingPipeline" src="https://github.com/user-attachments/assets/4e81953f-2d1e-4abd-b8c7-4adaf0d3f666" />
 
+The scraping pipeline has three main stages:
 
-
-The scraping pipeline consists of two major components:
-
-* **🔗 URL Fetching** – Responsible for retrieving raw HTML and metadata.
-* **🧠 Agent Extraction** – Parses and extracts structured data using either rules or LLMs.
+* **🔗 URL Fetching** — Retrieves raw HTML + metadata.
+* **🧹 Parse Stage** — Cleans HTML and distills main content for analysis.
+* **🧬 Agent Extraction** — Parses content and extracts structured data using rule-based or LLM agents.
 
 These stages are modular and can be extended independently.
 
@@ -661,27 +654,58 @@ These stages are modular and can be extended independently.
 
 ### 🔗 URL Fetching (in `fetcher.py`)
 
-The fetching stage is implemented using `httpx.AsyncClient` for concurrent HTTP requests and `tenacity` for smart retries. Each URL is fetched asynchronously and returned as a `FetchedDocument` object containing:
+* Implemented with `httpx.AsyncClient` for concurrent requests.
+* Retries handled via `tenacity` with exponential backoff.
+* Produces a `FetchedDocument` containing:
 
-* Original and final (redirected) URLs
-* HTTP status code and headers
-* Raw HTML content
-* Metadata such as domain and fetch timestamp
+  * Original + final URL (after redirects)
+  * Status code & headers
+  * Raw HTML
+  * Metadata (domain, fetch timestamp)
 
 **Features:**
 
-* Concurrent execution with `asyncio.gather`
-* Exponential backoff retry on failure
-* Bot-mimicking headers and timeouts
-* Optional screenshot triggering via middleware
-
-This stage feeds clean, validated inputs into the next step: agent-based extraction.
+* Async concurrency with `asyncio.gather`
+* Retry/backoff on failures
+* Realistic headers & timeouts
+* Optionally triggers screenshot capture
 
 ---
 
-### 🧬 Agent Extraction (in `agent/`)
+### 🧹 Parse Stage (in `parser.py`)
 
-See [`agents.md`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/docs/agents.md) 
+* Cleans raw HTML (removes boilerplate, scripts/styles, noisy elements).
+* Distills **main content** (title, meta description, primary text/body) and normalizes whitespace.
+* Extracts lightweight page metadata (canonical URL, domain, timestamps when available).
+* Outputs a structured object (e.g., `ParsedContent`) used as the **input to agents**.
+
+**Why it matters:**
+
+* Reduces token and noise for LLMs, improving extraction quality and speed.
+* Provides consistent fields (title/body/meta) regardless of source markup quirks.
+
+---
+
+### 🧬 Agent Extraction (in `agents/`)
+
+* Runs after parsing/cleaning.
+* Supports multiple strategies:
+
+  * `rule_based` (fast heuristics)
+  * `llm_fixed` (fixed schema)
+  * `llm_dynamic` (context-driven, **recommended**)
+  * `llm_dynamic_adaptive` (adds retries + scoring)
+* Validates results against `ScrapedItem` schema.
+* Adaptive retries regenerate prompts for missing/placeholder fields.
+
+---
+
+### Progress, Cancellation, Jobs
+
+* The **worker pool** processes URLs concurrently and updates job progress.
+* Jobs are stored in the in-memory `job_store` with status + progress.
+* Cancel requests are honored mid-run: canceled jobs never flip back to succeeded.
+* On completion, jobs finalize with `SUCCEEDED` or `FAILED`, plus results + stats.
 
 
 ## 🔌 API (FastAPI)
