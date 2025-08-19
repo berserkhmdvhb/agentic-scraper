@@ -504,7 +504,7 @@ OPENAI_MODEL=gpt-4o
 
 https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
 
-<img width="5550" height="6305" alt="AS_Architecture_online" src="https://github.com/user-attachments/assets/22a16c18-3db9-476d-8147-b380b0ca63fc" />
+<img width="5550" height="6305" alt="AS_Architecture_online" src="https://github.com/user-attachments/assets/d1abe61b-03e4-46c5-a615-6963ab2bbfe4" />
 
 
 ---
