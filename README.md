@@ -734,6 +734,9 @@ All scraping runs are tracked as **jobs** in the backend. Jobs provide real‑ti
 * **Table exports**: JSON, CSV, SQLite (filenames include `job_id`).
 * **Job package download**: full payload with results + metadata + stats.
 * Exports are available directly from the Jobs tab.
+
+---
+
 ## 🔌 API (FastAPI)
 
 The backend exposes a **versioned REST API** under `/api/v1/`, powered by FastAPI. Most routes use **Auth0 JWT Bearer authentication** with **scope-based access control** — **except** the OAuth2 callback, which is public by design.
@@ -758,24 +761,22 @@ The backend exposes a **versioned REST API** under `/api/v1/`, powered by FastAP
 
 #### `user/`
 
-| Endpoint                                 | Method | Description                                          | Scope                 |
-| ---------------------------------------- | ------ | ---------------------------------------------------- | --------------------- |
-| `/api/v1/user/me`                        | GET    | Return authenticated user's profile                  | `read:user_profile`   |
-| `/api/v1/user/openai-credentials`        | GET    | Retrieve stored OpenAI API key + project ID (if any) | `read:user_profile`   |
-| `/api/v1/user/openai-credentials/status` | GET    | Return existence/health status of saved credentials  | `read:user_profile`   |
-| `/api/v1/user/openai-credentials`        | PUT    | Create/update encrypted OpenAI credentials           | `read:user_profile`\* |
-| `/api/v1/user/openai-credentials`        | DELETE | Delete stored OpenAI credentials                     | `read:user_profile`\* |
-
-> \*Use the exact scopes you enforce in your codebase; diagram indicates user-scope gating. Adjust if you later introduce more granular scopes (e.g., `create:openai_credentials`).
+| Endpoint                                 | Method | Description                                          | Scope                       |
+| ---------------------------------------- | ------ | ---------------------------------------------------- | --------------------------- |
+| `/api/v1/user/me`                        | GET    | Return authenticated user's profile                  | `read:user_profile`         |
+| `/api/v1/user/openai-credentials`        | GET    | Retrieve stored OpenAI API key + project ID (if any) | `read:user_profile`         |
+| `/api/v1/user/openai-credentials/status` | GET    | Return existence/health status of saved credentials  | `read:user_profile`         |
+| `/api/v1/user/openai-credentials`        | PUT    | Create/update encrypted OpenAI credentials           | `create:openai_credentials` |
+| `/api/v1/user/openai-credentials`        | DELETE | Delete stored OpenAI credentials                     | `delete:user_account`       |
 
 #### `scrape/`
 
-| Endpoint                  | Method | Description                              | Scope               |
-| ------------------------- | ------ | ---------------------------------------- | ------------------- |
-| `/api/v1/scrape/`         | POST   | Start a scraping job (returns `job_id`)  | `read:user_profile` |
-| `/api/v1/scrape/`         | GET    | List jobs (pagination/filters supported) | `read:user_profile` |
-| `/api/v1/scrape/{job_id}` | GET    | Get job status and results               | `read:user_profile` |
-| `/api/v1/scrape/{job_id}` | DELETE | Cancel a running job                     | `read:user_profile` |
+| Endpoint                  | Method | Description                              | Scope            |
+| ------------------------- | ------ | ---------------------------------------- | ---------------- |
+| `/api/v1/scrape/`         | POST   | Start a scraping job (returns `job_id`)  | `create:scrapes` |
+| `/api/v1/scrape/`         | GET    | List jobs (pagination/filters supported) | `read:scrapes`   |
+| `/api/v1/scrape/{job_id}` | GET    | Get job status and results               | `read:scrapes`   |
+| `/api/v1/scrape/{job_id}` | DELETE | Cancel a running job                     | `cancel:scrapes` |
 
 ### Example: Start a Job
 
@@ -806,6 +807,7 @@ Content-Type: application/json
 * Schemas defined in `backend/api/schemas/*`.
 * Job lifecycle & cancellation logic enforced by `job_store.py`.
 * OAuth2 callback uses `settings.auth0_redirect_uri` and redirects to `FRONTEND_DOMAIN` with `?token=...` or `?error=...`.
+* Scopes above reflect your **Auth0 API permissions** and must be assigned to users in Auth0 for the corresponding actions.
 
 
 
