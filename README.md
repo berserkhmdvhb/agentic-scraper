@@ -258,7 +258,6 @@ agentic_scraper/
             ├── ui_auth_credentials.py       # OpenAI credential input & validation
             ├── ui_auth_helpers.py           # Auth helpers (fetch status, error handling)
             ├── ui_display.py                # Grid/table visualization of results
-            ├── ui_effects.py                # Spinners, banners, toasts
             ├── ui_jobs.py                   # Jobs tab: overview, results, exports, cancel
             ├── ui_page_config.py            # Layout, environment badges, log path
             ├── ui_runner.py                 # Async scrape runner (calls backend API)
