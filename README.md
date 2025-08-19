@@ -503,7 +503,7 @@ OPENAI_MODEL=gpt-4o
 
 https://lucid.app/lucidchart/3fb8cd99-6bee-44ba-8f47-87e8de28ea95/view
 
-<img width="5550" height="6305" alt="AS_Architecture_online" src="https://github.com/user-attachments/assets/76339473-df86-426a-a356-ecff3f2c5e54" />
+<img width="5550" height="6305" alt="AS_Architecture_online" src="https://github.com/user-attachments/assets/22a16c18-3db9-476d-8147-b380b0ca63fc" />
 
 
 ---
@@ -640,7 +640,7 @@ See [`agents.md`](https://github.com/berserkhmdvhb/agentic-scraper/blob/main/doc
 
 ## 🔬 Scraping Pipeline
 
-<img width="2774" height="971" alt="ScrapingPipeline" src="https://github.com/user-attachments/assets/4e81953f-2d1e-4abd-b8c7-4adaf0d3f666" />
+<img width="2842" height="1572" alt="ScrapingPipeline" src="https://github.com/user-attachments/assets/ae49f6d4-831a-467c-a0f3-08c511fa7584" />
 
 The scraping pipeline has three main stages:
 
