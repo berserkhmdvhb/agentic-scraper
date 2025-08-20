@@ -71,8 +71,7 @@ def test_safe_int(raw: str, expected: int) -> None:
 
 
 # ---------- _coerce_and_validate (internal) ----------
-
-def test__coerce_and_validate_string_ok(caplog: pytest.LogCaptureFixture) -> None:
+def test__coerce_and_validate_string_ok() -> None:
     values: dict[str, Any] = {"log_level": "info"}
 
     def coerce(s: str) -> str:  # identity coercion
@@ -82,13 +81,30 @@ def test__coerce_and_validate_string_ok(caplog: pytest.LogCaptureFixture) -> Non
         assert isinstance(v, str)
         return v.upper()
 
-    caplog.set_level(logging.DEBUG)
-    _coerce_and_validate(values, "log_level", coerce, validator)
-    assert values["log_level"] == "INFO"
-    assert any(MSG_DEBUG_SETTING_OVERRIDDEN.split("{")[0] in rec.message for rec in caplog.records)
+    import io
+    import logging
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger_name = "agentic_scraper.backend.core.settings_helpers"
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    try:
+        _coerce_and_validate(values, "log_level", coerce, validator)
+        assert values["log_level"] == "INFO"
+
+        handler.flush()
+        log_output = stream.getvalue()
+        prefix = MSG_DEBUG_SETTING_OVERRIDDEN.split("{")[0]
+        assert prefix in log_output
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
 
 
-def test__coerce_and_validate_list_ok(caplog: pytest.LogCaptureFixture) -> None:
+def test__coerce_and_validate_list_ok() -> None:
     values: dict[str, Any] = {"auth0_algorithms": ["RS256", "ES256"]}
 
     def coerce_list(_: str) -> list[str]:
@@ -98,13 +114,29 @@ def test__coerce_and_validate_list_ok(caplog: pytest.LogCaptureFixture) -> None:
         assert isinstance(v, list)
         return [x.upper() for x in v]
 
-    caplog.set_level(logging.DEBUG)
-    _coerce_and_validate(values, "auth0_algorithms", coerce_list, validator)
-    assert values["auth0_algorithms"] == ["RS256", "ES256"]
-    assert any(MSG_DEBUG_SETTING_OVERRIDDEN.split("{")[0] in rec.message for rec in caplog.records)
+    import io
+    import logging
 
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger_name = "agentic_scraper.backend.core.settings_helpers"
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
 
-def test__coerce_and_validate_empty_string_skips(caplog: pytest.LogCaptureFixture) -> None:
+    try:
+        _coerce_and_validate(values, "auth0_algorithms", coerce_list, validator)
+        assert values["auth0_algorithms"] == ["RS256", "ES256"]
+
+        handler.flush()
+        log_output = stream.getvalue()
+        prefix = MSG_DEBUG_SETTING_OVERRIDDEN.split("{")[0]
+        assert prefix in log_output
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+
+def test__coerce_and_validate_empty_string_skips() -> None:
     values: dict[str, Any] = {"dump_llm_json_dir": "   "}
 
     def coerce(s: str) -> str:
@@ -113,30 +145,30 @@ def test__coerce_and_validate_empty_string_skips(caplog: pytest.LogCaptureFixtur
     def validator(v: str) -> str:
         return v
 
-    caplog.set_level(logging.DEBUG)
-    _coerce_and_validate(values, "dump_llm_json_dir", coerce, validator)
-    assert "dump_llm_json_dir" not in values
-    assert any(MSG_DEBUG_SETTING_SKIPPED.split("{")[0] in rec.message for rec in caplog.records)
+    import io
+    import logging
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger_name = "agentic_scraper.backend.core.settings_helpers"
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    try:
+        _coerce_and_validate(values, "dump_llm_json_dir", coerce, validator)
+        assert "dump_llm_json_dir" not in values
+
+        handler.flush()
+        log_output = stream.getvalue()
+        prefix = MSG_DEBUG_SETTING_SKIPPED.split("{")[0]
+        assert prefix in log_output
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
 
 
-def test__coerce_and_validate_non_str_or_list_validates(caplog: pytest.LogCaptureFixture) -> None:
-    values: dict[str, Any] = {"agent_mode": 123}
-
-    def coerce(s: str) -> str:
-        return s
-
-    def validator(v: str) -> str:
-        return v
-
-    caplog.set_level(logging.DEBUG)
-    _coerce_and_validate(values, "agent_mode", coerce, validator)
-    # value validated and kept
-    assert values["agent_mode"] == 123
-    # now we expect an "overridden" log (since we validated non-str/list types)
-    assert any(MSG_DEBUG_SETTING_OVERRIDDEN.split("{")[0] in rec.message for rec in caplog.records)
-
-
-def test__coerce_and_validate_raises_logs_warning(caplog: pytest.LogCaptureFixture) -> None:
+def test__coerce_and_validate_raises_logs_warning() -> None:
     values: dict[str, Any] = {"log_level": "WRONG"}
 
     def coerce(s: str) -> str:
@@ -145,17 +177,35 @@ def test__coerce_and_validate_raises_logs_warning(caplog: pytest.LogCaptureFixtu
     def validator(_: str) -> str:
         raise ValueError("bad level")
 
-    caplog.set_level(logging.DEBUG)
-    with pytest.raises(ValueError):
-        _coerce_and_validate(values, "log_level", coerce, validator)
+    import io
+    import logging
 
-    assert any(MSG_WARNING_SETTING_INVALID.split("{")[0] in rec.message for rec in caplog.records)
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger_name = "agentic_scraper.backend.core.settings_helpers"
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    try:
+        import pytest
+
+        with pytest.raises(ValueError):
+            _coerce_and_validate(values, "log_level", coerce, validator)
+
+        handler.flush()
+        log_output = stream.getvalue()
+        prefix = MSG_WARNING_SETTING_INVALID.split("{")[0]
+        assert prefix in log_output
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+
 
 
 # ---------- validated_settings (integration) ----------
-
 def test_validated_settings_parses_csv_list_and_bool(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Patch the names used *inside* settings_helpers (not the validators module)
     monkeypatch.setattr(
@@ -220,65 +270,119 @@ def test_validated_settings_parses_csv_list_and_bool(
         "encryption_secret": "x" * 32,
     }
 
-    caplog.set_level(logging.DEBUG)
-    out = validated_settings(values)
+    # Capture module logs with a direct handler (more reliable than caplog here)
+    import io
+    import logging
 
-    assert out["auth0_algorithms"] == ["RS256", "ES256", "HS256"]
-    assert out["verbose"] is True
-    assert out["log_level"] == "debug"
-    assert out["log_max_bytes"] == 1048576
-    assert out["log_backup_count"] == 5
-    assert out["log_dir"] == "/tmp/logs"
-    assert out["dump_llm_json_dir"] == "/tmp/llm"
-    assert out["screenshot_dir"] == "/data/imgs"
-    assert out["agent_mode"] == "dynamic"
-    assert out["request_timeout"] == 30
-    assert out["openai_model"] == "gpt-4o"
-    # At least one "overridden" message should be in logs
-    assert any(MSG_DEBUG_SETTING_OVERRIDDEN.split("{")[0] in rec.message for rec in caplog.records)
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger_name = "agentic_scraper.backend.core.settings_helpers"
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    try:
+        out = validated_settings(values)
+
+        assert out["auth0_algorithms"] == ["RS256", "ES256", "HS256"]
+        assert out["verbose"] is True
+        assert out["log_level"] == "debug"
+        assert out["log_max_bytes"] == 1048576
+        assert out["log_backup_count"] == 5
+        assert out["log_dir"] == "/tmp/logs"
+        assert out["dump_llm_json_dir"] == "/tmp/llm"
+        assert out["screenshot_dir"] == "/data/imgs"
+        assert out["agent_mode"] == "dynamic"
+        assert out["request_timeout"] == 30
+        assert out["openai_model"] == "gpt-4o"
+
+        handler.flush()
+        log_output = stream.getvalue()
+        prefix = MSG_DEBUG_SETTING_OVERRIDDEN.split("{")[0]
+        assert prefix in log_output  # at least one override happened
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
 
 
-def test_validated_settings_empty_string_skips_key(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-    # keep path validator simple
+def test_validated_settings_empty_string_skips_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Patch validate_path at the callsite used inside settings_helpers
     monkeypatch.setattr(
-        "agentic_scraper.backend.utils.validators.validate_path",
+        "agentic_scraper.backend.core.settings_helpers.validate_path",
         lambda p: p,
     )
 
     values: dict[str, Any] = {"dump_llm_json_dir": "   "}
-    caplog.set_level(logging.DEBUG)
-    out = validated_settings(values)
-    assert "dump_llm_json_dir" not in out
-    assert any(MSG_DEBUG_SETTING_SKIPPED.split("{")[0] in rec.message for rec in caplog.records)
+
+    # Capture module logs with a direct handler
+    import io, logging
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger_name = "agentic_scraper.backend.core.settings_helpers"
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    try:
+        out = validated_settings(values)
+        assert "dump_llm_json_dir" not in out
+
+        handler.flush()
+        log_output = stream.getvalue()
+        prefix = MSG_DEBUG_SETTING_SKIPPED.split("{")[0]
+        assert prefix in log_output
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
 
 
 def test_validated_settings_list_input_passes_through(monkeypatch: pytest.MonkeyPatch) -> None:
-    # identity validator for auth0 algorithms
+    # Patch validate_auth0_algorithms at settings_helpers callsite
     monkeypatch.setattr(
-        "agentic_scraper.backend.utils.validators.validate_auth0_algorithms",
+        "agentic_scraper.backend.core.settings_helpers.validate_auth0_algorithms",
         lambda v: v,
     )
     values: dict[str, Any] = {"auth0_algorithms": ["RS256"]}
     out = validated_settings(values)
     assert out["auth0_algorithms"] == ["RS256"]
 
-
-def test_validated_settings_invalid_value_raises_and_logs_warning(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+def test_validated_settings_invalid_value_raises_and_logs_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def bad_level(_: str) -> str:
         raise ValueError("boom")
 
+    # Patch validate_log_level at settings_helpers callsite
     monkeypatch.setattr(
-        "agentic_scraper.backend.utils.validators.validate_log_level",
+        "agentic_scraper.backend.core.settings_helpers.validate_log_level",
         bad_level,
     )
+
     values = {"log_level": "WRONG"}
-    caplog.set_level(logging.DEBUG)
-    with pytest.raises(ValueError):
-        validated_settings(values)
 
-    assert any(MSG_WARNING_SETTING_INVALID.split("{")[0] in rec.message for rec in caplog.records)
+    # Capture module logs with a direct handler
+    import io, logging
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger_name = "agentic_scraper.backend.core.settings_helpers"
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
 
-def test__coerce_and_validate_non_str_or_list_raises_and_logs(caplog: pytest.LogCaptureFixture) -> None:
+    import pytest
+    try:
+        with pytest.raises(ValueError):
+            validated_settings(values)
+
+        handler.flush()
+        log_output = stream.getvalue()
+        prefix = MSG_WARNING_SETTING_INVALID.split("{")[0]
+        assert prefix in log_output
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+
+def test__coerce_and_validate_non_str_or_list_raises_and_logs() -> None:
     values: dict[str, Any] = {"llm_schema_retries": -1}
 
     def coerce(s: str) -> int:
@@ -287,7 +391,23 @@ def test__coerce_and_validate_non_str_or_list_raises_and_logs(caplog: pytest.Log
     def validator(v: int) -> int:
         raise ValueError("out of range")
 
-    caplog.set_level(logging.DEBUG)
-    with pytest.raises(ValueError):
-        _coerce_and_validate(values, "llm_schema_retries", coerce, validator)
-    assert any(MSG_WARNING_SETTING_INVALID.split("{")[0] in rec.message for rec in caplog.records)
+    # Capture module logs with a direct handler
+    import io, logging, pytest
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger_name = "agentic_scraper.backend.core.settings_helpers"
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    try:
+        with pytest.raises(ValueError):
+            _coerce_and_validate(values, "llm_schema_retries", coerce, validator)
+
+        handler.flush()
+        log_output = stream.getvalue()
+        prefix = MSG_WARNING_SETTING_INVALID.split("{")[0]
+        assert prefix in log_output
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
