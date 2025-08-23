@@ -1,40 +1,50 @@
+from __future__ import annotations
+
+import base64
 import importlib
 import json
 import logging
-from collections.abc import Generator
+import time
+from collections.abc import AsyncGenerator, Generator, Callable
+from dataclasses import dataclass
 from io import StringIO
-from typing import Any, Callable
+from pathlib import Path
+from typing import Any
 
+import httpx
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 from _pytest.logging import LogCaptureFixture
+from _pytest.monkeypatch import MonkeyPatch
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from jose import jwt
 from pydantic_settings import SettingsConfigDict
 
 from agentic_scraper.backend.core import settings as settings_module
 from agentic_scraper.backend.config.constants import (
-    DEFAULT_ENV,
+    DEFAULT_AUTH0_ALGORITHM,
+    DEFAULT_DEBUG_MODE,
     DEFAULT_DUMP_LLM_JSON_DIR,
-    DEFAULT_OPENAI_MODEL,
-    DEFAULT_LOG_LEVEL,
-    DEFAULT_LOG_FORMAT,
-    DEFAULT_LOG_MAX_BYTES,
+    DEFAULT_ENV,
+    DEFAULT_FETCH_CONCURRENCY,
+    DEFAULT_LLM_CONCURRENCY,
+    DEFAULT_LLM_MAX_TOKENS,
+    DEFAULT_LLM_SCHEMA_RETRIES,
+    DEFAULT_LLM_TEMPERATURE,
     DEFAULT_LOG_BACKUP_COUNT,
     DEFAULT_LOG_DIR,
-    DEFAULT_SCREENSHOT_ENABLED,
-    DEFAULT_SCREENSHOT_DIR,
+    DEFAULT_LOG_FORMAT,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_MAX_BYTES,
     DEFAULT_MAX_CONCURRENT_REQUESTS,
-    DEFAULT_LLM_MAX_TOKENS,
-    DEFAULT_LLM_TEMPERATURE,
-    DEFAULT_LLM_SCHEMA_RETRIES,
+    DEFAULT_OPENAI_MODEL,
     DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_RETRY_ATTEMPTS,
-    DEFAULT_RETRY_BACKOFF_MIN,
     DEFAULT_RETRY_BACKOFF_MAX,
+    DEFAULT_RETRY_BACKOFF_MIN,
+    DEFAULT_SCREENSHOT_DIR,
+    DEFAULT_SCREENSHOT_ENABLED,
     DEFAULT_VERBOSE,
-    DEFAULT_DEBUG_MODE,
-    DEFAULT_AUTH0_ALGORITHM,
-    DEFAULT_LLM_CONCURRENCY,
-    DEFAULT_FETCH_CONCURRENCY,
 )
 
 __all__ = [
@@ -50,7 +60,18 @@ __all__ = [
     "settings_factory",
     "no_network",
     "caplog_debug",
+    "test_client",
+    "api_base",
+    "jwks_keypair",
+    "jwks_mock",
+    "make_jwt",
+    "auth_header",
+    "authorized_client_jwt",
 ]
+
+# --------------------------------------------------------------------------- #
+# Global test helpers / constants
+# --------------------------------------------------------------------------- #
 
 AGENTIC_ENV_VARS = [
     "OPENAI_API_KEY",
@@ -88,6 +109,22 @@ AGENTIC_ENV_VARS = [
     "AUTH0_REDIRECT_URI",
 ]
 
+@dataclass(frozen=True)
+class JWKSKeypair:
+    private_pem: str
+    public_jwk: dict[str, str]
+    kid: str
+
+
+def _b64url_uint(n: int) -> str:
+    """Convert integer to base64url without padding."""
+    b = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
+
+
+# --------------------------------------------------------------------------- #
+# Settings isolation
+# --------------------------------------------------------------------------- #
 
 @pytest.fixture(autouse=True)
 def clear_agentic_env(monkeypatch: MonkeyPatch) -> None:
@@ -98,7 +135,6 @@ def clear_agentic_env(monkeypatch: MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def disable_env_file(monkeypatch: MonkeyPatch) -> None:
     """Patch Settings to disable .env file loading (avoids pydantic warning)."""
-
     class ConfiglessSettings(settings_module.Settings):
         # pydantic-settings v2 style
         model_config = SettingsConfigDict(env_file=None)
@@ -137,14 +173,12 @@ def mock_env(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("AUTH0_CLIENT_ID", "client-id")
     monkeypatch.setenv("AUTH0_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("AUTH0_API_AUDIENCE", "https://api.example.com")
-    # Note: Using plural env var that holds a JSON list of algorithms.
-    # Ensure your Settings reads AUTH0_ALGORITHMS; if it expects singular,
-    # adjust either here or in Settings accordingly.
+    # JSON list of algorithms
     monkeypatch.setenv("AUTH0_ALGORITHMS", json.dumps([DEFAULT_AUTH0_ALGORITHM]))
     monkeypatch.setenv("ENCRYPTION_SECRET", "x" * 32)
-    monkeypatch.setenv("BACKEND_DOMAIN", "api.example.com")
-    monkeypatch.setenv("FRONTEND_DOMAIN", "app.example.com")
-    monkeypatch.setenv("AUTH0_REDIRECT_URI", "https://app.example.com/callback")
+    monkeypatch.setenv("BACKEND_DOMAIN", "http://api.example.com")
+    monkeypatch.setenv("FRONTEND_DOMAIN", "http://app.example.com")
+    monkeypatch.setenv("AUTH0_REDIRECT_URI", "http://app.example.com/callback")
 
 
 @pytest.fixture
@@ -195,14 +229,18 @@ def settings_factory() -> Callable[..., settings_module.Settings]:
             "AUTH0_CLIENT_SECRET": "client-secret",
             "AUTH0_API_AUDIENCE": "https://api.example.com",
             "ENCRYPTION_SECRET": "x" * 32,
-            "BACKEND_DOMAIN": "api.example.com",
-            "FRONTEND_DOMAIN": "app.example.com",
-            "AUTH0_REDIRECT_URI": "https://app.example.com/callback",
+            "BACKEND_DOMAIN": "http://api.example.com",
+            "FRONTEND_DOMAIN": "http://app.example.com",
+            "AUTH0_REDIRECT_URI": "http://app.example.com/callback",
         }
         return settings_module.Settings.model_validate({**base, **overrides})
 
     return _make
 
+
+# --------------------------------------------------------------------------- #
+# Logging & misc
+# --------------------------------------------------------------------------- #
 
 @pytest.fixture
 def log_stream() -> StringIO:
@@ -237,10 +275,134 @@ def caplog_debug(caplog: LogCaptureFixture) -> LogCaptureFixture:
 def no_network(monkeypatch: MonkeyPatch) -> None:
     """Disable real network calls in tests that must remain offline."""
     import socket
-    from typing import Any
 
     class NoNetSocket(socket.socket):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise RuntimeError("Network disabled in tests")
 
     monkeypatch.setattr(socket, "socket", NoNetSocket)
+
+
+# --------------------------------------------------------------------------- #
+# FastAPI client
+# --------------------------------------------------------------------------- #
+
+@pytest.fixture
+async def test_client() -> AsyncGenerator[httpx.AsyncClient, None]:
+    """
+    ASGI-aware HTTPX client bound to the FastAPI app.
+    Uses app lifespan() and avoids mypy complaints by using ASGITransport.
+    """
+    from httpx import ASGITransport
+    from agentic_scraper.backend.api.main import app
+
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+
+
+@pytest.fixture
+def api_base() -> str:
+    """Versioned API base path, e.g. '/api/v1'."""
+    from agentic_scraper import __api_version__ as api_version
+    return f"/api/{api_version}"
+
+
+# --------------------------------------------------------------------------- #
+# Auth fixtures (JWKS / JWT) using @dataclass
+# --------------------------------------------------------------------------- #
+
+@pytest.fixture(scope="session")
+def jwks_keypair() -> JWKSKeypair:
+    """
+    Generate an RSA keypair and corresponding JWK with a stable kid.
+    """
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode("utf-8")
+    public_numbers = key.public_key().public_numbers()
+    n_b64 = _b64url_uint(public_numbers.n)
+    e_b64 = _b64url_uint(public_numbers.e)
+
+    kid = "test-key-id"
+    public_jwk: dict[str, str] = {
+        "kty": "RSA",
+        "kid": kid,
+        "use": "sig",
+        "n": n_b64,
+        "e": e_b64,
+    }
+    return JWKSKeypair(private_pem=private_pem, public_jwk=public_jwk, kid=kid)
+
+
+@pytest.fixture
+def jwks_mock(monkeypatch: MonkeyPatch, jwks_keypair: JWKSKeypair) -> None:
+    """Monkeypatch JWKS fetch to return our in-memory JWK."""
+    from agentic_scraper.backend.api.auth import auth0_helpers as ah
+
+    async def _fake_get_jwks() -> list[dict[str, str]]:
+        return [jwks_keypair.public_jwk]
+
+    monkeypatch.setattr(ah.jwks_cache_instance, "get_jwks", _fake_get_jwks, raising=True)
+
+
+@pytest.fixture
+def make_jwt(settings: settings_module.Settings, jwks_keypair: JWKSKeypair) -> Callable[..., str]:
+    """
+    Factory that returns a signed RS256 JWT matching Settings (iss, aud).
+    Usage:
+        token = make_jwt(sub="auth0|123", scope="read:user_profile")
+    """
+    def _issue(
+        *,
+        sub: str = "auth0|user123",
+        scope: str | None = None,
+        expires_in: int = 3600,
+        extra_claims: dict[str, Any] | None = None,
+    ) -> str:
+        now = int(time.time())
+        claims: dict[str, Any] = {
+            "iss": settings.auth0_issuer,
+            "aud": settings.auth0_api_audience,
+            "iat": now,
+            "exp": now + expires_in,
+            "sub": sub,
+        }
+        if scope is not None:
+            claims["scope"] = scope
+        if extra_claims:
+            claims.update(extra_claims)
+
+        headers = {"kid": jwks_keypair.kid, "alg": "RS256", "typ": "JWT"}
+        token = jwt.encode(claims, jwks_keypair.private_pem, algorithm="RS256", headers=headers)
+        # python-jose types encode() as Any; coerce to str for mypy
+        return str(token)
+
+    return _issue
+
+
+@pytest.fixture
+def auth_header(make_jwt: Callable[..., str]) -> dict[str, str]:
+    token: str = make_jwt()
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def authorized_client_jwt(
+    test_client: httpx.AsyncClient,
+    jwks_mock: None,
+    make_jwt: Callable[..., str],
+) -> Callable[[str | None], httpx.AsyncClient]:
+    """
+    Returns an HTTPX client with Authorization header set using a minted JWT.
+    Call: client = authorized_client_jwt("read:user_profile")
+    """
+    def _with_scope(scope: str | None = None) -> httpx.AsyncClient:
+        token: str = make_jwt(scope=scope) if scope is not None else make_jwt()
+        test_client.headers.update({"Authorization": f"Bearer {token}"})
+        return test_client
+
+    return _with_scope
