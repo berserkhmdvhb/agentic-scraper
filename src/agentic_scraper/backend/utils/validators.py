@@ -186,7 +186,8 @@ def ensure_directory(path: Path) -> Path:
     """Ensure the given path exists and is a directory."""
     path = path.resolve()
     if path.exists() and not path.is_dir():
-        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY % path)
+        # use the named placeholder "path"
+        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY.format(path=str(path)))
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -220,7 +221,8 @@ def validate_or_create_dir(path_str: str) -> str:
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
     elif not path.is_dir():
-        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY.format(path_str))
+        # before: raise ValueError(MSG_ERROR_NOT_A_DIRECTORY.format(path_str))
+        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY.format(path=str(path.resolve())))
     return str(path.resolve())
 
 

@@ -282,7 +282,7 @@ def no_network(monkeypatch: MonkeyPatch) -> None:
 
     monkeypatch.setattr(socket, "socket", NoNetSocket)
 
-
+    
 # --------------------------------------------------------------------------- #
 # FastAPI client
 # --------------------------------------------------------------------------- #
