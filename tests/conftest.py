@@ -4,6 +4,7 @@ import base64
 import importlib
 import json
 import logging
+import os
 import time
 from collections.abc import AsyncGenerator, Generator, Callable
 from dataclasses import dataclass
@@ -109,11 +110,47 @@ AGENTIC_ENV_VARS = [
     "AUTH0_REDIRECT_URI",
 ]
 
+TEST_FERNET_KEY = "A"*43 + "="
+
 @dataclass(frozen=True)
 class JWKSKeypair:
     private_pem: str
     public_jwk: dict[str, str]
     kid: str
+
+# --------------------------------------------------------------------------- #
+# Ensure baseline env exists *before* test collection/imports
+# (prevents import-time get_settings() from failing in modules like utils/crypto)
+# --------------------------------------------------------------------------- #
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Seed minimal env so modules that call get_settings() at import time don't explode."""
+    defaults = {
+        # Runtime / OpenAI (use project defaults to avoid drift)
+        "OPENAI_API_KEY": "test-key",
+        "ENV": DEFAULT_ENV,                    # e.g., "DEV"
+        "OPENAI_MODEL": DEFAULT_OPENAI_MODEL,  # e.g., "gpt-4o" if that's your default
+
+        # Auth0
+        "AUTH0_ALGORITHMS": json.dumps([DEFAULT_AUTH0_ALGORITHM]),
+        "AUTH0_DOMAIN": "dev-xxxxxx.us.auth0.com",
+        "AUTH0_ISSUER": "https://dev-xxxxxx.us.auth0.com/",   # issuer needs trailing slash
+        "AUTH0_CLIENT_ID": "your-client-id",
+        "AUTH0_CLIENT_SECRET": "your-client-secret",
+        "AUTH0_API_AUDIENCE": "https://api-agenticscraper.onrender.com",  # no trailing slash required
+        "AUTH0_REDIRECT_URI": "https://api-agenticscraper.onrender.com/api/v1/auth/callback",
+
+        # Domains
+        "BACKEND_DOMAIN": "https://api-agenticscraper.onrender.com",
+        "FRONTEND_DOMAIN": "https://agenticscraper.onrender.com",
+
+        # Crypto
+        # Valid Fernet key: 32 url-safe base64-encoded bytes (44 chars)
+        "ENCRYPTION_SECRET": TEST_FERNET_KEY,
+    }
+    for k, v in defaults.items():
+        os.environ.setdefault(k, v)
+
 
 
 def _b64url_uint(n: int) -> str:
@@ -175,7 +212,7 @@ def mock_env(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("AUTH0_API_AUDIENCE", "https://api.example.com")
     # JSON list of algorithms
     monkeypatch.setenv("AUTH0_ALGORITHMS", json.dumps([DEFAULT_AUTH0_ALGORITHM]))
-    monkeypatch.setenv("ENCRYPTION_SECRET", "x" * 32)
+    monkeypatch.setenv("ENCRYPTION_SECRET", TEST_FERNET_KEY)
     monkeypatch.setenv("BACKEND_DOMAIN", "http://api.example.com")
     monkeypatch.setenv("FRONTEND_DOMAIN", "http://app.example.com")
     monkeypatch.setenv("AUTH0_REDIRECT_URI", "http://app.example.com/callback")
@@ -228,7 +265,7 @@ def settings_factory() -> Callable[..., settings_module.Settings]:
             "AUTH0_CLIENT_ID": "client-id",
             "AUTH0_CLIENT_SECRET": "client-secret",
             "AUTH0_API_AUDIENCE": "https://api.example.com",
-            "ENCRYPTION_SECRET": "x" * 32,
+            "ENCRYPTION_SECRET": TEST_FERNET_KEY,
             "BACKEND_DOMAIN": "http://api.example.com",
             "FRONTEND_DOMAIN": "http://app.example.com",
             "AUTH0_REDIRECT_URI": "http://app.example.com/callback",

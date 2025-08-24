@@ -266,10 +266,11 @@ def validate_auth0_domain(domain: str) -> str:
 
 
 def validate_api_audience(audience: str) -> str:
-    """Ensure the API audience starts with 'http'."""
-    if not audience.startswith("http"):
+    """Ensure the API audience starts with http(s). Do NOT enforce trailing slash."""
+    a = audience.strip()
+    if not a.startswith("http"):
         raise ValueError(MSG_ERROR_INVALID_API_AUDIENCE)
-    return audience.rstrip("/")
+    return a
 
 
 def validate_encryption_secret(secret: str) -> str:

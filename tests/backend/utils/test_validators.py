@@ -243,7 +243,7 @@ def test_validate_auth0_domain_and_audience() -> None:
         v.validate_auth0_domain("invalid")
     assert str(e.value) == MSG_ERROR_INVALID_AUTH0_DOMAIN
 
-    assert v.validate_api_audience("https://api.example.com/") == "https://api.example.com"
+    assert v.validate_api_audience("https://api.example.com") == "https://api.example.com"
     with pytest.raises(ValueError) as e:
         v.validate_api_audience("api.example.com")
     assert str(e.value) == MSG_ERROR_INVALID_API_AUDIENCE
