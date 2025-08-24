@@ -399,7 +399,7 @@ def make_jwt(settings: settings_module.Settings, jwks_keypair: JWKSKeypair) -> C
     def _issue(
         *,
         sub: str = "auth0|user123",
-        scope: str | None = None,
+        scope: str | list[str] | None = None,
         expires_in: int = 3600,
         extra_claims: dict[str, Any] | None = None,
     ) -> str:
@@ -412,7 +412,8 @@ def make_jwt(settings: settings_module.Settings, jwks_keypair: JWKSKeypair) -> C
             "sub": sub,
         }
         if scope is not None:
-            claims["scope"] = scope
+            # Accept both space-delimited string and list[str]
+            claims["scope"] = " ".join(scope) if isinstance(scope, list) else scope
         if extra_claims:
             claims.update(extra_claims)
 
@@ -440,7 +441,7 @@ def authorized_client_jwt(
     Returns an HTTPX client with Authorization header set using a minted JWT.
     Call: client = authorized_client_jwt("read:user_profile")
     """
-    def _with_scope(scope: str | None = None) -> httpx.AsyncClient:
+    def _with_scope(scope: str | list[str] | None = None) -> httpx.AsyncClient:
         token: str = make_jwt(scope=scope) if scope is not None else make_jwt()
         test_client.headers.update({"Authorization": f"Bearer {token}"})
         return test_client
