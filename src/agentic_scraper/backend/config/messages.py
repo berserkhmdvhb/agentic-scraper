@@ -694,3 +694,6 @@ MSG_ERROR_USER_SCOPES_TYPE = (
 
 
 MSG_ERROR_PRELOADING_JWKS = "[VALIDATION] Error occurred while preloading JWKS from Auth0"
+MSG_ERROR_INVALID_PROGRESS = "Progress must be between {min} and {max}, got {value}"
+MSG_ERROR_INVALID_UUID = "Invalid UUIDv4: {value}"
+MSG_ERROR_NAIVE_DATETIME = "Datetime must be timezone-aware (UTC)"

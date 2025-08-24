@@ -13,6 +13,12 @@ from agentic_scraper.backend.config.messages import (
     MSG_JOB_CANCELED_BY_USER,
 )
 from agentic_scraper.backend.config.types import JobStatus
+from agentic_scraper.backend.utils.validators import (
+    ensure_utc_aware,
+    validate_cursor,
+    validate_progress,
+    validate_uuid4,
+)
 
 # ----- Types -----------------------------------------------------------------
 
@@ -138,6 +144,11 @@ def get_job(job_id: str) -> ScrapeJobRecord | None:
     Returns:
         ScrapeJobRecord | None: The job snapshot if found; otherwise None.
     """
+    # Soft-validate ID shape; treat invalid UUID as "not found" to preserve API.
+    try:
+        validate_uuid4(job_id)
+    except ValueError:
+        return None
     with _LOCK:
         job = _STORE.get(job_id)
         return _job_snapshot(job) if job is not None else None
@@ -179,7 +190,7 @@ def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJobRecor
 
         # Assign fields individually (keep mypy-friendly and preserve deep copies)
         if "progress" in fields:
-            job["progress"] = fields["progress"]
+            job["progress"] = validate_progress(fields["progress"])
         if "error" in fields:
             job["error"] = fields["error"]
         if "result" in fields:
@@ -187,7 +198,7 @@ def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJobRecor
 
         # Ensure updated_at is always refreshed unless explicitly provided
         if "updated_at" in fields and fields["updated_at"] is not None:
-            job["updated_at"] = fields["updated_at"]
+            job["updated_at"] = ensure_utc_aware(fields["updated_at"])
         else:
             job["updated_at"] = _utcnow()
 
@@ -214,6 +225,8 @@ def list_jobs(
             - A list of job snapshots.
             - A next_cursor (job_id) if more results remain; otherwise None.
     """
+    # Validate/normalize cursor (UUIDv4 today; can evolve to encoded cursors later)
+    cursor = validate_cursor(cursor)
     with _LOCK:
         # Stable order by created_at then id for deterministic paging
         jobs = sorted(
@@ -236,8 +249,9 @@ def list_jobs(
 
         safe_limit = max(0, int(limit))
         sliced = jobs[start_idx : start_idx + safe_limit]
-        next_cursor = sliced[-1]["id"] if len(sliced) == safe_limit and sliced else None
-
+        # Only provide a next_cursor if there are more jobs beyond this slice
+        has_more = bool(sliced) and (start_idx + len(sliced) < len(jobs))
+        next_cursor = sliced[-1]["id"] if has_more else None
         return ([_job_snapshot(j) for j in sliced], next_cursor)
 
 
@@ -255,6 +269,11 @@ def cancel_job(job_id: str, user_sub: OwnerSub) -> bool:
     Returns:
         bool: True if the job was found and marked canceled; otherwise False.
     """
+    # Soft-validate ID; invalid UUID acts like "not found"
+    try:
+        validate_uuid4(job_id)
+    except ValueError:
+        return False
     with _LOCK:
         job = _STORE.get(job_id)
         if job is None:

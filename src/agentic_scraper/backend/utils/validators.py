@@ -1,9 +1,12 @@
 import logging
 import re
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
 from agentic_scraper.backend.config.constants import (
+    ACCEPTED_UUID_VERSIONS,
     FETCH_ERROR_PREFIX,
     MIN_ENCRYPTION_SECRET_LENGTH,
     VALID_AUTH0_ALGORITHMS,
@@ -28,9 +31,12 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_MODEL_NAME,
     MSG_ERROR_INVALID_PRICE,
     MSG_ERROR_INVALID_PRICE_FORMAT,
+    MSG_ERROR_INVALID_PROGRESS,
     MSG_ERROR_INVALID_TIMEOUT,
+    MSG_ERROR_INVALID_UUID,
     MSG_ERROR_LOG_BACKUP_COUNT_INVALID,
     MSG_ERROR_MISSING_API_KEY,
+    MSG_ERROR_NAIVE_DATETIME,
     MSG_ERROR_NOT_A_DIRECTORY,
 )
 from agentic_scraper.backend.config.types import AgentMode
@@ -289,3 +295,41 @@ def validate_auth0_algorithms(value: list[str]) -> list[str]:
             )
         )
     return value
+
+
+# ---------------------------------------------------------------------
+# api/stores/
+# ---------------------------------------------------------------------
+
+# job_store.py
+
+
+def validate_progress(value: float, *, min_value: float = 0.0, max_value: float = 1.0) -> float:
+    if not (min_value <= value <= max_value):
+        raise ValueError(
+            MSG_ERROR_INVALID_PROGRESS.format(min=min_value, max=max_value, value=value)
+        )
+    return value
+
+
+def validate_uuid4(value: str) -> str:
+    try:
+        u = uuid.UUID(value)
+    except ValueError as err:
+        raise ValueError(MSG_ERROR_INVALID_UUID.format(value=value)) from err
+    if u.version not in ACCEPTED_UUID_VERSIONS:
+        raise ValueError(MSG_ERROR_INVALID_UUID.format(value=value))
+    return value
+
+
+def validate_cursor(cursor: str | None) -> str | None:
+    if cursor is None:
+        return None
+    # simplest form: UUIDv4 check; or base64 if you later encode.
+    return validate_uuid4(cursor)
+
+
+def ensure_utc_aware(dt: datetime) -> datetime:
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        raise ValueError(MSG_ERROR_NAIVE_DATETIME)
+    return dt.astimezone(timezone.utc)
