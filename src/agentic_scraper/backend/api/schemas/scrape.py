@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 UrlsType = Annotated[
     list[HttpUrl],
     Field(
-        min_items=1,
+        min_length=1,
         description="List of URLs to scrape.",
         examples=[["https://example.com/page1", "https://example.com/page2"]],
     ),

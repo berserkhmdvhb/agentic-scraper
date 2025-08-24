@@ -110,6 +110,7 @@ AGENTIC_ENV_VARS = [
     "BACKEND_DOMAIN",
     "FRONTEND_DOMAIN",
     "AUTH0_REDIRECT_URI",
+    "SKIP_JWKS_PRELOAD",
 ]
 
 TEST_FERNET_KEY = "A"*43 + "="
@@ -146,6 +147,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         # Domains
         "BACKEND_DOMAIN": "https://api.example.com",
         "FRONTEND_DOMAIN": "https://app.example.com",
+
+        # Tests should never hit network for JWKS preload
+        "SKIP_JWKS_PRELOAD": "true",
 
         # Crypto
         # Valid Fernet key: 32 url-safe base64-encoded bytes (44 chars)
@@ -219,6 +223,7 @@ def mock_env(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("BACKEND_DOMAIN", "http://api.example.com")
     monkeypatch.setenv("FRONTEND_DOMAIN", "http://app.example.com")
     monkeypatch.setenv("AUTH0_REDIRECT_URI", "http://app.example.com/callback")
+    monkeypatch.setenv("SKIP_JWKS_PRELOAD", "true")
 
 
 @pytest.fixture

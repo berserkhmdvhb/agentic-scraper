@@ -1,6 +1,4 @@
-from pydantic import BaseModel, Field, SecretStr
-
-# (Optional hardening: from pydantic import SecretStr)
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
 class UserCredentialsIn(BaseModel):
@@ -50,5 +48,4 @@ class UserProfile(BaseModel):
         None, description="User full name", json_schema_extra={"example": "Alice Smith"}
     )
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
