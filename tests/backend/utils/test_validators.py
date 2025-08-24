@@ -5,7 +5,7 @@ import io
 import os
 import re
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 import pytest
 from _pytest.logging import LogCaptureFixture
@@ -272,3 +272,9 @@ def test_validate_auth0_algorithms_rules() -> None:
     # all valid
     sample_valid = list(VALID_AUTH0_ALGORITHMS)[:1]
     assert v.validate_auth0_algorithms(sample_valid) == sample_valid
+
+
+def test_validate_scopes_input_invalid_type_raises_value_error() -> None:
+    bad_value: Any = 123
+    with pytest.raises(ValueError):
+        v.validate_scopes_input(bad_value)

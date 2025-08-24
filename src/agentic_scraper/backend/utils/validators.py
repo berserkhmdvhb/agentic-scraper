@@ -39,6 +39,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_MISSING_API_KEY,
     MSG_ERROR_NAIVE_DATETIME,
     MSG_ERROR_NOT_A_DIRECTORY,
+    MSG_ERROR_USER_SCOPES_TYPE,
 )
 from agentic_scraper.backend.config.types import AgentMode
 
@@ -362,3 +363,38 @@ def validate_openai_credentials_pair(api_key: str, project_id: str) -> tuple[str
             MSG_ERROR_INVALID_CREDENTIALS.format(user_id="?", error="invalid project_id")
         )
     return api_key.strip(), project_id.strip()
+
+
+# ---------------------------------------------------------------------
+# api/auth/
+# ---------------------------------------------------------------------
+
+# auth0_helpers.py
+
+
+def validate_jwt_token_str(token: str) -> str:
+    """
+    Ensure a JWT token string is present and non-empty after trimming.
+    """
+    if not isinstance(token, str) or not token.strip():
+        raise ValueError(MSG_ERROR_EMPTY_STRING.format(field="token"))
+    return token.strip()
+
+
+# scope_helpers.py
+
+
+def validate_scopes_input(user_scopes: str | list[str] | None) -> list[str]:
+    """
+    Normalize 'scope' from a JWT payload to a list[str].
+    - Accepts space-delimited string (Auth0 default) or list[str].
+    - Returns [] if None.
+    - Raises ValueError if type is invalid.
+    """
+    if user_scopes is None:
+        return []
+    if isinstance(user_scopes, str):
+        return [s for s in user_scopes.split() if s]
+    if isinstance(user_scopes, list) and all(isinstance(s, str) for s in user_scopes):
+        return user_scopes
+    raise ValueError(MSG_ERROR_USER_SCOPES_TYPE.format(actual_type=type(user_scopes).__name__))

@@ -22,6 +22,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
 from pydantic_settings import SettingsConfigDict
 
+from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.core import settings as settings_module
 from agentic_scraper.backend.config.constants import (
     DEFAULT_AUTH0_ALGORITHM,
@@ -135,15 +136,16 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         # Auth0
         "AUTH0_ALGORITHMS": json.dumps([DEFAULT_AUTH0_ALGORITHM]),
         "AUTH0_DOMAIN": "dev-xxxxxx.us.auth0.com",
-        "AUTH0_ISSUER": "https://dev-xxxxxx.us.auth0.com/",   # issuer needs trailing slash
+        # issuer needs trailing slash
+        "AUTH0_ISSUER": "https://dev-xxxxxx.us.auth0.com/",
         "AUTH0_CLIENT_ID": "your-client-id",
         "AUTH0_CLIENT_SECRET": "your-client-secret",
-        "AUTH0_API_AUDIENCE": "https://api-agenticscraper.onrender.com",  # no trailing slash required
-        "AUTH0_REDIRECT_URI": "https://api-agenticscraper.onrender.com/api/v1/auth/callback",
+        "AUTH0_API_AUDIENCE": "https://api.example.com",
+        "AUTH0_REDIRECT_URI": "https://api.example.com/api/{api_version}/auth/callback",
 
         # Domains
-        "BACKEND_DOMAIN": "https://api-agenticscraper.onrender.com",
-        "FRONTEND_DOMAIN": "https://agenticscraper.onrender.com",
+        "BACKEND_DOMAIN": "https://api.example.com",
+        "FRONTEND_DOMAIN": "https://app.example.com",
 
         # Crypto
         # Valid Fernet key: 32 url-safe base64-encoded bytes (44 chars)

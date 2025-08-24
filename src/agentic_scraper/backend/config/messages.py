@@ -689,10 +689,8 @@ MSG_ERROR_EMPTY_AUTH0_ALGORITHMS = "[VALIDATION] auth0_algorithms must not be em
 MSG_ERROR_UNEXPECTED_EXCEPTION = "[VALIDATION] Unexpected error during token validation."
 MSG_INFO_USER_AUTHORIZED = "[VALIDATION] User successfully authenticated and authorized."
 MSG_ERROR_USER_SCOPES_TYPE = (
-    "[VALIDATION] Expected 'user_scopes' to be a list of strings, got {type(user_scopes)}"
+    "[VALIDATION] Expected 'user_scopes' to be a list of strings, got {actual_type}"
 )
-
-
 MSG_ERROR_PRELOADING_JWKS = "[VALIDATION] Error occurred while preloading JWKS from Auth0"
 MSG_ERROR_INVALID_PROGRESS = "Progress must be between {min} and {max}, got {value}"
 MSG_ERROR_INVALID_UUID = "Invalid UUIDv4: {value}"
