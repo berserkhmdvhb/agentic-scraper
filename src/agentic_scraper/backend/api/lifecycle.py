@@ -47,13 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Preload Auth0 JWKS (network/HTTP errors are tolerated)
         await jwks_cache_instance.get_jwks()
         logger.info(MSG_INFO_JWKS_PRELOAD_SUCCESSFUL)
-    except TimeoutException:
-        logger.exception(MSG_ERROR_PRELOADING_JWKS)
-        logger.warning(MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY)
-    except httpx.HTTPError:
-        logger.exception(MSG_ERROR_PRELOADING_JWKS)
-        logger.warning(MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY)
-    except Exception:
+    except (TimeoutException, httpx.HTTPError, Exception):
         logger.exception(MSG_ERROR_PRELOADING_JWKS)
         logger.warning(MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY)
 
