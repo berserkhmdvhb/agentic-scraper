@@ -28,6 +28,10 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.utils.crypto import decrypt, encrypt
+from agentic_scraper.backend.utils.validators import (
+    validate_openai_credentials_pair,
+    validate_user_id,
+)
 
 logger = get_logger()
 
@@ -100,9 +104,12 @@ def save_user_credentials(user_id: str, api_key: str, project_id: str) -> None:
         api_key (str): OpenAI API key to encrypt and store.
         project_id (str): OpenAI project ID to encrypt and store.
 
-    Raises:
+     Raises:
+        ValueError: If inputs are invalid (via validators).
         HTTPException: If credentials cannot be saved or encrypted.
     """
+    user_id = validate_user_id(user_id)
+    api_key, project_id = validate_openai_credentials_pair(api_key, project_id)
     store = _load_store()
     try:
         store[user_id] = {
@@ -126,9 +133,11 @@ def load_user_credentials(user_id: str) -> OpenAIConfig | None:
     Returns:
         OpenAIConfig | None: Decrypted credentials if available and valid, otherwise None.
 
-    Raises:
+     Raises:
+        ValueError: If inputs are invalid (via validators).
         Exception: If decryption fails internally (returns None but logs exception).
     """
+    user_id = validate_user_id(user_id)
     store = _load_store()
     user_data = store.get(user_id)
     if not user_data:
@@ -156,8 +165,10 @@ def delete_user_credentials(user_id: str) -> bool:
         bool: True if credentials were deleted, False if not found.
 
     Raises:
+        ValueError: If inputs are invalid (via validators).
         OSError: If deletion or saving fails due to file I/O issues.
     """
+    user_id = validate_user_id(user_id)
     store = _load_store()
 
     if user_id not in store:
@@ -186,5 +197,6 @@ def has_user_credentials(user_id: str) -> bool:
     Returns:
         bool: True if credentials exist, False otherwise.
     """
+    user_id = validate_user_id(user_id)
     store = _load_store()
     return user_id in store

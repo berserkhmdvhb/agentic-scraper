@@ -24,6 +24,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_AUTH0_ALGORITHMS,
     MSG_ERROR_INVALID_AUTH0_DOMAIN,
     MSG_ERROR_INVALID_BACKUP_COUNT,
+    MSG_ERROR_INVALID_CREDENTIALS,
     MSG_ERROR_INVALID_ENCRYPTION_SECRET,
     MSG_ERROR_INVALID_ENV,
     MSG_ERROR_INVALID_LOG_BYTES,
@@ -334,3 +335,30 @@ def ensure_utc_aware(dt: datetime) -> datetime:
     if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
         raise ValueError(MSG_ERROR_NAIVE_DATETIME)
     return dt.astimezone(timezone.utc)
+
+
+# user_store.py
+
+
+def validate_user_id(user_id: str) -> str:
+    """
+    Ensure user_id is a non-empty string after trimming.
+    """
+    if not isinstance(user_id, str) or not user_id.strip():
+        raise ValueError(
+            MSG_ERROR_INVALID_CREDENTIALS.format(user_id=user_id, error="invalid user_id")
+        )
+    return user_id.strip()
+
+
+def validate_openai_credentials_pair(api_key: str, project_id: str) -> tuple[str, str]:
+    """
+    Ensure api_key and project_id are non-empty strings after trimming.
+    """
+    if not isinstance(api_key, str) or not api_key.strip():
+        raise ValueError(MSG_ERROR_INVALID_CREDENTIALS.format(user_id="?", error="invalid api_key"))
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise ValueError(
+            MSG_ERROR_INVALID_CREDENTIALS.format(user_id="?", error="invalid project_id")
+        )
+    return api_key.strip(), project_id.strip()

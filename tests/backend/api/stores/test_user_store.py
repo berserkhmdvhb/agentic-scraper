@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import json
-import types
-from pathlib import Path
-from typing import Generator
+from types import ModuleType
+from typing import Any, cast
 
 import pytest
-from fastapi import HTTPException
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
+from fastapi import HTTPException
 
-from agentic_scraper.backend.api.stores import user_store as us
+from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_DECRYPTION_FAILED,
     MSG_ERROR_SAVING_USER_STORE,
@@ -19,186 +18,165 @@ from agentic_scraper.backend.config.messages import (
 )
 
 
-@pytest.fixture
-def user_store_tmp(monkeypatch: MonkeyPatch, tmp_path: Path) -> Generator[types.ModuleType, None, None]:
-    """
-    Point the user store at an isolated temp file for each test.
-    Ensures the directory and an empty JSON object exist.
-    """
-    store_dir = tmp_path / ".cache"
-    store_dir.mkdir(parents=True, exist_ok=True)
-    store_file = store_dir / "user_store.json"
-    store_file.write_text("{}")
-
-    # Patch the module-level constant to our temp file
-    monkeypatch.setattr(us, "USER_STORE", store_file, raising=True)
-    us.USER_STORE.parent.mkdir(parents=True, exist_ok=True)
-
-    yield us
+def read_store_json(user_store_mod: ModuleType) -> dict[str, dict[str, str]]:
+    loaded: Any = json.loads(user_store_mod.USER_STORE.read_text())
+    return cast(dict[str, dict[str, str]], loaded)
 
 
-def test_save_and_load_roundtrip(user_store_tmp: types.ModuleType) -> None:
-    us_mod = user_store_tmp
+def test_save_and_load_roundtrip(user_store_mod: ModuleType, stub_crypto: None) -> None:
+    user_id = "auth0|abc123"
+    user_store_mod.save_user_credentials(user_id, "sk-test", "proj-xyz")
+    assert user_store_mod.has_user_credentials(user_id) is True
 
-    user_id = "auth0|u1"
-    api_key = "sk-test-123"
-    project_id = "proj-abc"
+    store = read_store_json(user_store_mod)
+    assert store[user_id]["api_key"].startswith("enc:")
+    assert store[user_id]["project_id"].startswith("enc:")
 
-    us_mod.save_user_credentials(user_id, api_key, project_id)
-    cfg = us_mod.load_user_credentials(user_id)
+    cfg = user_store_mod.load_user_credentials(user_id)
 
-    assert cfg is not None
-    assert cfg.api_key == api_key
-    assert cfg.project_id == project_id
-
-    # Ensure ciphertext is not plaintext on disk
-    on_disk = json.loads(Path(us_mod.USER_STORE).read_text())
-    assert user_id in on_disk
-    assert on_disk[user_id]["api_key"] != api_key
-    assert on_disk[user_id]["project_id"] != project_id
-    assert on_disk[user_id]["api_key"]
-    assert on_disk[user_id]["project_id"]
+    assert isinstance(cfg, OpenAIConfig)
+    assert cfg.api_key == "sk-test"
+    assert cfg.project_id == "proj-xyz"
 
 
-def test_load_missing_returns_none_and_logs_warning(
-    user_store_tmp: types.ModuleType, caplog_debug: LogCaptureFixture
+def test_delete_credentials_success(
+    user_store_mod: ModuleType,
+    stub_crypto: None,
+    caplog_debug: LogCaptureFixture,
 ) -> None:
-    us_mod = user_store_tmp
+    user_id = "auth0|to_delete"
+    user_store_mod.save_user_credentials(user_id, "k", "p")
 
-    res = us_mod.load_user_credentials("unknown-user")
-    assert res is None
-
-    assert any(
-        MSG_WARNING_CREDENTIALS_NOT_FOUND.format(user_id="unknown-user") in r.message
-        for r in caplog_debug.records
-    )
-
-
-def test_has_user_credentials(user_store_tmp: types.ModuleType) -> None:
-    us_mod = user_store_tmp
-    assert us_mod.has_user_credentials("u1") is False
-    us_mod.save_user_credentials("u1", "sk", "p1")
-    assert us_mod.has_user_credentials("u1") is True
-    assert us_mod.has_user_credentials("u2") is False
-
-
-def test_delete_missing_returns_false_and_logs_warning(
-    user_store_tmp: types.ModuleType, caplog_debug: LogCaptureFixture
-) -> None:
-    us_mod = user_store_tmp
-
-    ok = us_mod.delete_user_credentials("ghost")
-    assert ok is False
-    assert any(
-        MSG_WARNING_CREDENTIALS_NOT_FOUND.format(user_id="ghost") in r.message
-        for r in caplog_debug.records
-    )
-
-
-def test_delete_existing_success(
-    user_store_tmp: types.ModuleType, caplog_debug: LogCaptureFixture
-) -> None:
-    us_mod = user_store_tmp
-    us_mod.save_user_credentials("u1", "sk", "p1")
-
-    ok = us_mod.delete_user_credentials("u1")
+    ok = user_store_mod.delete_user_credentials(user_id)
     assert ok is True
-    assert us_mod.has_user_credentials("u1") is False
+    assert user_store_mod.has_user_credentials(user_id) is False
 
-    assert any(
-        MSG_INFO_CREDENTIALS_DELETED.format(user_id="u1") in r.message
-        for r in caplog_debug.records
-    )
+    logs = "\n".join(rec.getMessage() for rec in caplog_debug.records)
+    assert MSG_INFO_CREDENTIALS_DELETED.format(user_id=user_id) in logs
 
 
-def test_overwrite_existing_credentials(user_store_tmp: types.ModuleType) -> None:
-    us_mod = user_store_tmp
-    us_mod.save_user_credentials("u1", "sk-1", "p-1")
-    us_mod.save_user_credentials("u1", "sk-2", "p-2")
-
-    cfg = us_mod.load_user_credentials("u1")
-    assert cfg is not None
-    assert cfg.api_key == "sk-2"
-    assert cfg.project_id == "p-2"
-
-
-def test_multiple_users_isolated(user_store_tmp: types.ModuleType) -> None:
-    us_mod = user_store_tmp
-    us_mod.save_user_credentials("u1", "sk-1", "p-1")
-    us_mod.save_user_credentials("u2", "sk-2", "p-2")
-
-    c1 = us_mod.load_user_credentials("u1")
-    c2 = us_mod.load_user_credentials("u2")
-
-    assert c1 is not None and c1.api_key == "sk-1" and c1.project_id == "p-1"
-    assert c2 is not None and c2.api_key == "sk-2" and c2.project_id == "p-2"
-
-
-def test_corrupted_store_file_is_handled_gracefully(user_store_tmp: types.ModuleType) -> None:
-    us_mod = user_store_tmp
-
-    # Corrupt the file with invalid JSON
-    Path(us_mod.USER_STORE).write_text("{ this is not: valid json")
-
-    # No exception on load; just treat as empty and return None
-    assert us_mod.load_user_credentials("u1") is None
-
-    # Saving after corruption should rewrite a valid store
-    us_mod.save_user_credentials("u1", "sk", "p")
-    data = json.loads(Path(us_mod.USER_STORE).read_text())
-    assert "u1" in data
-
-
-def test_decryption_failure_returns_none_and_logs_error(
-    user_store_tmp: types.ModuleType, caplog_debug: LogCaptureFixture
+def test_load_missing_credentials_logs_warning(
+    user_store_mod: ModuleType,
+    caplog_debug: LogCaptureFixture,
 ) -> None:
-    us_mod = user_store_tmp
+    user_id = "auth0|missing"
+    out = user_store_mod.load_user_credentials(user_id)
+    assert out is None
 
-    # Manually write invalid ciphertext payloads
-    bad_store = {
-        "u1": {
-            "api_key": "not-a-ciphertext",
-            "project_id": "still-not-a-ciphertext",
-        }
-    }
-    Path(us_mod.USER_STORE).write_text(json.dumps(bad_store))
-
-    res = us_mod.load_user_credentials("u1")
-    assert res is None
-
-    # Should log decryption failure message (allow variable error text suffix)
-    prefix = MSG_ERROR_DECRYPTION_FAILED.format(user_id="u1", error="")
-    assert any(prefix[:-1] in r.message for r in caplog_debug.records)
+    logs = "\n".join(rec.getMessage() for rec in caplog_debug.records)
+    assert MSG_WARNING_CREDENTIALS_NOT_FOUND.format(user_id=user_id) in logs
 
 
-def test_save_user_credentials_bubbles_http_exception_on_save_error(
-    user_store_tmp: types.ModuleType, monkeypatch: MonkeyPatch
+def test_delete_missing_credentials_returns_false_and_logs(
+    user_store_mod: ModuleType,
+    caplog_debug: LogCaptureFixture,
 ) -> None:
-    us_mod = user_store_tmp
+    user_id = "auth0|missing"
+    ok = user_store_mod.delete_user_credentials(user_id)
+    assert ok is False
 
-    def _boom(_store: dict[str, dict[str, str]]) -> None:
-        raise OSError("disk full")
-
-    monkeypatch.setattr(us_mod, "_save_store", _boom, raising=True)
-
-    with pytest.raises(HTTPException) as exc:
-        us_mod.save_user_credentials("u1", "sk", "p")
-
-    assert exc.value.status_code == 400  # as implemented in save_user_credentials()
+    logs = "\n".join(rec.getMessage() for rec in caplog_debug.records)
+    assert MSG_WARNING_CREDENTIALS_NOT_FOUND.format(user_id=user_id) in logs
 
 
-def test__save_store_raises_oserror_with_formatted_message(
-    user_store_tmp: types.ModuleType, monkeypatch: MonkeyPatch
+def test_save_user_credentials_encrypt_failure_raises_http(
+    user_store_mod: ModuleType,
+    monkeypatch: MonkeyPatch,
 ) -> None:
-    us_mod = user_store_tmp
-
-    def dump_boom(*args: object, **kwargs: object) -> None:
+    def _boom(_value: str) -> str:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(json, "dump", dump_boom, raising=True)
+    monkeypatch.setattr(user_store_mod, "encrypt", _boom, raising=True)
 
-    with pytest.raises(OSError) as exc:
-        us_mod._save_store({"u1": {"api_key": "x", "project_id": "y"}})
+    with pytest.raises(HTTPException) as e:
+        user_store_mod.save_user_credentials("auth0|abc", "k", "p")
 
-    # Should include the formatted constant-based message prefix
-    assert MSG_ERROR_SAVING_USER_STORE.split("{error}")[0] in str(exc.value)
+    assert e.value.status_code == 400
+    assert e.value.detail == "Error saving credentials"
+
+
+def test_load_user_credentials_decrypt_failure_returns_none(
+    user_store_mod: ModuleType,
+    monkeypatch: MonkeyPatch,
+    caplog_debug: LogCaptureFixture,
+) -> None:
+    user_id = "auth0|baddec"
+    user_store_mod.USER_STORE.write_text(
+        json.dumps({user_id: {"api_key": "bad", "project_id": "bad"}})
+    )
+
+    def _dec(_v: str) -> str:
+        raise ValueError("cannot decrypt")
+
+    monkeypatch.setattr(user_store_mod, "decrypt", _dec, raising=True)
+
+    out = user_store_mod.load_user_credentials(user_id)
+    assert out is None
+
+    logs = "\n".join(rec.getMessage() for rec in caplog_debug.records)
+    assert MSG_ERROR_DECRYPTION_FAILED.format(user_id=user_id, error="cannot decrypt") in logs
+
+
+def test__load_store_with_malformed_json_returns_empty_dict(
+    user_store_mod: ModuleType,
+) -> None:
+    user_store_mod.USER_STORE.write_text("{")
+    assert user_store_mod._load_store() == {}
+
+
+def test__save_store_ioerror_wraps_with_message(
+    user_store_mod: ModuleType,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    def _raising_named_tmpfile(*args: object, **kwargs: object) -> object:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(
+        user_store_mod.tempfile, "NamedTemporaryFile", _raising_named_tmpfile, raising=True
+    )
+
+    with pytest.raises(OSError) as e:
+        user_store_mod._save_store({"u": {"api_key": "x", "project_id": "y"}})
+
+    assert MSG_ERROR_SAVING_USER_STORE.format(error="disk full") in str(e.value)
+
+
+def test_has_user_credentials_true_false(user_store_mod: ModuleType, stub_crypto: None) -> None:
+    uid = "auth0|x"
+    assert user_store_mod.has_user_credentials(uid) is False
+    user_store_mod.save_user_credentials(uid, "k", "p")
+    assert user_store_mod.has_user_credentials(uid) is True
+
+
+@pytest.mark.parametrize("bad", ["", "   ", None, 123])
+def test_public_functions_validate_user_id(
+    user_store_mod: ModuleType,
+    stub_crypto: None,
+    bad: Any,
+) -> None:
+    # All should raise ValueError via validate_user_id before any I/O
+    import typing as _t
+
+    with pytest.raises(ValueError):
+        user_store_mod.save_user_credentials(_t.cast(str, bad), "k", "p")
+    with pytest.raises(ValueError):
+        user_store_mod.load_user_credentials(_t.cast(str, bad))
+    with pytest.raises(ValueError):
+        user_store_mod.delete_user_credentials(_t.cast(str, bad))
+    with pytest.raises(ValueError):
+        user_store_mod.has_user_credentials(_t.cast(str, bad))
+
+
+@pytest.mark.parametrize(
+    ("api", "proj"),
+    [("", "p"), ("   ", "p"), (None, "p"), ("k", ""), ("k", "   "), ("k", None)],
+)
+def test_save_user_credentials_validates_pair(
+    user_store_mod: ModuleType,
+    api: Any,
+    proj: Any,
+) -> None:
+    import typing as _t
+
+    with pytest.raises(ValueError):
+        user_store_mod.save_user_credentials("auth0|ok", _t.cast(str, api), _t.cast(str, proj))

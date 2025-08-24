@@ -10,6 +10,7 @@ from collections.abc import AsyncGenerator, Generator, Callable
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import httpx
@@ -443,3 +444,36 @@ def authorized_client_jwt(
         return test_client
 
     return _with_scope
+
+
+# --------------------------------------------------------------------------- #
+# user_store
+# --------------------------------------------------------------------------- #
+
+
+
+
+@pytest.fixture
+def user_store_mod(monkeypatch: MonkeyPatch, tmp_path: Path) -> ModuleType:
+    import agentic_scraper.backend.api.stores.user_store as us
+
+    store_path: Path = tmp_path / "user_store.json"
+    store_path.write_text("{}")
+    monkeypatch.setattr(us, "USER_STORE", store_path, raising=True)
+    us.USER_STORE.parent.mkdir(parents=True, exist_ok=True)
+    return us
+
+
+@pytest.fixture
+def stub_crypto(monkeypatch: MonkeyPatch, user_store_mod: ModuleType) -> None:
+    def _enc(value: str) -> str:
+        return f"enc:{value}"
+
+    def _dec(value: str) -> str:
+        if not isinstance(value, str) or not value.startswith("enc:"):
+            raise ValueError("invalid ciphertext")
+        return value.split("enc:", 1)[1]
+
+    monkeypatch.setattr(user_store_mod, "encrypt", _enc, raising=True)
+    monkeypatch.setattr(user_store_mod, "decrypt", _dec, raising=True)
+
