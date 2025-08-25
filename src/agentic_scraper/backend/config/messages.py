@@ -336,6 +336,9 @@ MSG_JOB_SKIP_MARK_FAILED_TERMINAL = (
     "[API] [ROUTE] [SCRAPE] Job {job_id} already terminal ({status}); skipping FAILED."
 )
 
+# schemas/scrape.py
+MSG_ERROR_URLS_MUST_BE_LIST = "urls must be a list of URLs"
+
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------
@@ -695,3 +698,7 @@ MSG_ERROR_PRELOADING_JWKS = "[VALIDATION] Error occurred while preloading JWKS f
 MSG_ERROR_INVALID_PROGRESS = "Progress must be between {min} and {max}, got {value}"
 MSG_ERROR_INVALID_UUID = "Invalid UUIDv4: {value}"
 MSG_ERROR_NAIVE_DATETIME = "Datetime must be timezone-aware (UTC)"
+
+MSG_ERROR_INVALID_URL = "Invalid URL: {value}"
+MSG_ERROR_INVALID_LIMIT = "Invalid limit: {value}. Allowed range is {min}..{max}."
+MSG_ERROR_INVALID_STATUS = "Invalid status: {value}. Allowed: {valid_options}."

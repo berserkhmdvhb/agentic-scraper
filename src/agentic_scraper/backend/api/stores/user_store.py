@@ -29,6 +29,7 @@ from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.utils.crypto import decrypt, encrypt
 from agentic_scraper.backend.utils.validators import (
+    ensure_directory,
     validate_openai_credentials_pair,
     validate_user_id,
 )
@@ -36,7 +37,8 @@ from agentic_scraper.backend.utils.validators import (
 logger = get_logger()
 
 USER_STORE = Path(".cache/user_store.json")
-USER_STORE.parent.mkdir(parents=True, exist_ok=True)
+ensure_directory(USER_STORE.parent)
+
 
 if not USER_STORE.exists():
     USER_STORE.write_text("{}")

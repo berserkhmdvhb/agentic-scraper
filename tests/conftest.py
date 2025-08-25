@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import importlib
+from fastapi import FastAPI
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ from typing import Any
 
 import httpx
 import pytest
+import pytest_asyncio
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 from cryptography.hazmat.primitives import serialization
@@ -333,7 +335,25 @@ def no_network(monkeypatch: MonkeyPatch) -> None:
 # --------------------------------------------------------------------------- #
 
 @pytest.fixture
-async def test_client() -> AsyncGenerator[httpx.AsyncClient, None]:
+def app_fast(
+    monkeypatch: MonkeyPatch,
+    mock_env: None,
+    jwks_mock: None,
+) -> FastAPI:
+    """
+    Import the FastAPI app with slow side effects stubbed:
+    - logger_setup.setup_logging -> no-op
+    - auth0_helpers.jwks_cache_instance.get_jwks -> stubbed by jwks_mock
+    """
+    logger_setup = importlib.import_module("agentic_scraper.backend.core.logger_setup")
+    monkeypatch.setattr(logger_setup, "setup_logging", lambda: None, raising=True)
+
+    # Now import the app after patches are in place
+    from agentic_scraper.backend.api.main import app
+    return app
+
+@pytest_asyncio.fixture
+async def test_client(app_fast: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     """
     ASGI-aware HTTPX client bound to the FastAPI app.
     Uses app lifespan() and avoids mypy complaints by using ASGITransport.
@@ -341,7 +361,7 @@ async def test_client() -> AsyncGenerator[httpx.AsyncClient, None]:
     from httpx import ASGITransport
     from agentic_scraper.backend.api.main import app
 
-    transport = ASGITransport(app=app)
+    transport = ASGITransport(app=app_fast)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
 

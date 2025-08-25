@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING, TypedDict
 
 from typing_extensions import Required, Unpack
 
+from agentic_scraper.backend.config.constants import (
+    DEFAULT_JOB_LIST_MAX_LIMIT,
+    DEFAULT_JOB_LIST_MIN_LIMIT,
+)
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_JOB_STATUS,
     MSG_JOB_CANCELED_BY_USER,
@@ -16,8 +20,9 @@ from agentic_scraper.backend.config.types import JobStatus
 from agentic_scraper.backend.utils.validators import (
     ensure_utc_aware,
     validate_cursor,
+    validate_limit,
     validate_progress,
-    validate_uuid4,
+    validate_uuid,
 )
 
 # ----- Types -----------------------------------------------------------------
@@ -67,8 +72,6 @@ class JobUpdateFields(TypedDict, total=False):
 _STORE: dict[str, ScrapeJobRecord] = {}
 _LOCK = threading.RLock()
 
-DEFAULT_LIMIT = 50
-
 
 # ----- Helpers ----------------------------------------------------------------
 
@@ -82,6 +85,7 @@ def _coerce_status(value: JobStatus | str) -> JobStatus:
     Coerce a status value into a valid JobStatus or raise ValueError.
 
     Accepts either a JobStatus enum or a string value.
+    Uses project-specific error message for parity with existing tests.
     """
     if isinstance(value, JobStatus):
         return value
@@ -146,7 +150,7 @@ def get_job(job_id: str) -> ScrapeJobRecord | None:
     """
     # Soft-validate ID shape; treat invalid UUID as "not found" to preserve API.
     try:
-        validate_uuid4(job_id)
+        validate_uuid(job_id)
     except ValueError:
         return None
     with _LOCK:
@@ -165,6 +169,12 @@ def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJobRecor
     Returns:
         ScrapeJobRecord | None: The updated job snapshot, or None if not found.
     """
+    # Align behavior with get/cancel: invalid IDs behave as "not found"
+    try:
+        validate_uuid(job_id)
+    except ValueError:
+        return None
+
     with _LOCK:
         job = _STORE.get(job_id)
         if job is None:
@@ -208,7 +218,7 @@ def update_job(job_id: str, **fields: Unpack[JobUpdateFields]) -> ScrapeJobRecor
 def list_jobs(
     *,
     status: JobStatus | None = None,
-    limit: int = DEFAULT_LIMIT,
+    limit: int = DEFAULT_JOB_LIST_MAX_LIMIT,
     cursor: str | None = None,
     owner_sub: OwnerSub | None = None,
 ) -> tuple[list[ScrapeJobRecord], str | None]:
@@ -219,14 +229,20 @@ def list_jobs(
         status (JobStatus | None): If provided, filter by job status.
         limit (int): Maximum number of jobs to return.
         cursor (str | None): A job_id to start *after* (exclusive).
+        owner_sub (OwnerSub | None): If provided, filter by job owner.
 
     Returns:
         tuple[list[ScrapeJobRecord], str | None]:
             - A list of job snapshots.
             - A next_cursor (job_id) if more results remain; otherwise None.
     """
-    # Validate/normalize cursor (UUIDv4 today; can evolve to encoded cursors later)
+    # Validate/normalize cursor (UUID today; could evolve to encoded cursors later)
     cursor = validate_cursor(cursor)
+    # Enforce inclusive bounds for limit via centralized validator
+    safe_limit = validate_limit(
+        limit, min_value=DEFAULT_JOB_LIST_MIN_LIMIT, max_value=DEFAULT_JOB_LIST_MAX_LIMIT
+    )
+
     with _LOCK:
         # Stable order by created_at then id for deterministic paging
         jobs = sorted(
@@ -239,6 +255,7 @@ def list_jobs(
 
         if owner_sub is not None:
             jobs = [j for j in jobs if j.get("owner_sub") == owner_sub]
+
         start_idx = 0
         if cursor:
             # Find the index strictly after the cursor id
@@ -247,7 +264,6 @@ def list_jobs(
                     start_idx = i + 1
                     break
 
-        safe_limit = max(0, int(limit))
         sliced = jobs[start_idx : start_idx + safe_limit]
         # Only provide a next_cursor if there are more jobs beyond this slice
         has_more = bool(sliced) and (start_idx + len(sliced) < len(jobs))
@@ -265,23 +281,27 @@ def cancel_job(job_id: str, user_sub: OwnerSub) -> bool:
 
     Args:
         job_id (str): The job identifier.
+        user_sub (OwnerSub): The user who requested cancellation.
 
     Returns:
         bool: True if the job was found and marked canceled; otherwise False.
     """
     # Soft-validate ID; invalid UUID acts like "not found"
     try:
-        validate_uuid4(job_id)
+        validate_uuid(job_id)
     except ValueError:
         return False
+
     with _LOCK:
         job = _STORE.get(job_id)
         if job is None:
             return False
+
         if job["status"] in {JobStatus.QUEUED, JobStatus.RUNNING}:
             job["status"] = JobStatus.CANCELED
             job["updated_at"] = _utcnow()
             job["canceled_by"] = user_sub
             job["error"] = MSG_JOB_CANCELED_BY_USER.format(job_id=job_id, user_sub=user_sub)
             return True
+
         return False

@@ -192,3 +192,12 @@ FIELD_SYNONYMS: dict[str, str] = {
 
 CLAIM_EMAIL = "https://agentic.scraper/email"
 CLAIM_NAME = "https://agentic.scraper/name"
+
+
+# ---------------------------------------------------------------------
+# api/routes/
+# ---------------------------------------------------------------------
+
+DEFAULT_JOB_LIST_MIN_LIMIT = 0
+DEFAULT_JOB_LIST_MAX_LIMIT = 50
+MAX_URLS_PER_REQUEST = 100

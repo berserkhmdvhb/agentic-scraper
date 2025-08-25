@@ -14,7 +14,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_JOB_CANCELED_BY_USER,
 )
 from agentic_scraper.backend.config.types import JobStatus
-from agentic_scraper.backend.utils.validators import validate_uuid4
+from agentic_scraper.backend.utils.validators import validate_uuid
 
 
 # ---------- helpers / fixtures ----------
@@ -39,8 +39,8 @@ def test_create_job_basic_fields() -> None:
 
     job = js.create_job(payload, owner_sub)
 
-    # ID is UUIDv4
-    validate_uuid4(job["id"])
+    # ID is UUID
+    validate_uuid(job["id"])
     assert job["status"] is JobStatus.QUEUED
     assert job["owner_sub"] == owner_sub
     assert isinstance(job["created_at"], datetime) and job["created_at"].tzinfo is not None
@@ -63,8 +63,8 @@ def test_create_job_unique_ids() -> None:
     j2 = js.create_job({"n": 2}, owner_sub)
     assert j1["id"] != j2["id"]
     # Also assert both are valid UUIDv4
-    validate_uuid4(j1["id"])
-    validate_uuid4(j2["id"])
+    validate_uuid(j1["id"])
+    validate_uuid(j2["id"])
 
 
 # ---------- get_job ----------

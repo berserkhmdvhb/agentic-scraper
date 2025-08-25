@@ -1,9 +1,12 @@
 import logging
 import re
 import uuid
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+
+from pydantic import AnyUrl
 
 from agentic_scraper.backend.config.constants import (
     ACCEPTED_UUID_VERSIONS,
@@ -27,23 +30,29 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_CREDENTIALS,
     MSG_ERROR_INVALID_ENCRYPTION_SECRET,
     MSG_ERROR_INVALID_ENV,
+    MSG_ERROR_INVALID_LIMIT,
     MSG_ERROR_INVALID_LOG_BYTES,
     MSG_ERROR_INVALID_LOG_LEVEL,
     MSG_ERROR_INVALID_MODEL_NAME,
     MSG_ERROR_INVALID_PRICE,
     MSG_ERROR_INVALID_PRICE_FORMAT,
     MSG_ERROR_INVALID_PROGRESS,
+    MSG_ERROR_INVALID_STATUS,
     MSG_ERROR_INVALID_TIMEOUT,
+    MSG_ERROR_INVALID_URL,
     MSG_ERROR_INVALID_UUID,
     MSG_ERROR_LOG_BACKUP_COUNT_INVALID,
     MSG_ERROR_MISSING_API_KEY,
     MSG_ERROR_NAIVE_DATETIME,
     MSG_ERROR_NOT_A_DIRECTORY,
+    MSG_ERROR_URLS_MUST_BE_LIST,
     MSG_ERROR_USER_SCOPES_TYPE,
 )
 from agentic_scraper.backend.config.types import AgentMode
 
 logger = logging.getLogger(__name__)
+
+URLLike = str | AnyUrl
 
 
 def format_with_valid_options(
@@ -63,6 +72,14 @@ def is_valid_url(url: str) -> bool:
     """Check if a string is a valid HTTP/HTTPS URL."""
     parsed = urlparse(url.strip())
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def validate_url(url: URLLike) -> str:
+    """Validate a single HTTP/HTTPS URL (str or AnyUrl) and return the trimmed string value."""
+    trimmed = str(url).strip()
+    if not is_valid_url(trimmed):
+        raise ValueError(MSG_ERROR_INVALID_URL.format(value=url))
+    return trimmed
 
 
 def clean_input_urls(raw: str) -> list[str]:
@@ -89,6 +106,30 @@ def deduplicate_urls(urls: list[str]) -> list[str]:
             seen.add(url)
             result.append(url)
     return result
+
+
+def validate_url_list(
+    urls: Sequence[URLLike],
+    *,
+    min_len: int = 1,
+    max_len: int = 1000,
+    dedupe: bool = True,
+) -> list[str]:
+    """
+    Validate a list of URLs:
+    - list must have length within [min_len, max_len]
+    - each item must be a valid HTTP/HTTPS URL
+    - optionally deduplicate while preserving order
+    Returns the normalized (trimmed) list, possibly deduplicated.
+    """
+    # Accept sequences (e.g., list[HttpUrl]) but reject bare strings/bytes.
+    if not isinstance(urls, Sequence) or isinstance(urls, (str, bytes)):
+        raise TypeError(MSG_ERROR_URLS_MUST_BE_LIST)
+    trimmed: list[str] = [validate_url(u) for u in urls]
+    n = len(trimmed)
+    if n < min_len or n > max_len:
+        raise ValueError(MSG_ERROR_INVALID_LIMIT.format(value=n, min=min_len, max=max_len))
+    return deduplicate_urls(trimmed) if dedupe else trimmed
 
 
 def filter_successful(results: dict[str, str]) -> dict[str, str]:
@@ -153,6 +194,13 @@ def validate_log_backup_count(n: int) -> int:
     if n < 0:
         raise ValueError(MSG_ERROR_INVALID_BACKUP_COUNT.format(value=n))
     return n
+
+
+def validate_limit(limit: int, *, min_value: int = 1, max_value: int = 100) -> int:
+    """Ensure a pagination limit is within inclusive bounds."""
+    if limit < min_value or limit > max_value:
+        raise ValueError(MSG_ERROR_INVALID_LIMIT.format(value=limit, min=min_value, max=max_value))
+    return limit
 
 
 def validate_path(path_str: str) -> Path:
@@ -315,7 +363,7 @@ def validate_progress(value: float, *, min_value: float = 0.0, max_value: float 
     return value
 
 
-def validate_uuid4(value: str) -> str:
+def validate_uuid(value: str) -> str:
     try:
         u = uuid.UUID(value)
     except ValueError as err:
@@ -329,7 +377,24 @@ def validate_cursor(cursor: str | None) -> str | None:
     if cursor is None:
         return None
     # simplest form: UUIDv4 check; or base64 if you later encode.
-    return validate_uuid4(cursor)
+    return validate_uuid(cursor)
+
+
+def validate_job_status(status: str, *, allowed: set[str]) -> str:
+    """
+    Ensure a job status value is within the allowed set.
+    Returns the original value to allow callers to preserve their casing.
+    """
+    if status not in allowed:
+        raise ValueError(
+            format_with_valid_options(
+                MSG_ERROR_INVALID_STATUS,
+                value_label="value",
+                value=status,
+                valid_values=allowed,
+            )
+        )
+    return status
 
 
 def ensure_utc_aware(dt: datetime) -> datetime:
