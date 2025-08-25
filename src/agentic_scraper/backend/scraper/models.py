@@ -1,31 +1,36 @@
-from collections.abc import Callable
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from openai.types.chat import ChatCompletionMessageParam
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
-from agentic_scraper.backend.config.aliases import (
-    OnErrorCallback,
-    OnSuccessCallback,
+from agentic_scraper.backend.config.messages import (
+    MSG_ERROR_EMPTY_STRING,
+    MSG_ERROR_INVALID_LIMIT,
 )
 from agentic_scraper.backend.config.types import OpenAIConfig
-from agentic_scraper.backend.scraper.schemas import ScrapedItem
+from agentic_scraper.backend.utils.validators import validate_url
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessageParam
+
+    from agentic_scraper.backend.config.aliases import (
+        OnErrorCallback,
+        OnSuccessCallback,
+    )
+    from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 
 class ScrapeRequest(BaseModel):
     """
     Per-URL scrape input prepared by the fetch/prepare stage.
 
-    Args:
-        text (str): Cleaned main text extracted from the HTML.
-        url (str): Original URL.
-        take_screenshot (bool): Whether to capture a screenshot during extraction.
-        openai (OpenAIConfig | None): Optional OpenAI credentials to override defaults.
-        context_hints (dict[str, str] | None): Optional hints to guide extraction.
-
-    Returns:
-        ScrapeRequest: Validated request for an agent to process.
+    Note:
+        - URL is kept as `str` internally for frictionless use across agents/helpers.
+          It is validated to be http(s) and trimmed.
+        - `openai` accepts an `OpenAIConfig` or a compatible `dict` which will be coerced.
     """
 
     text: str
@@ -34,20 +39,59 @@ class ScrapeRequest(BaseModel):
     openai: OpenAIConfig | None = None
     context_hints: dict[str, str] | None = None
 
+    @field_validator("url", mode="before")
+    @classmethod
+    def _validate_url(cls, v: str) -> str:
+        return validate_url(v)
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def _validate_text(cls, v: str) -> str:
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError(MSG_ERROR_EMPTY_STRING.format(field="text"))
+        return v.strip()
+
+    @field_validator("context_hints", mode="before")
+    @classmethod
+    def _clean_context_hints(cls, v: dict[str, str] | None) -> dict[str, str] | None:
+        """
+        Normalize context_hints: trim keys/values; disallow empty keys/values.
+        If v isn't a dict[str, str], let Pydantic's type checking raise.
+        """
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            cleaned: dict[str, str] = {}
+            for k, val in v.items():
+                ks = k.strip() if isinstance(k, str) else k
+                vs = val.strip() if isinstance(val, str) else val
+                if not isinstance(ks, str) or not isinstance(vs, str):
+                    return v  # let Pydantic raise on type mismatch
+                if not ks or not vs:
+                    raise ValueError(MSG_ERROR_EMPTY_STRING.format(field="context_hints"))
+                cleaned[ks] = vs
+            return cleaned
+        return v  # let Pydantic raise on type mismatch
+
+    @field_validator("openai", mode="before")
+    @classmethod
+    def _coerce_openai(cls, v: object) -> object:
+        """
+        Accept either an OpenAIConfig instance or a mapping to construct one.
+        Returns the original value for Pydantic to type-check if unsupported.
+        """
+        if v is None or isinstance(v, OpenAIConfig):
+            return v
+        if isinstance(v, Mapping):
+            # coerce mapping (e.g., dict) into OpenAIConfig
+            return OpenAIConfig(**dict(v))
+        return v  # let Pydantic raise on type mismatch
+
 
 @dataclass
 class RetryContext:
     """
     Mutable context passed through adaptive LLM retries to track best candidates.
-
-    Attributes:
-        messages (list[ChatCompletionMessageParam]): Prompt/response message chain.
-        best_score (float): Highest score observed among all attempts (may be invalid).
-        best_valid_score (float): Highest score among schema-valid items.
-        best_fields (dict[str, Any] | None): Raw best field map (may be invalid).
-        best_valid_item (ScrapedItem | None): Best validated item, if any.
-        all_fields (dict[str, Any]): Latest raw field map from the LLM.
-        has_done_discovery (bool): Whether a discovery retry has been attempted.
     """
 
     messages: list[ChatCompletionMessageParam]
@@ -59,55 +103,10 @@ class RetryContext:
     has_done_discovery: bool = False
 
 
-class PipelineStats(BaseModel):
-    """
-    Aggregated execution stats for a scrape pipeline run.
-
-    Fields:
-        total_urls (int): Number of URLs submitted to the pipeline.
-        succeeded (int): Number of successfully extracted items.
-        failed (int): Number of items that failed extraction.
-        duration_sec (float): Total wall-clock duration of the run in seconds.
-    """
-
-    total_urls: int
-    succeeded: int
-    failed: int
-    duration_sec: float
-
-
-class PipelineOutput(BaseModel):
-    """
-    Standardized pipeline result shape used internally by the scraper layer.
-
-    Fields:
-        items (list[ScrapedItem]): Extracted items in completion or input order.
-        stats (PipelineStats): Aggregated metrics for the run.
-    """
-
-    items: list[ScrapedItem]
-    stats: PipelineStats
-
-
 @dataclass
 class WorkerPoolConfig:
     """
     Configuration for running a concurrent scraping worker pool.
-
-    Args:
-        take_screenshot (bool): Whether to capture screenshots during scraping.
-        openai (OpenAIConfig | None): Optional OpenAI credentials.
-        concurrency (int): Number of concurrent worker tasks.
-        max_queue_size (int | None): Optional limit on input queue size.
-        on_item_processed (OnSuccessCallback | None): Callback on successful extraction.
-        on_error (OnErrorCallback | None): Callback when an error occurs during extraction.
-        on_progress (Callable[[int, int], None] | None): Progress callback with
-            (processed, total) counts, invoked after each item completes.
-        preserve_order (bool): If True, results are returned in input order.
-            Defaults to False (completion order).
-
-    Returns:
-        WorkerPoolConfig: Immutable configuration for worker pool execution.
     """
 
     take_screenshot: bool
@@ -119,3 +118,16 @@ class WorkerPoolConfig:
     on_progress: Callable[[int, int], None] | None = None
     preserve_order: bool = False
     should_cancel: Callable[[], bool] | None = None
+
+    def __post_init__(self) -> None:
+        # Validate positive integers for concurrency and (if provided) max_queue_size
+        if not isinstance(self.concurrency, int) or self.concurrency < 1:
+            raise ValueError(
+                MSG_ERROR_INVALID_LIMIT.format(value=self.concurrency, min=1, max=10_000_000)
+            )
+        if self.max_queue_size is not None and (
+            not isinstance(self.max_queue_size, int) or self.max_queue_size < 1
+        ):
+            raise ValueError(
+                MSG_ERROR_INVALID_LIMIT.format(value=self.max_queue_size, min=1, max=10_000_000)
+            )

@@ -690,7 +690,8 @@ MSG_ERROR_INVALID_AUTH0_ALGORITHMS = (
 )
 MSG_ERROR_EMPTY_AUTH0_ALGORITHMS = "[VALIDATION] auth0_algorithms must not be empty"
 MSG_ERROR_UNEXPECTED_EXCEPTION = "[VALIDATION] Unexpected error during token validation."
-MSG_INFO_USER_AUTHORIZED = "[VALIDATION] User successfully authenticated and authorized."
+MSG_INFO_USER_AUTHORIZED = "[VALIDATION] User {user_id} successfully authenticated and authorized."
+
 MSG_ERROR_USER_SCOPES_TYPE = (
     "[VALIDATION] Expected 'user_scopes' to be a list of strings, got {actual_type}"
 )

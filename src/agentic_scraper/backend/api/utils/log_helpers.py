@@ -71,7 +71,7 @@ def raise_internal_error(e: Exception) -> NoReturn:
     ) from e
 
 
-def log_raise_info(message: str, **kwargs: dict[str, object]) -> None:
+def log_raise_info(message: str, **kwargs: object) -> None:
     """
     Log an info-level message.
 
@@ -82,7 +82,7 @@ def log_raise_info(message: str, **kwargs: dict[str, object]) -> None:
     logger.info(message, extra=kwargs)
 
 
-def log_raise_warning(message: str, **kwargs: dict[str, object]) -> None:
+def log_raise_warning(message: str, **kwargs: object) -> None:
     """
     Log a warning-level message.
 
@@ -93,7 +93,7 @@ def log_raise_warning(message: str, **kwargs: dict[str, object]) -> None:
     logger.warning(message, extra=kwargs)
 
 
-def log_raise_error(message: str, **kwargs: dict[str, object]) -> None:
+def log_raise_error(message: str, **kwargs: object) -> None:
     """
     Log an error-level message.
 
