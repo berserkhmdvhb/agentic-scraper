@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, Dict
 
 import httpx
 import pytest
@@ -116,6 +116,10 @@ AGENTIC_ENV_VARS = [
 ]
 
 TEST_FERNET_KEY = "A"*43 + "="
+
+
+Store = Dict[str, Dict[str, Any]]
+
 
 @dataclass(frozen=True)
 class JWKSKeypair:
@@ -505,3 +509,33 @@ def stub_crypto(monkeypatch: MonkeyPatch, user_store_mod: ModuleType) -> None:
     monkeypatch.setattr(user_store_mod, "encrypt", _enc, raising=True)
     monkeypatch.setattr(user_store_mod, "decrypt", _dec, raising=True)
 
+
+
+@pytest.fixture
+def patch_job_store(monkeypatch: MonkeyPatch) -> Callable[[ModuleType, Store | None], Store]:
+    """
+    Patch a module's get_job/update_job to use an in-memory store.
+
+    Usage:
+        store = patch_job_store(sh, {"queued": {"status": "queued"}})
+        # sh.get_job("queued") -> {"status": "queued"}
+        # sh.update_job("queued", status="running")
+    """
+    def _patch(module: ModuleType, initial: Store | None = None) -> Store:
+        store: Store = dict(initial or {})
+
+        def get_job(job_id: str) -> dict[str, Any] | None:
+            return store.get(job_id)
+
+        def update_job(job_id: str, **kwargs: Any) -> dict[str, Any] | None:
+            snap = store.get(job_id)
+            if snap is None:
+                return None
+            snap.update(kwargs)
+            return snap
+
+        monkeypatch.setattr(module, "get_job", get_job, raising=True)
+        monkeypatch.setattr(module, "update_job", update_job, raising=True)
+        return store
+
+    return _patch
