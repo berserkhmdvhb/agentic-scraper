@@ -1,8 +1,19 @@
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from __future__ import annotations
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
+
+from agentic_scraper.backend.config.messages import MSG_ERROR_EMPTY_STRING
 
 
 class UserCredentialsIn(BaseModel):
-    """Input schema for saving user's OpenAI credentials."""
+    """
+    Input schema for saving a user's OpenAI credentials.
+
+    - `api_key` is accepted as a SecretStr and will not be logged.
+    - `project_id` is trimmed and must be non-empty.
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
     api_key: SecretStr = Field(
         ...,
@@ -10,12 +21,30 @@ class UserCredentialsIn(BaseModel):
         json_schema_extra={"example": "sk-abc123..."},
     )
     project_id: str = Field(
-        ..., description="User's OpenAI project ID", json_schema_extra={"example": "proj_xyz789"}
+        ...,
+        min_length=1,
+        description="User's OpenAI project ID.",
+        json_schema_extra={"example": "proj_xyz789"},
     )
+
+    @field_validator("project_id")
+    @classmethod
+    def _strip_project_id(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            # keep message simple; deeper validation handled in store validators if needed
+            raise ValueError(MSG_ERROR_EMPTY_STRING.format(field="project_id"))
+        return v
 
 
 class UserCredentialsOut(BaseModel):
-    """Output schema when returning user's OpenAI credentials (masked key)."""
+    """
+    Output schema for returning the user's OpenAI credentials.
+
+    - `api_key` is a masked string (e.g., only last 4 chars visible).
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
     api_key: str = Field(
         ...,
@@ -32,20 +61,32 @@ class UserCredentialsOut(BaseModel):
 class UserCredentialsStatus(BaseModel):
     """Presence info for stored credentials."""
 
-    has_credentials: bool = Field(..., description="Whether the user has saved OpenAI credentials.")
+    model_config = ConfigDict(extra="ignore")
+
+    has_credentials: bool = Field(
+        ...,
+        description="Whether the user has saved OpenAI credentials.",
+        json_schema_extra={"example": True},
+    )
 
 
 class UserProfile(BaseModel):
     """Represents the authenticated user's profile."""
 
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
+
     sub: str = Field(
-        ..., description="User unique identifier", json_schema_extra={"example": "auth0|123456789"}
+        ...,
+        description="User unique identifier (subject).",
+        json_schema_extra={"example": "auth0|123456789"},
     )
-    email: str | None = Field(
-        None, description="User email address", json_schema_extra={"example": "user@example.com"}
+    email: EmailStr | None = Field(
+        None,
+        description="User email address.",
+        json_schema_extra={"example": "user@example.com"},
     )
     name: str | None = Field(
-        None, description="User full name", json_schema_extra={"example": "Alice Smith"}
+        None,
+        description="User full name.",
+        json_schema_extra={"example": "Alice Smith"},
     )
-
-    model_config = ConfigDict(from_attributes=True)
