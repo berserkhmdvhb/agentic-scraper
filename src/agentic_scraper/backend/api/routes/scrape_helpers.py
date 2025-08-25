@@ -23,7 +23,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_LOG_DEBUG_DYNAMIC_EXTRAS,
     MSG_LOG_DYNAMIC_EXTRAS_ERROR,
 )
-from agentic_scraper.backend.config.types import AgentMode, OpenAIConfig
+from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIConfig
 from agentic_scraper.backend.core.settings import Settings, get_settings
 from agentic_scraper.backend.scraper.pipeline import PipelineOptions, scrape_with_stats
 
@@ -46,7 +46,7 @@ def _mark_running(job_id: str) -> None:
     if status_lower in {"canceled", "succeeded", "failed"}:
         logger.debug(MSG_JOB_SKIP_MARK_RUNNING_TERMINAL.format(job_id=job_id, status=status_lower))
         return
-    update_job(job_id, status="running", updated_at=datetime.now(timezone.utc))
+    update_job(job_id, status=JobStatus.RUNNING, updated_at=datetime.now(timezone.utc))
     logger.info(MSG_JOB_STARTED.format(job_id=job_id))
 
 
@@ -72,7 +72,7 @@ def _resolve_openai_creds_or_fail(
     if needs_llm and not creds:
         update_job(
             job_id,
-            status="failed",
+            status=JobStatus.FAILED,
             error=MSG_HTTP_MISSING_OPENAI_CREDS,
             progress=0.0,
             updated_at=datetime.now(timezone.utc),
@@ -177,7 +177,7 @@ def _finalize_success_if_not_canceled(
 
     update_job(
         job_id,
-        status="succeeded",
+        status=JobStatus.SUCCEEDED,
         result=result_model.model_dump(),
         progress=1.0,
         updated_at=datetime.now(timezone.utc),

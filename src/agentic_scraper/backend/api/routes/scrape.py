@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import asyncio
 import logging
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
@@ -128,9 +127,7 @@ async def create_scrape_job(
     user: CurrentUser,
     request: Request,
 ) -> ScrapeJob:
-    """
-    Create a new scrape job. Returns 202 Accepted with Location to poll the job.
-    """
+    """Create a new scrape job. Returns 202 Accepted with Location to poll the job."""
     # Scope: create:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_CREATE})
 
@@ -163,22 +160,22 @@ async def create_scrape_job(
 @router.get(
     "/{job_id}",
 )
-async def get_scrape_job(job_id: str, user: CurrentUser) -> ScrapeJob:
-    """
-    Get a scrape job by id. Includes result when status == 'succeeded'.
-    """
+async def get_scrape_job(job_id: UUID, user: CurrentUser) -> ScrapeJob:
+    """Get a scrape job by id. Includes result when status == 'succeeded'."""
     # Scope: read:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_READ})
 
-    job = get_job(job_id)
+    job = get_job(str(job_id))
     if not job:
-        logger.warning(MSG_JOB_NOT_FOUND.format(job_id=job_id))
+        logger.warning(MSG_JOB_NOT_FOUND.format(job_id=str(job_id)))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=MSG_HTTP_JOB_NOT_FOUND_DETAIL
         )
 
     if job.get("owner_sub") and job["owner_sub"] != user["sub"]:
-        logger.warning(MSG_HTTP_FORBIDDEN_JOB_ACCESS.format(user_sub=user["sub"], job_id=job_id))
+        logger.warning(
+            MSG_HTTP_FORBIDDEN_JOB_ACCESS.format(user_sub=user["sub"], job_id=str(job_id))
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=MSG_HTTP_FORBIDDEN_JOB_ACCESS
         )
@@ -252,7 +249,7 @@ async def list_scrape_jobs(
     "/{job_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def cancel_scrape_job(job_id: str, user: CurrentUser) -> Response:
+async def cancel_scrape_job(job_id: UUID, user: CurrentUser) -> Response:
     """
     Cancel a queued or running scrape job.
 
@@ -265,11 +262,12 @@ async def cancel_scrape_job(job_id: str, user: CurrentUser) -> Response:
     # Scope: cancel:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_CANCEL})
 
-    logger.info(MSG_JOB_CANCEL_REQUESTED.format(job_id=job_id))
+    job_id_str = str(job_id)
+    logger.info(MSG_JOB_CANCEL_REQUESTED.format(job_id=job_id_str))
 
-    job = get_job(job_id)
+    job = get_job(job_id_str)
     if not job:
-        logger.warning(MSG_JOB_NOT_FOUND.format(job_id=job_id))
+        logger.warning(MSG_JOB_NOT_FOUND.format(job_id=job_id_str))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=MSG_HTTP_JOB_NOT_FOUND_DETAIL,
@@ -277,7 +275,9 @@ async def cancel_scrape_job(job_id: str, user: CurrentUser) -> Response:
 
     # Ownership guard
     if job.get("owner_sub") and job["owner_sub"] != user["sub"]:
-        logger.warning(MSG_HTTP_FORBIDDEN_JOB_ACCESS.format(user_sub=user["sub"], job_id=job_id))
+        logger.warning(
+            MSG_HTTP_FORBIDDEN_JOB_ACCESS.format(user_sub=user["sub"], job_id=job_id_str)
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=MSG_HTTP_FORBIDDEN_JOB_ACCESS,
@@ -297,11 +297,11 @@ async def cancel_scrape_job(job_id: str, user: CurrentUser) -> Response:
 
     # Idempotency: if already canceled, still return 204 and signal waiters
     if status_enum is JobStatus.CANCELED:
-        set_canceled(job_id)
+        set_canceled(job_id_str)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # Try to transition to CANCELED
-    if not cancel_job(job_id, user_sub=user["sub"]):
+    if not cancel_job(job_id_str, user_sub=user["sub"]):
         # Not cancelable (already terminal in a non-canceled state)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -309,6 +309,6 @@ async def cancel_scrape_job(job_id: str, user: CurrentUser) -> Response:
         )
 
     # Successfully marked canceled; wake any waiting workers
-    logger.info(MSG_JOB_CANCELED.format(job_id=job_id))
-    set_canceled(job_id)
+    logger.info(MSG_JOB_CANCELED.format(job_id=job_id_str))
+    set_canceled(job_id_str)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

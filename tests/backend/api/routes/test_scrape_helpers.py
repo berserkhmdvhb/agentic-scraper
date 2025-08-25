@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from uuid import uuid4
 
 import pytest
 
@@ -44,7 +45,7 @@ def test_scrape_job_accepts_fixed_result_union() -> None:
 
     job = ScrapeJob.model_validate(
         {
-            "id": "uuid-like-but-not-validated-here",
+            "id": str(uuid4()),
             "status": JobStatus.SUCCEEDED,  # enum is fine here
             "created_at": created,
             "updated_at": updated,
@@ -65,7 +66,7 @@ def test_scrape_job_accepts_dynamic_result_union() -> None:
 
     job = ScrapeJob.model_validate(
         {
-            "id": "job-123",
+            "id": str(uuid4()),
             "status": JobStatus.SUCCEEDED,
             "created_at": created,
             "updated_at": updated,
@@ -90,7 +91,7 @@ def test_scrape_job_progress_bounds() -> None:
     # valid bounds
     _ = ScrapeJob.model_validate(
         {
-            "id": "ok-1",
+            "id": str(uuid4()),
             "status": JobStatus.RUNNING,
             "created_at": created,
             "updated_at": updated,
@@ -99,7 +100,7 @@ def test_scrape_job_progress_bounds() -> None:
     )
     _ = ScrapeJob.model_validate(
         {
-            "id": "ok-2",
+            "id": str(uuid4()),
             "status": JobStatus.RUNNING,
             "created_at": created,
             "updated_at": updated,
@@ -111,7 +112,7 @@ def test_scrape_job_progress_bounds() -> None:
     with pytest.raises(Exception):
         ScrapeJob.model_validate(
             {
-                "id": "bad-1",
+                "id": str(uuid4()),
                 "status": JobStatus.RUNNING,
                 "created_at": created,
                 "updated_at": updated,
@@ -121,7 +122,7 @@ def test_scrape_job_progress_bounds() -> None:
     with pytest.raises(Exception):
         ScrapeJob.model_validate(
             {
-                "id": "bad-2",
+                "id": str(uuid4()),
                 "status": JobStatus.RUNNING,
                 "created_at": created,
                 "updated_at": updated,
@@ -137,7 +138,7 @@ def test_scrape_job_failed_has_error_optional() -> None:
     # error present
     j1 = ScrapeJob.model_validate(
         {
-            "id": "fail-1",
+            "id": str(uuid4()),
             "status": JobStatus.FAILED,
             "created_at": created,
             "updated_at": updated,
@@ -149,7 +150,7 @@ def test_scrape_job_failed_has_error_optional() -> None:
     # error omitted remains None (model allows it; semantics are handled elsewhere)
     j2 = ScrapeJob.model_validate(
         {
-            "id": "fail-2",
+            "id": str(uuid4()),
             "status": JobStatus.FAILED,
             "created_at": created,
             "updated_at": updated,
@@ -165,7 +166,7 @@ def test_scrape_list_wraps_jobs_and_cursor() -> None:
     now = _aware_now()
     j_fixed = ScrapeJob.model_validate(
         {
-            "id": "j-fixed",
+            "id": str(uuid4()),
             "status": JobStatus.SUCCEEDED,
             "created_at": now,
             "updated_at": now,
@@ -175,7 +176,7 @@ def test_scrape_list_wraps_jobs_and_cursor() -> None:
     )
     j_dyn = ScrapeJob.model_validate(
         {
-            "id": "j-dyn",
+            "id": str(uuid4()),
             "status": JobStatus.SUCCEEDED,
             "created_at": now,
             "updated_at": now,

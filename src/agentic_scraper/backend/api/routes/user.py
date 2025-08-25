@@ -96,7 +96,7 @@ async def get_credentials(user: CurrentUser) -> UserCredentialsOut:
 
     creds = load_user_credentials(user["sub"])
     if not creds:
-        logger.warning(MSG_WARNING_NO_CREDENTIALS_FOUND.format(user_id=user["sub"]))
+        logger.warning(MSG_WARNING_NO_CREDENTIALS_FOUND.format(user_id=str(user["sub"])))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=MSG_ERROR_NO_CREDENTIALS_FOR_USER,

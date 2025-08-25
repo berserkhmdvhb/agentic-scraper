@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Callable
-from uuid import uuid4, uuid5, NAMESPACE_URL
+from uuid import UUID, uuid4, uuid5, NAMESPACE_URL
 
 import httpx
 import pytest
@@ -49,12 +49,12 @@ async def test_create_scrape_job_accepted_sets_location_and_body(
     assert res.status_code == status.HTTP_202_ACCEPTED, f"422 detail: {res.text}"
 
     job = ScrapeJob.model_validate(res.json())
-    assert isinstance(job.id, str)
+    assert isinstance(job.id, UUID)
     assert str(job.status).lower() == "queued"
 
     loc = res.headers.get("Location")
     assert isinstance(loc, str)
-    assert loc.endswith(f"/api/{api_version}/scrapes/{job.id}")
+    assert loc.endswith(f"/api/{api_version}/scrapes/{str(job.id)}")
 
 
 @pytest.mark.asyncio
@@ -107,12 +107,12 @@ async def test_list_scrape_jobs_default_and_pagination(
             json={"urls": [f"https://example.com{suffix}"]},
         )
         assert r.status_code == status.HTTP_202_ACCEPTED
-        ids.append(ScrapeJob.model_validate(r.json()).id)
+        ids.append(str(ScrapeJob.model_validate(r.json()).id))
 
     res1 = await test_client.get(f"{api_base}/scrapes/")
     assert res1.status_code == status.HTTP_200_OK
     body1 = ScrapeList.model_validate(res1.json())
-    assert [it.id for it in body1.items] == ids
+    assert [str(it.id) for it in body1.items] == ids
     assert body1.next_cursor is None
 
     res2 = await test_client.get(f"{api_base}/scrapes/?limit=2")
@@ -125,7 +125,7 @@ async def test_list_scrape_jobs_default_and_pagination(
     res3 = await test_client.get(f"{api_base}/scrapes/?cursor={cur}")
     assert res3.status_code == status.HTTP_200_OK
     body3 = ScrapeList.model_validate(res3.json())
-    assert [it.id for it in body3.items] == [ids[2]]
+    assert [str(it.id) for it in body3.items] == [ids[2]]
     assert body3.next_cursor is None
 
 
@@ -159,7 +159,7 @@ async def test_list_scrape_jobs_status_filter_and_limit_zero(
     assert r1.status_code == r2.status_code == status.HTTP_202_ACCEPTED
 
     j2 = ScrapeJob.model_validate(r2.json())
-    _ = js.update_job(j2.id, status=JobStatus.RUNNING)
+    _ = js.update_job(str(j2.id), status=JobStatus.RUNNING)
 
     res = await test_client.get(f"{api_base}/scrapes/?status_=running")
     assert res.status_code == status.HTTP_200_OK
@@ -296,7 +296,7 @@ async def test_cancel_scrape_job_not_found_and_not_cancelable(
     )
     assert r.status_code == status.HTTP_202_ACCEPTED
     jid = ScrapeJob.model_validate(r.json()).id
-    _ = js.update_job(jid, status=JobStatus.SUCCEEDED)
+    _ = js.update_job(str(jid), status=JobStatus.SUCCEEDED)
 
     res_conflict = await test_client.delete(f"{api_base}/scrapes/{jid}")
     assert res_conflict.status_code == status.HTTP_409_CONFLICT

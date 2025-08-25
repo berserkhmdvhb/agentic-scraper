@@ -3,7 +3,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+from pydantic import (
+    UUID4,
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_validator,
+    model_validator,
+)
 
 from agentic_scraper.backend.api.schemas.items import (
     ScrapedItemDynamicDTO,
@@ -26,7 +34,7 @@ from agentic_scraper.backend.config.types import (
     OpenAIConfig,
     OpenAIModel,
 )
-from agentic_scraper.backend.utils.validators import validate_url_list
+from agentic_scraper.backend.utils.validators import validate_optional_str, validate_url_list
 
 if TYPE_CHECKING:
     from agentic_scraper.backend.scraper.schemas import ScrapedItem
@@ -171,7 +179,7 @@ class ScrapeJob(BaseModel):
         use_enum_values=True,  # Ensure enums serialize as their values on the wire
     )
 
-    id: str
+    id: UUID4
     status: JobStatus
     created_at: datetime
     updated_at: datetime
@@ -183,6 +191,11 @@ class ScrapeJob(BaseModel):
     result: ScrapeResultDynamic | ScrapeResultFixed | None = Field(
         default=None, description="Present when status == 'succeeded'."
     )
+
+    @field_validator("error", mode="before")
+    @classmethod
+    def _clean_error(cls, v: str | None) -> str | None:
+        return validate_optional_str(v, "error")
 
 
 class ScrapeList(BaseModel):
