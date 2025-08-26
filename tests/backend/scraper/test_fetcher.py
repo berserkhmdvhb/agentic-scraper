@@ -12,13 +12,32 @@ from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
 
 
 def _settings(**overrides: object) -> Settings:
-    """Real Settings instance with small timeouts; override fields as needed."""
-    base = Settings()
+    """
+    Real Settings with small timeouts; provide required fields inline so CI
+    doesn't depend on environment variables or global fixtures.
+    """
+    base = Settings.model_validate(
+        {
+            # Required auth/security
+            "auth0_domain": "test.auth0.com",
+            "auth0_issuer": "https://test.auth0.com/",
+            "auth0_client_id": "client-id",
+            "auth0_client_secret": "client-secret",
+            "encryption_secret": "A" * 44,  # valid Fernet key (44 chars, base64)
+
+            # Required backend/frontend
+            "backend_domain": "http://api.example.com",
+            "auth0_api_audience": "https://api.example.com",
+            "frontend_domain": "http://app.example.com",
+            "auth0_redirect_uri": "http://app.example.com/callback",
+        }
+    )
+
+    # Apply per-test tweaks (don’t try to set the is_verbose_mode property)
     return base.model_copy(
         update={
             "request_timeout": 0.05,
             "retry_attempts": 1,
-            "is_verbose_mode": False,
             **overrides,
         }
     )
