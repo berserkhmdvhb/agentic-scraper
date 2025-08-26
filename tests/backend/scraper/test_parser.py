@@ -111,7 +111,10 @@ def test_extract_meta_description_logging(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     if meta_attrs:
-        html = f'<html><head><meta { " ".join(f"{k}=\"{v}\"" for k, v in meta_attrs.items()) } content="{content}"></head></html>'
+        # Build attribute string outside the f-string to avoid backslashes in expressions
+        # (required for Python < 3.12 where f-strings disallow backslashes in expr parts).
+        attrs = " ".join(f'{k}="{v}"' for k, v in meta_attrs.items())
+        html = f"<html><head><meta {attrs} content='{content}'></head></html>"
     else:
         html = "<html><head></head></html>"
 
