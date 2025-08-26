@@ -10,6 +10,7 @@ from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.fetcher import fetch_all, fetch_url
 from agentic_scraper.backend.scraper.cancel_helpers import CancelToken
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
+TEST_FERNET_KEY = "A"*43 + "="
 
 
 def _settings(**overrides: object) -> Settings:
@@ -17,23 +18,22 @@ def _settings(**overrides: object) -> Settings:
     Real Settings with small timeouts; provide required fields inline so CI
     doesn't depend on environment variables or global fixtures.
     """
+
     base = Settings.model_validate(
         {
-            # Required auth/security
-            "auth0_domain": "test.auth0.com",
-            "auth0_issuer": "https://test.auth0.com/",
-            "auth0_client_id": "client-id",
-            "auth0_client_secret": "client-secret",
-            "encryption_secret": "A" * 44,  # valid Fernet key (44 chars, base64)
-
+            # Required auth/security (use actual field names)
+            "AUTH0_DOMAIN": "test.auth0.com",
+            "AUTH0_ISSUER": "https://test.auth0.com/",
+            "AUTH0_CLIENT_ID": "client-id",
+            "AUTH0_CLIENT_SECRET": "client-secret",
+            "ENCRYPTION_SECRET": TEST_FERNET_KEY,
             # Required backend/frontend
-            "backend_domain": "http://api.example.com",
-            "auth0_api_audience": "https://api.example.com",
-            "frontend_domain": "http://app.example.com",
-            "auth0_redirect_uri": "http://app.example.com/callback",
+            "BACKEND_DOMAIN": "http://api.example.com",
+            "AUTH0_API_AUDIENCE": "https://api.example.com",
+            "FRONTEND_DOMAIN": "http://app.example.com",
+            "AUTH0_REDIRECT_URI": "http://api.example.com/auth/callback",
         }
     )
-
     # Apply per-test tweaks (don’t try to set the is_verbose_mode property)
     return base.model_copy(
         update={

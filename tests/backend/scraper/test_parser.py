@@ -14,6 +14,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_NO_META_DESCRIPTION,
     MSG_INFO_NO_TITLE,
 )
+TEST_FERNET_KEY = "A"*43 + "="
 
 def _settings(**overrides: object) -> Settings:
     from agentic_scraper.backend.core.settings import Settings
@@ -25,7 +26,7 @@ def _settings(**overrides: object) -> Settings:
         "AUTH0_CLIENT_SECRET": "x",
         "AUTH0_API_AUDIENCE": "x",
         "ENV": "PROD",
-        "ENCRYPTION_SECRET": "A"*43 + "=",
+        "ENCRYPTION_SECRET": TEST_FERNET_KEY,
         "BACKEND_DOMAIN": "http://x",
         "FRONTEND_DOMAIN": "http://x",
         "AUTH0_REDIRECT_URI": "http://x/cb",
