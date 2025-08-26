@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from typing import Annotated, Any
@@ -44,9 +47,7 @@ from agentic_scraper.backend.config.constants import (
     PROJECT_NAME,
     VALID_AGENT_MODES,
 )
-from agentic_scraper.backend.config.messages import (
-    MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES,
-)
+from agentic_scraper.backend.config.messages import MSG_DEBUG_SETTINGS_LOADED_WITH_VALUES
 from agentic_scraper.backend.config.types import (
     AgentMode,
     Environment,
@@ -65,7 +66,23 @@ from agentic_scraper.backend.utils.validators import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class _Once:
+    done: bool = False
+
+
+_LOG_SETTINGS_ONCE = _Once()  # module-level sentinel
+
+
 class Settings(BaseSettings):
+    """
+    Central process/runtime configuration.
+
+    Environment variables are validated/coerced in two stages:
+      1) `validated_settings` runs (mode="before") for cross-field/coercion logic.
+      2) Pydantic field validators + the (mode="after") validator enforce invariants.
+    """
+
     # General
     project_name: str = PROJECT_NAME
     debug_mode: bool = Field(default=DEFAULT_DEBUG_MODE, validation_alias="DEBUG")
@@ -76,7 +93,11 @@ class Settings(BaseSettings):
     openai: OpenAIConfig | None = None
 
     # Network
-    request_timeout: int = DEFAULT_REQUEST_TIMEOUT
+    request_timeout: int = Field(
+        default=DEFAULT_REQUEST_TIMEOUT,
+        ge=1,  # complement to validator; ensures positive integer at the field level
+        description="Per-request timeout in seconds for HTTP calls.",
+    )
     max_concurrent_requests: int = Field(
         default=DEFAULT_MAX_CONCURRENT_REQUESTS,
         validation_alias="MAX_CONCURRENT_REQUESTS",
@@ -190,32 +211,32 @@ class Settings(BaseSettings):
     encryption_secret: str = Field(..., validation_alias="ENCRYPTION_SECRET")
 
     # Frontend & Backend Domains
-    ## backend
     backend_domain: str = Field(..., validation_alias="BACKEND_DOMAIN")
     auth0_api_audience: str = Field(..., validation_alias="AUTH0_API_AUDIENCE")
-    ## frontend
     frontend_domain: str = Field(..., validation_alias="FRONTEND_DOMAIN")
-    ## redirect URI for Auth0
     auth0_redirect_uri: str = Field(..., validation_alias="AUTH0_REDIRECT_URI")
 
-    # Derived
+    # Derived helpers
     @property
     def is_verbose_mode(self) -> bool:
-        env_upper = (self.env.value if hasattr(self.env, "value") else str(self.env)).upper()
+        """DEV env or explicit verbose flag implies verbose logs (debug/tracebacks)."""
+        env_obj = self.env
+        env_upper = (env_obj.value if hasattr(env_obj, "value") else str(env_obj)).upper()
         return env_upper == "DEV" or self.verbose
 
     @model_validator(mode="before")
     @classmethod
     def apply_validations(cls, values: dict[str, Any]) -> dict[str, Any]:
+        # Coerce + validate raw values (strings/env) before field parsing.
         return validated_settings(values)
 
     @model_validator(mode="after")
-    def validate_config(self) -> "Settings":
-        # Validate OpenAI API key
+    def validate_config(self) -> Settings:
+        # Validate OpenAI API key if provided
         if self.openai:
-            validate_openai_api_key(self.openai.api_key)  # Access through `self.openai.api_key`
+            validate_openai_api_key(self.openai.api_key)
 
-        # Validate retry backoff range
+        # Validate retry & log-rotation ranges
         validate_backoff_range(self.retry_backoff_min, self.retry_backoff_max)
         validate_log_rotation_config(self.log_max_bytes, self.log_backup_count)
         return self
@@ -231,16 +252,24 @@ class Settings(BaseSettings):
 
 @cache
 def get_settings() -> Settings:
+    """
+    Load settings once per process (pydantic_settings reads from env).
+    """
     return Settings.model_validate({})
 
 
 def log_settings(settings: Settings) -> None:
-    if getattr(log_settings, "already_logged", False):
+    """
+    Log current settings only once per process lifetime.
+
+    Sensitive values (like `openai`) are excluded.
+    """
+    if _LOG_SETTINGS_ONCE.done:
         return
-    log_settings.already_logged = True  # type: ignore[attr-defined]
+    _LOG_SETTINGS_ONCE.done = True
 
     safe_dump = settings.model_dump(
-        exclude={"openai"},  # Exclude the entire 'openai' attribute
+        exclude={"openai"},
         mode="json",
     )
     formatted = "\n".join(f"  {k}: {v}" for k, v in safe_dump.items())
@@ -248,18 +277,33 @@ def log_settings(settings: Settings) -> None:
 
 
 def get_environment() -> str:
-    return get_settings().env.upper()
+    """
+    Uppercased environment value (e.g., 'DEV', 'PROD').
+    """
+    env_obj = get_settings().env
+    return (env_obj.value if hasattr(env_obj, "value") else str(env_obj)).upper()
 
 
 def get_log_dir() -> Path:
+    """
+    Effective log directory including environment suffix.
+    """
     return Path(get_settings().log_dir) / get_environment()
 
 
 def get_log_level() -> int:
+    """
+    Resolve the effective logging level integer for the runtime.
+    Honors verbose mode (forces DEBUG).
+    """
     settings = get_settings()
     if settings.is_verbose_mode:
         return logging.DEBUG
-    level_str = settings.log_level.upper()
+
+    # Support enum or plain string values
+    lvl = settings.log_level
+    level_str = lvl.value if hasattr(lvl, "value") else str(lvl)
+    level_str = level_str.upper()
     return getattr(logging, level_str, logging.INFO)
 
 
@@ -272,4 +316,5 @@ def get_log_backup_count() -> int:
 
 
 def get_log_format() -> str:
-    return get_settings().log_format.value
+    fmt = get_settings().log_format
+    return fmt.value if hasattr(fmt, "value") else str(fmt)

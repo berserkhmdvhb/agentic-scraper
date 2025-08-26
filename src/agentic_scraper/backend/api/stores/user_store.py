@@ -15,11 +15,8 @@ import tempfile
 from pathlib import Path
 from typing import cast
 
-from fastapi import HTTPException
-
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_DECRYPTION_FAILED,
-    MSG_ERROR_INVALID_CREDENTIALS,
     MSG_ERROR_LOADING_USER_STORE,
     MSG_ERROR_SAVING_USER_STORE,
     MSG_INFO_CREDENTIALS_DELETED,
@@ -120,9 +117,10 @@ def save_user_credentials(user_id: str, api_key: str, project_id: str) -> None:
         }
         _save_store(store)
     except Exception as e:
-        error_message = MSG_ERROR_INVALID_CREDENTIALS.format(user_id=user_id, error=str(e))
+        # Surface as OSError so the route layer can convert to HTTP appropriately
+        error_message = MSG_ERROR_SAVING_USER_STORE.format(error=str(e))
         logger.exception(error_message, exc_info=e)
-        raise HTTPException(status_code=400, detail="Error saving credentials") from e
+        raise OSError(error_message) from e
 
 
 def load_user_credentials(user_id: str) -> OpenAIConfig | None:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -29,7 +31,7 @@ from agentic_scraper.backend.utils.validators import (
 
 logger = logging.getLogger(__name__)
 
-TRUE_STRINGS = {"1", "true", "yes", "on"}
+TRUE_STRINGS: set[str] = {"1", "true", "yes", "on"}
 
 
 def str_to_bool(s: str) -> bool:
@@ -41,7 +43,8 @@ def parse_str_list(raw: str) -> list[str]:
 
 
 def safe_int(s: str) -> int:
-    return int(float(s))  # handles "5.0" gracefully
+    # Accept strings like "5", "5.0"
+    return int(float(s))
 
 
 def _coerce_and_validate(
@@ -50,11 +53,16 @@ def _coerce_and_validate(
     coerce_fn: Callable[[str], Any],
     validator: Callable[[Any], Any],
 ) -> None:
+    """
+    If key exists in values, coerce it from str (when applicable), run validator,
+    and either set the validated value or raise. Empty strings are treated as omitted.
+    """
     if key not in values:
         return
 
     raw = values[key]
 
+    # List input: validate as-is (e.g., ["RS256"])
     if isinstance(raw, list):
         try:
             validated = validator(raw)
@@ -67,6 +75,7 @@ def _coerce_and_validate(
             raise
         return
 
+    # String input: coerce and validate
     if isinstance(raw, str):
         stripped = raw.strip()
         if not stripped:
@@ -85,7 +94,7 @@ def _coerce_and_validate(
             raise
         return
 
-    # Any other type (int, float, bool, etc.): validate as-is
+    # Any other type (int, float, bool, None): validate directly
     try:
         validated = validator(raw)
         values[key] = validated
@@ -98,7 +107,6 @@ def _coerce_and_validate(
 
 
 def _validate_optional_openai_model(values: dict[str, Any]) -> None:
-    """Validate the OpenAI model string (from env or override)."""
     _coerce_and_validate(values, "openai_model", str, validate_openai_model)
 
 
@@ -139,8 +147,11 @@ def _validate_optional_list(
 
 
 def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
-    """Main entry point to validate incoming Settings values before instantiating."""
-
+    """
+    Coerce & validate raw incoming settings (e.g., env vars) prior to model instantiation.
+    Prefer pydantic-native constraints when possible; use centralized validators to normalize and
+    keep behavior consistent across the project.
+    """
     _validate_optional_openai_model(values)
     _validate_optional_int(values, "request_timeout", validate_timeout)
     _validate_optional_str(values, "log_level", validate_log_level)
@@ -150,12 +161,13 @@ def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     _validate_optional_path(values, "screenshot_dir")
     _validate_optional_path(values, "dump_llm_json_dir")
     _validate_optional_str(values, "agent_mode", validate_agent_mode)
-    _validate_optional_bool(values, "verbose", lambda v: v)  # no-op validator
+    _validate_optional_bool(values, "verbose", lambda v: v)  # pass-through after coercion
     _validate_optional_str(values, "auth0_domain", validate_auth0_domain)
     _validate_optional_str(values, "auth0_api_audience", validate_api_audience)
     _validate_optional_str(values, "encryption_secret", validate_encryption_secret)
     _validate_optional_list(values, "auth0_algorithms", validate_auth0_algorithms)
-    # Strict numeric validations: DO NOT clamp; raise if out-of-range
+
+    # Strict numeric validations that rely on constants; raise if out of range (do not clamp)
     _validate_optional_float(
         values,
         "llm_temperature",

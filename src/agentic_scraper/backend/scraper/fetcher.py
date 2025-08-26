@@ -52,6 +52,14 @@ class FetchContext:
     results: dict[str, str]
 
 
+@dataclass(frozen=True)
+class CancelToken:
+    """Wrap cancel primitives into a single object (reduces public API params)."""
+
+    event: asyncio.Event | None = None
+    should_cancel: Callable[[], bool] | None = None
+
+
 def _is_canceled(
     cancel_event: asyncio.Event | None,
     should_cancel: Callable[[], bool] | None,
@@ -116,7 +124,7 @@ async def _bounded_fetch(
             _record_fetch_error(ctx.results, url, e, settings=ctx.settings)
         except asyncio.CancelledError as e:
             _record_fetch_error(ctx.results, url, e, settings=ctx.settings)
-        except Exception as e:  # noqa: BLE001 - last-resort logging to avoid task crashing the pool
+        except Exception as e:  # noqa: BLE001 - last resort logging to avoid crashing the pool
             _record_fetch_error(ctx.results, url, e, settings=ctx.settings)
 
 
@@ -195,11 +203,18 @@ async def fetch_all(
     *,
     settings: Settings,
     concurrency: int,
-    cancel_event: asyncio.Event | None = None,
-    should_cancel: Callable[[], bool] | None = None,
+    cancel: CancelToken | None = None,
+    client_factory: Callable[..., httpx.AsyncClient] | None = None,
 ) -> dict[str, str]:
     """
     Fetch multiple URLs concurrently with a configurable concurrency limit.
+
+    Args:
+        urls: Target URLs.
+        settings: Global runtime settings.
+        concurrency: Max in-flight requests (clamped to >= 1).
+        cancel: Optional cancel token (event/predicate).
+        client_factory: Optional async client factory for testing/injection.
 
     Returns:
         dict[str, str]: Mapping of URL to HTML or error (prefixed with FETCH_ERROR_PREFIX).
@@ -210,7 +225,14 @@ async def fetch_all(
     results: dict[str, str] = {}
     sem = asyncio.Semaphore(max(1, int(concurrency)))
 
-    async with httpx.AsyncClient(headers=DEFAULT_HEADERS, follow_redirects=True) as client:
+    # Normalize cancel pieces
+    cancel_event = cancel.event if cancel else None
+    should_cancel = cancel.should_cancel if cancel else None
+
+    # Allow tests to inject a custom client (e.g., with MockTransport)
+    factory = client_factory or (lambda **kw: httpx.AsyncClient(**kw))
+
+    async with factory(headers=DEFAULT_HEADERS, follow_redirects=True) as client:
         ctx = FetchContext(
             client=client,
             sem=sem,

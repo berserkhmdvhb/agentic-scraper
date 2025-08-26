@@ -88,12 +88,12 @@ def test_save_user_credentials_encrypt_failure_raises_http(
 
     monkeypatch.setattr(user_store_mod, "encrypt", _boom, raising=True)
 
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(OSError) as e:
         user_store_mod.save_user_credentials("auth0|abc", "k", "p")
-
-    assert e.value.status_code == 400
-    assert e.value.detail == "Error saving credentials"
-
+    # The store surfaces a generic OSError; routes map it to a 500.
+    msg = str(e.value)
+    assert "Failed to save user store" in msg
+    assert "boom" in msg
 
 def test_load_user_credentials_decrypt_failure_returns_none(
     user_store_mod: ModuleType,
