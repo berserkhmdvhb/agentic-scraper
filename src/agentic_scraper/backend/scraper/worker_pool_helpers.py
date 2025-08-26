@@ -27,6 +27,15 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_PROGRESS_CALLBACK_FAILED,
     MSG_WARNING_WORKER_FAILED_SHORT,
 )
+from agentic_scraper.backend.scraper.cancel_helpers import (
+    CancelToken,
+)
+from agentic_scraper.backend.scraper.cancel_helpers import (
+    is_canceled as _is_canceled,
+)
+from agentic_scraper.backend.scraper.cancel_helpers import (
+    safe_should_cancel as _safe_pred,
+)
 
 if TYPE_CHECKING:
     from agentic_scraper.backend.config.aliases import ScrapeInput
@@ -51,16 +60,10 @@ logger = logging.getLogger(__name__)
 
 def _safe_should_cancel(should_cancel: Callable[[], bool] | None) -> bool:
     """
-    Safely evaluate a user-supplied cancel predicate.
+    Safely evaluate a user-supplied cancel predicate via shared helper.
     Any exception is logged at debug and treated as "not canceled".
     """
-    if not should_cancel:
-        return False
-    try:
-        return bool(should_cancel())
-    except Exception as e:  # noqa: BLE001 - user predicate may raise arbitrary exceptions
-        logger.debug("should_cancel predicate raised: %r", e)
-        return False
+    return _safe_pred(should_cancel)
 
 
 def early_cancel_or_raise(cancel_event: asyncio.Event | None) -> None:
@@ -75,11 +78,9 @@ def early_cancel_or_raise_ext(
 ) -> None:
     """
     Raise CancelledError if either the event is set or the predicate returns True.
-    Separated from the legacy signature to avoid TRY301: no raise inside a try.
     """
-    if cancel_event and cancel_event.is_set():
-        raise asyncio.CancelledError
-    if _safe_should_cancel(should_cancel):
+    token = CancelToken(event=cancel_event, should_cancel=should_cancel)
+    if _is_canceled(token):
         raise asyncio.CancelledError
 
 

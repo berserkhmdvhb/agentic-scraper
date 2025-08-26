@@ -32,7 +32,8 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.config.types import AgentMode, OpenAIConfig
 from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.fetcher import CancelToken, fetch_all
+from agentic_scraper.backend.scraper.cancel_helpers import CancelToken
+from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import WorkerPoolConfig
 from agentic_scraper.backend.scraper.parser import extract_main_text
 from agentic_scraper.backend.scraper.schemas import ScrapedItem

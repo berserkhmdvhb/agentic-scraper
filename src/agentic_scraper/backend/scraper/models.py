@@ -4,7 +4,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_EMPTY_STRING,
@@ -16,10 +16,6 @@ from agentic_scraper.backend.utils.validators import validate_url
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
 
-    from agentic_scraper.backend.config.aliases import (
-        OnErrorCallback,
-        OnSuccessCallback,
-    )
     from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 
@@ -103,31 +99,30 @@ class RetryContext:
     has_done_discovery: bool = False
 
 
-@dataclass
-class WorkerPoolConfig:
+class WorkerPoolConfig(BaseModel):
     """
     Configuration for running a concurrent scraping worker pool.
     """
 
     take_screenshot: bool
     openai: OpenAIConfig | None = None
-    concurrency: int = 10
-    max_queue_size: int | None = None
-    on_item_processed: OnSuccessCallback | None = None
-    on_error: OnErrorCallback | None = None
+    concurrency: int = Field(default=10, ge=1)
+    max_queue_size: int | None = Field(default=None)
+    on_item_processed: Callable[[object], None] | None = None
+    on_error: Callable[[str, Exception], None] | None = None
     on_progress: Callable[[int, int], None] | None = None
     preserve_order: bool = False
     should_cancel: Callable[[], bool] | None = None
 
-    def __post_init__(self) -> None:
-        # Validate positive integers for concurrency and (if provided) max_queue_size
-        if not isinstance(self.concurrency, int) or self.concurrency < 1:
-            raise ValueError(
-                MSG_ERROR_INVALID_LIMIT.format(value=self.concurrency, min=1, max=10_000_000)
-            )
-        if self.max_queue_size is not None and (
-            not isinstance(self.max_queue_size, int) or self.max_queue_size < 1
-        ):
-            raise ValueError(
-                MSG_ERROR_INVALID_LIMIT.format(value=self.max_queue_size, min=1, max=10_000_000)
-            )
+    @field_validator("max_queue_size")
+    @classmethod
+    def _non_negative(cls, v: int | None) -> int | None:
+        if v is None:
+            return None
+        if v < 0:
+            raise ValueError(MSG_ERROR_INVALID_LIMIT.format(value=v, min=0, max=10_000_000))
+        return v
+
+    model_config = {
+        "arbitrary_types_allowed": True,
+    }

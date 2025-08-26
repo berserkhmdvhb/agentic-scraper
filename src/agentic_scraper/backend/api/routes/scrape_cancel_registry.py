@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def clear_all() -> None:
     """Clear all registered events AND pre-canceled marks."""
     _cancel_events.clear()
-    _pre_canceled.clear()  # ← fix: also clear this
+    _pre_canceled.clear()
 
 
 def register_cancel_event(job_id: str) -> asyncio.Event:

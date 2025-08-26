@@ -4,6 +4,7 @@ import pytest
 from bs4 import BeautifulSoup
 from typing import Any 
 
+from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper import parser as parser_mod
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_PARSED_AUTHOR,
@@ -14,7 +15,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_NO_TITLE,
 )
 
-def _settings(**overrides: object):
+def _settings(**overrides: object) -> Settings:
     from agentic_scraper.backend.core.settings import Settings
     base = Settings.model_validate({
         # provide required fields minimally; tests may override

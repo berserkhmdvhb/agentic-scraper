@@ -7,7 +7,8 @@ import httpx
 import pytest
 
 from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.fetcher import fetch_all, fetch_url, CancelToken
+from agentic_scraper.backend.scraper.fetcher import fetch_all, fetch_url
+from agentic_scraper.backend.scraper.cancel_helpers import CancelToken
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
 
 

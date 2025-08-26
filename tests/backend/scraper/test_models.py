@@ -248,12 +248,16 @@ def test_worker_pool_config_defaults_and_customization() -> None:
     assert should_cancel() is False
 
 
-def test_worker_pool_config_invalid_numbers_raise() -> None:
+def test_worker_pool_config_invalid_numbers_raise_and_zero_allowed() -> None:
     with pytest.raises(ValueError):
         WorkerPoolConfig(take_screenshot=False, concurrency=0)
+    # With the new validator, max_queue_size=0 is valid and means "unbounded"
+    cfg = WorkerPoolConfig(take_screenshot=False, max_queue_size=0)
+    assert cfg.max_queue_size == 0
+    # Negative still invalid
     with pytest.raises(ValueError):
-        WorkerPoolConfig(take_screenshot=False, max_queue_size=0)
-
+        WorkerPoolConfig(take_screenshot=False, max_queue_size=-1)
+ 
 def test_scrape_request_invalid_url_raises() -> None:
     with pytest.raises(ValueError):
         ScrapeRequest(text="x", url="not-a-url")
