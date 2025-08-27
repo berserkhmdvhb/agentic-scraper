@@ -268,13 +268,11 @@ agentic_scraper/
 
 
 ---
-
 ## 🧰 Installation
 
-### 👤 For Users
+### 👤 For Users (runtime only)
 
-
-**Recommended: Clone and install:**
+**Recommended: clone + install**
 
 ```bash
 git clone https://github.com/berserkhmdvhb/agentic-scraper.git
@@ -286,22 +284,22 @@ Or manually:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+# Windows PowerShell
+# .\.venv\Scripts\Activate.ps1
 pip install -e .
 ```
-> This installs the app in editable mode with runtime-only dependencies from `pyproject.toml`.
 
+> Installs the app (editable) with **runtime-only** dependencies.
 
-**Alternative: Install from GitHub without cloning**
+**Alternate: install from GitHub (no clone)**
 
 ```bash
 pip install git+https://github.com/berserkhmdvhb/agentic-scraper.git
 ```
 
-> Useful for trying the package without cloning. Not needed if using `make install`
-
-
-**If required to use `requirements.txt`**:
+**If you must use requirements files**
 
 ```bash
 pip install -r requirements.txt
@@ -310,12 +308,11 @@ pip install -r requirements.txt
 > ⚠️ `requirements.txt` is auto-generated via `poetry export`.
 > Commits check automatically if it's synched with `pyproject.toml`
 
-
 ---
 
-### 💼 For Developers
+### 💼 For Developers (runtime + dev tools)
 
-**Clone and set up development environment:**
+**Quick start**
 
 ```bash
 git clone https://github.com/berserkhmdvhb/agentic-scraper.git
@@ -327,29 +324,29 @@ Or manually:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+# Windows PowerShell
+# .\.venv\Scripts\Activate.ps1
 pip install -e .[dev]
 ```
 
-> This installs the app in developer mode with `[dev]` dependencies from `pyproject.toml`.
+> Installs runtime deps **plus** the `[dev]` tooling (pytest, mypy, ruff, etc.).
 
-#### **Setup Playwright (for screenshots):**
+**Playwright (for screenshots)**
 
 ```bash
 playwright install
+# On minimal Linux images you may also need:
+# playwright install-deps
 ```
-
->  Screenshots require installing Playwright separately. [Install docs →](https://playwright.dev/python/docs/intro)
 
 ---
 
-### 🐳 Installing via Docker (Alternative)
-You can also install the app using prebuilt Docker images from Docker Hub.
+### 🐳 Docker (alternative)
 
 - 🔗 **Frontend Image:** [![](https://img.shields.io/badge/docker-frontend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-frontend)
 - 🔗 **Backend Image:** [![](https://img.shields.io/badge/docker-backend-blue?logo=docker)](https://hub.docker.com/r/hmdvhb/agentic-scraper-backend)
-
-Pull the images manually:
 
 ```bash
 docker pull hmdvhb/agentic-scraper-frontend
