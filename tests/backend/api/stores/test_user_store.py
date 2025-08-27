@@ -7,20 +7,19 @@ from typing import Any, cast
 import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
-from fastapi import HTTPException
 
-from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_DECRYPTION_FAILED,
     MSG_ERROR_SAVING_USER_STORE,
     MSG_INFO_CREDENTIALS_DELETED,
     MSG_WARNING_CREDENTIALS_NOT_FOUND,
 )
+from agentic_scraper.backend.config.types import OpenAIConfig
 
 
 def read_store_json(user_store_mod: ModuleType) -> dict[str, dict[str, str]]:
     loaded: Any = json.loads(user_store_mod.USER_STORE.read_text())
-    return cast(dict[str, dict[str, str]], loaded)
+    return cast("dict[str, dict[str, str]]", loaded)
 
 
 def test_save_and_load_roundtrip(user_store_mod: ModuleType, stub_crypto: None) -> None:
@@ -158,13 +157,13 @@ def test_public_functions_validate_user_id(
     import typing as _t
 
     with pytest.raises(ValueError):
-        user_store_mod.save_user_credentials(_t.cast(str, bad), "k", "p")
+        user_store_mod.save_user_credentials(_t.cast("str", bad), "k", "p")
     with pytest.raises(ValueError):
-        user_store_mod.load_user_credentials(_t.cast(str, bad))
+        user_store_mod.load_user_credentials(_t.cast("str", bad))
     with pytest.raises(ValueError):
-        user_store_mod.delete_user_credentials(_t.cast(str, bad))
+        user_store_mod.delete_user_credentials(_t.cast("str", bad))
     with pytest.raises(ValueError):
-        user_store_mod.has_user_credentials(_t.cast(str, bad))
+        user_store_mod.has_user_credentials(_t.cast("str", bad))
 
 
 @pytest.mark.parametrize(
@@ -179,4 +178,4 @@ def test_save_user_credentials_validates_pair(
     import typing as _t
 
     with pytest.raises(ValueError):
-        user_store_mod.save_user_credentials("auth0|ok", _t.cast(str, api), _t.cast(str, proj))
+        user_store_mod.save_user_credentials("auth0|ok", _t.cast("str", api), _t.cast("str", proj))

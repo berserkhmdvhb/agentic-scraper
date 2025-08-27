@@ -16,7 +16,6 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.config.types import JobStatus
 from agentic_scraper.backend.utils.validators import validate_uuid
 
-
 # ---------- helpers / fixtures ----------
 
 @pytest.fixture(autouse=True)
@@ -35,7 +34,7 @@ def _aware(dt: datetime) -> datetime:
 def test_create_job_basic_fields() -> None:
     urls: list[str] = ["https://a"]
     payload: dict[str, object] = {"urls": urls, "agent_mode": "fixed"}
-    owner_sub: OwnerSub = cast(OwnerSub, "auth0|user123")
+    owner_sub: OwnerSub = cast("OwnerSub", "auth0|user123")
 
     job = js.create_job(payload, owner_sub)
 
@@ -58,7 +57,7 @@ def test_create_job_basic_fields() -> None:
 
 
 def test_create_job_unique_ids() -> None:
-    owner_sub: OwnerSub = cast(OwnerSub, "auth0|user123")
+    owner_sub: OwnerSub = cast("OwnerSub", "auth0|user123")
     j1 = js.create_job({"n": 1}, owner_sub)
     j2 = js.create_job({"n": 2}, owner_sub)
     assert j1["id"] != j2["id"]
@@ -70,7 +69,7 @@ def test_create_job_unique_ids() -> None:
 # ---------- get_job ----------
 
 def test_get_job_returns_deep_copy_and_none_for_unknown() -> None:
-    owner_sub: OwnerSub = cast(OwnerSub, "auth0|user123")
+    owner_sub: OwnerSub = cast("OwnerSub", "auth0|user123")
     job = js.create_job({"x": 1}, owner_sub)
     jid = job["id"]
 
@@ -94,7 +93,7 @@ def test_get_job_returns_deep_copy_and_none_for_unknown() -> None:
 # ---------- update_job ----------
 
 def test_update_job_status_progress_error_result_and_updated_at() -> None:
-    owner_sub: OwnerSub = cast(OwnerSub, "auth0|user123")
+    owner_sub: OwnerSub = cast("OwnerSub", "auth0|user123")
     job = js.create_job({"x": 1}, owner_sub)
     jid = job["id"]
 
@@ -125,7 +124,7 @@ def test_update_job_status_progress_error_result_and_updated_at() -> None:
 
 
 def test_update_job_invalid_status_and_progress_validation() -> None:
-    owner_sub: OwnerSub = cast(OwnerSub, "auth0|user123")
+    owner_sub: OwnerSub = cast("OwnerSub", "auth0|user123")
     job = js.create_job({"x": 1}, owner_sub)
     jid = job["id"]
 
@@ -141,7 +140,7 @@ def test_update_job_invalid_status_and_progress_validation() -> None:
 
 
 def test_update_job_rejects_naive_updated_at() -> None:
-    owner_sub: OwnerSub = cast(OwnerSub, "auth0|user123")
+    owner_sub: OwnerSub = cast("OwnerSub", "auth0|user123")
     job = js.create_job({"x": 1}, owner_sub)
     jid = job["id"]
 
@@ -151,7 +150,7 @@ def test_update_job_rejects_naive_updated_at() -> None:
 
 
 def test_update_job_terminal_guard_blocks_mutations() -> None:
-    owner_sub: OwnerSub = cast(OwnerSub, "auth0|user123")
+    owner_sub: OwnerSub = cast("OwnerSub", "auth0|user123")
     job = js.create_job({"x": 1}, owner_sub)
     jid = job["id"]
 
@@ -177,8 +176,8 @@ def test_update_job_terminal_guard_blocks_mutations() -> None:
 # ---------- list_jobs ----------
 
 def test_list_jobs_order_limit_cursor_and_filters(monkeypatch: pytest.MonkeyPatch) -> None:
-    owner_a: OwnerSub = cast(OwnerSub, "auth0|A")
-    owner_b: OwnerSub = cast(OwnerSub, "auth0|B")
+    owner_a: OwnerSub = cast("OwnerSub", "auth0|A")
+    owner_b: OwnerSub = cast("OwnerSub", "auth0|B")
 
     # deterministic, unbounded timestamps by patching _utcnow
     base = _aware(datetime(2025, 1, 1, 0, 0, 0))
@@ -237,7 +236,7 @@ def test_list_jobs_invalid_cursor_raises() -> None:
 # ---------- cancel_job ----------
 
 def test_cancel_job_from_queued_or_running_sets_fields() -> None:
-    owner: OwnerSub = cast(OwnerSub, "auth0|user123")
+    owner: OwnerSub = cast("OwnerSub", "auth0|user123")
     job = js.create_job({"x": 1}, owner)
     jid = job["id"]
 
@@ -246,7 +245,7 @@ def test_cancel_job_from_queued_or_running_sets_fields() -> None:
     assert prev is not None
     prev_updated_at = prev["updated_at"]
 
-    user_sub: OwnerSub = cast(OwnerSub, "auth0|admin")
+    user_sub: OwnerSub = cast("OwnerSub", "auth0|admin")
     ok = js.cancel_job(jid, user_sub=user_sub)
     assert ok is True
 
@@ -262,7 +261,7 @@ def test_cancel_job_from_queued_or_running_sets_fields() -> None:
 
 
 def test_cancel_job_invalid_or_terminal_returns_false() -> None:
-    owner: OwnerSub = cast(OwnerSub, "auth0|user123")
+    owner: OwnerSub = cast("OwnerSub", "auth0|user123")
     j_succeeded = js.create_job({"x": 1}, owner)
     js.update_job(j_succeeded["id"], status=JobStatus.SUCCEEDED)
 

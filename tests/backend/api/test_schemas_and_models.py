@@ -4,7 +4,7 @@ import uuid
 from typing import Any
 
 import pytest
-from pydantic import HttpUrl, ValidationError
+from pydantic import ValidationError
 
 from agentic_scraper.backend.api.models import OwnerSub, RequiredScopes
 from agentic_scraper.backend.api.schemas.items import (
@@ -29,7 +29,6 @@ from agentic_scraper.backend.config.constants import (
 )
 from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIModel
 from agentic_scraper.backend.scraper.schemas import ScrapedItem
-
 
 # -----------------------------
 # ScrapeCreate (boundary input)

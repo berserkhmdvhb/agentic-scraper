@@ -2,30 +2,31 @@ from __future__ import annotations
 
 import base64
 import importlib
-from fastapi import FastAPI
 import json
 import logging
 import os
 import time
-from collections.abc import AsyncGenerator, Generator, Callable
+from collections.abc import AsyncGenerator, Callable, Generator
 from dataclasses import dataclass
+from httpx import ASGITransport
 from io import StringIO
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Dict
-
+from typing import TYPE_CHECKING, Any, TypeAlias
+import socket
 import httpx
 import pytest
 import pytest_asyncio
-from _pytest.logging import LogCaptureFixture
-from _pytest.monkeypatch import MonkeyPatch
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
 from pydantic_settings import SettingsConfigDict
 
 from agentic_scraper import __api_version__ as api_version
-from agentic_scraper.backend.core import settings as settings_module
+from agentic_scraper.backend.config.messages import (
+    MSG_ERROR_NO_NETWORK,
+    MSG_ERROR_INVALID_CIPHERTEXT,
+)
 from agentic_scraper.backend.config.constants import (
     DEFAULT_AUTH0_ALGORITHM,
     DEFAULT_DEBUG_MODE,
@@ -51,27 +52,34 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_SCREENSHOT_ENABLED,
     DEFAULT_VERBOSE,
 )
+from agentic_scraper.backend.core import settings as settings_module
+
+if TYPE_CHECKING:
+    from _pytest.logging import LogCaptureFixture
+    from fastapi import FastAPI
+    from _pytest.monkeypatch import MonkeyPatch
+
 
 __all__ = [
-    "clear_agentic_env",
-    "disable_env_file",
-    "reset_settings_cache",
-    "reload_settings",
-    "set_env_var",
-    "log_stream",
-    "debug_logger",
-    "mock_env",
-    "settings",
-    "settings_factory",
-    "no_network",
-    "caplog_debug",
-    "test_client",
     "api_base",
-    "jwks_keypair",
-    "jwks_mock",
-    "make_jwt",
     "auth_header",
     "authorized_client_jwt",
+    "caplog_debug",
+    "clear_agentic_env",
+    "debug_logger",
+    "disable_env_file",
+    "jwks_keypair",
+    "jwks_mock",
+    "log_stream",
+    "make_jwt",
+    "mock_env",
+    "no_network",
+    "reload_settings",
+    "reset_settings_cache",
+    "set_env_var",
+    "settings",
+    "settings_factory",
+    "test_client",
 ]
 
 # --------------------------------------------------------------------------- #
@@ -118,8 +126,9 @@ AGENTIC_ENV_VARS = [
 TEST_FERNET_KEY = "A"*43 + "="
 
 
-Store = Dict[str, Dict[str, Any]]
-
+Store: TypeAlias = dict[str, dict[str, Any]]
+ERR_NO_NETWORK = "Network disabled in tests"
+ERR_INVALID_CIPHERTEXT = "invalid ciphertext"
 
 @dataclass(frozen=True)
 class JWKSKeypair:
@@ -132,7 +141,7 @@ class JWKSKeypair:
 # (prevents import-time get_settings() from failing in modules like utils/crypto)
 # --------------------------------------------------------------------------- #
 
-def pytest_sessionstart(session: pytest.Session) -> None:
+def pytest_sessionstart(_session: pytest.Session) -> None:
     """Seed minimal env so modules that call get_settings() at import time don't explode."""
     defaults = {
         # Runtime / OpenAI (use project defaults to avoid drift)
@@ -333,7 +342,7 @@ def no_network(monkeypatch: MonkeyPatch) -> None:
 
     monkeypatch.setattr(socket, "socket", NoNetSocket)
 
-    
+
 # --------------------------------------------------------------------------- #
 # FastAPI client
 # --------------------------------------------------------------------------- #
@@ -363,7 +372,7 @@ async def test_client(app_fast: FastAPI) -> AsyncGenerator[httpx.AsyncClient, No
     Uses app lifespan() and avoids mypy complaints by using ASGITransport.
     """
     from httpx import ASGITransport
-    from agentic_scraper.backend.api.main import app
+
 
     transport = ASGITransport(app=app_fast)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -373,7 +382,6 @@ async def test_client(app_fast: FastAPI) -> AsyncGenerator[httpx.AsyncClient, No
 @pytest.fixture
 def api_base() -> str:
     """Versioned API base path, e.g. '/api/v1'."""
-    from agentic_scraper import __api_version__ as api_version
     return f"/api/{api_version}"
 
 

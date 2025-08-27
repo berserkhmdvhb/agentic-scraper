@@ -5,21 +5,21 @@ from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
+
+from agentic_scraper.backend.config.messages import (
+    MSG_ERROR_EMPTY_STRING,
+    MSG_ERROR_INVALID_PRICE_FORMAT,
+)
 from agentic_scraper.backend.scraper.models import (
     RetryContext,
     ScrapeRequest,
     WorkerPoolConfig,
 )
 from agentic_scraper.backend.scraper.schemas import (
-    ScrapedItem,
-    PipelineStats,
     PipelineOutput,
+    PipelineStats,
+    ScrapedItem,
 )
-from agentic_scraper.backend.config.messages import (
-    MSG_ERROR_EMPTY_STRING,
-    MSG_ERROR_INVALID_PRICE_FORMAT,
-)
-
 
 # ---------- ScrapeRequest ----------
 
@@ -81,7 +81,7 @@ def test_retry_context_mutability() -> None:
     ]
 
     rc = RetryContext(
-        messages=cast(list[Any], messages),
+        messages=cast("list[Any]", messages),
         best_score=0.0,
         best_valid_score=0.0,
         best_fields=None,
@@ -257,7 +257,7 @@ def test_worker_pool_config_invalid_numbers_raise_and_zero_allowed() -> None:
     # Negative still invalid
     with pytest.raises(ValueError):
         WorkerPoolConfig(take_screenshot=False, max_queue_size=-1)
- 
+
 def test_scrape_request_invalid_url_raises() -> None:
     with pytest.raises(ValueError):
         ScrapeRequest(text="x", url="not-a-url")

@@ -6,10 +6,11 @@ from typing import Any, cast
 import httpx
 import pytest
 
-from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper.fetcher import fetch_all, fetch_url
-from agentic_scraper.backend.scraper.cancel_helpers import CancelToken
 from agentic_scraper.backend.config.constants import FETCH_ERROR_PREFIX
+from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.backend.scraper.cancel_helpers import CancelToken
+from agentic_scraper.backend.scraper.fetcher import fetch_all, fetch_url
+
 TEST_FERNET_KEY = "A"*43 + "="
 
 
@@ -52,7 +53,7 @@ def _factory_with_transport(transport: httpx.MockTransport) -> Any:
     """
     def factory(**kwargs: Any) -> httpx.AsyncClient:
         return httpx.AsyncClient(
-            transport=cast(httpx.AsyncBaseTransport, transport),
+            transport=cast("httpx.AsyncBaseTransport", transport),
             **kwargs,
         )
     return factory

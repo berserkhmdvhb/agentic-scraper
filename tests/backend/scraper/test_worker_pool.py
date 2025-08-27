@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Coroutine, Protocol, cast
+from collections.abc import Coroutine
+from typing import Any, Protocol, cast
 
 import pytest
 
@@ -10,6 +11,7 @@ from agentic_scraper.backend.scraper import agents as agents_mod
 from agentic_scraper.backend.scraper.models import ScrapeRequest, WorkerPoolConfig
 from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
+
 
 # Protocol that matches the real extract_structured_data signature
 class Extractor(Protocol):
@@ -31,7 +33,7 @@ async def test_run_worker_pool_success_basic(settings: Settings) -> None:
         )
 
     orig: Extractor = agents_mod.extract_structured_data
-    agents_mod.extract_structured_data = cast(Extractor, fake_extract)
+    agents_mod.extract_structured_data = cast("Extractor", fake_extract)
     try:
         cfg = WorkerPoolConfig(take_screenshot=False, concurrency=2)
         inputs = [("https://a", "ta"), ("https://b", "tb")]
@@ -58,7 +60,7 @@ async def test_run_worker_pool_preserve_order(settings: Settings) -> None:
         )
 
     orig: Extractor = agents_mod.extract_structured_data
-    agents_mod.extract_structured_data = cast(Extractor, fake_extract)
+    agents_mod.extract_structured_data = cast("Extractor", fake_extract)
     try:
         cfg = WorkerPoolConfig(take_screenshot=False, concurrency=3, preserve_order=True)
         inputs = [("https://x/0", "t0"), ("https://x/1", "t1"), ("https://x/2", "t2")]
@@ -91,7 +93,7 @@ async def test_run_worker_pool_progress_callbacks(settings: Settings) -> None:
         )
 
     orig: Extractor = agents_mod.extract_structured_data
-    agents_mod.extract_structured_data = cast(Extractor, fake_extract)
+    agents_mod.extract_structured_data = cast("Extractor", fake_extract)
     try:
         cfg = WorkerPoolConfig(take_screenshot=False, concurrency=2, on_progress=on_progress)
         inputs = [("https://u1.test", "t1"), ("https://u2.test", "t2"), ("https://u3.test", "t3")]
@@ -120,7 +122,7 @@ async def test_run_worker_pool_cancel_via_event(settings: Settings) -> None:
         )
 
     orig: Extractor = agents_mod.extract_structured_data
-    agents_mod.extract_structured_data = cast(Extractor, fake_extract)
+    agents_mod.extract_structured_data = cast("Extractor", fake_extract)
     try:
         cancel_event = asyncio.Event()
         cancel_event.set()
@@ -151,7 +153,7 @@ async def test_run_worker_pool_error_path_calls_on_error(settings: Settings) -> 
         raise RuntimeError("boom")
 
     orig: Extractor = agents_mod.extract_structured_data
-    agents_mod.extract_structured_data = cast(Extractor, fake_extract)
+    agents_mod.extract_structured_data = cast("Extractor", fake_extract)
     try:
         cfg = WorkerPoolConfig(take_screenshot=False, concurrency=1, on_error=on_error)
 

@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import List
 
 import pytest
 
@@ -32,7 +31,7 @@ def test_setup_logging_installs_handlers_once(
     # use non-verbose path (so logger level comes from get_log_level)
     # also stub rotation settings to avoid calling get_settings() under the hood
     monkeypatch.setattr(ls, "get_log_max_bytes", lambda: 1024)
-    monkeypatch.setattr(ls, "get_log_backup_count", lambda: 3)    
+    monkeypatch.setattr(ls, "get_log_backup_count", lambda: 3)
     monkeypatch.setattr(
         ls, "get_log_level", lambda: logging.INFO
     )
@@ -113,8 +112,8 @@ def test_file_handler_rotation_config_respected(
         fh = file_handlers[0]
 
         # maxBytes and backupCount live on the handler as attributes
-        assert getattr(fh, "maxBytes") == 123456
-        assert getattr(fh, "backupCount") == 7
+        assert fh.maxBytes == 123456
+        assert fh.backupCount == 7
 
         # file exists after a first write (the handler path is created)
         logger = ls.get_logger()
@@ -134,7 +133,7 @@ def test_teardown_logger_removes_handlers(
     monkeypatch.setattr(ls, "get_log_dir", lambda: tmp_log_dir)
     monkeypatch.setattr(ls, "get_log_format", lambda: "plain")
     monkeypatch.setattr(ls, "get_log_max_bytes", lambda: 1024)
-    monkeypatch.setattr(ls, "get_log_backup_count", lambda: 1)    
+    monkeypatch.setattr(ls, "get_log_backup_count", lambda: 1)
     monkeypatch.setattr(
         ls, "get_settings", lambda: type("S", (), {"is_verbose_mode": False})()
     )

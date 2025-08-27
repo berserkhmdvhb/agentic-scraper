@@ -1,21 +1,22 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict
+from collections.abc import Callable
+from typing import Any
 from urllib.parse import quote_plus
 
 from fastapi import FastAPI
 
-from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper import __version__ as version
 from agentic_scraper.backend.api.openapi import custom_openapi
 from agentic_scraper.backend.core import settings as settings_module
-from agentic_scraper import __version__ as version
+from agentic_scraper.backend.core.settings import get_settings
 
 
 def _make_app() -> FastAPI:
     app = FastAPI(title="Test App", version=version, description="desc")
 
     @app.get("/ping")
-    def ping() -> Dict[str, str]:
+    def ping() -> dict[str, str]:
         return {"ok": "pong"}
 
     return app

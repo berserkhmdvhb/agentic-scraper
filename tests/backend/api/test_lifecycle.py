@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any, List
-
 import httpx
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -9,8 +7,8 @@ from fastapi import FastAPI, status
 from httpx import ASGITransport, TimeoutException
 
 from agentic_scraper.backend.api import lifecycle as lifecycle_mod
-from agentic_scraper.backend.api.lifecycle import lifespan as app_lifespan
 from agentic_scraper.backend.api.auth import auth0_helpers as ah
+from agentic_scraper.backend.api.lifecycle import lifespan as app_lifespan
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_PRELOADING_JWKS,
     MSG_INFO_JWKS_PRELOAD_SUCCESSFUL,
@@ -32,7 +30,7 @@ def _make_app() -> FastAPI:
 
 def _spy_logger(monkeypatch: MonkeyPatch) -> list[str]:
     """Monkeypatch lifecycle_mod.logger to capture messages emitted via info/warning/exception."""
-    messages: List[str] = []
+    messages: list[str] = []
 
     def rec(msg: object, *args: object, **kwargs: object) -> None:
         messages.append(str(msg))
@@ -149,7 +147,7 @@ async def test_shutdown_clears_cancel_events(
         called["cleared"] = True
 
     messages = _spy_logger(monkeypatch)
-    
+
     async def _ok() -> list[dict[str, str]]:
         return []
     monkeypatch.setattr(ah.jwks_cache_instance, "get_jwks", _ok, raising=True)

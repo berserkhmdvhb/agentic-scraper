@@ -3,20 +3,19 @@ from typing import Any
 
 import pytest
 
-from agentic_scraper.backend.core.settings_helpers import (
-    TRUE_STRINGS,
-    parse_str_list,
-    safe_int,
-    str_to_bool,
-    validated_settings,
-    _coerce_and_validate,  # testing internals intentionally
-)
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_SETTING_OVERRIDDEN,
     MSG_DEBUG_SETTING_SKIPPED,
     MSG_WARNING_SETTING_INVALID,
 )
-
+from agentic_scraper.backend.core.settings_helpers import (
+    TRUE_STRINGS,
+    _coerce_and_validate,  # testing internals intentionally
+    parse_str_list,
+    safe_int,
+    str_to_bool,
+    validated_settings,
+)
 
 # ---------- Primitive helpers ----------
 
@@ -82,7 +81,6 @@ def test__coerce_and_validate_string_ok() -> None:
         return v.upper()
 
     import io
-    import logging
 
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
@@ -115,7 +113,6 @@ def test__coerce_and_validate_list_ok() -> None:
         return [x.upper() for x in v]
 
     import io
-    import logging
 
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
@@ -146,7 +143,6 @@ def test__coerce_and_validate_empty_string_skips() -> None:
         return v
 
     import io
-    import logging
 
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
@@ -178,7 +174,6 @@ def test__coerce_and_validate_raises_logs_warning() -> None:
         raise ValueError("bad level")
 
     import io
-    import logging
 
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
@@ -272,7 +267,6 @@ def test_validated_settings_parses_csv_list_and_bool(
 
     # Capture module logs with a direct handler (more reliable than caplog here)
     import io
-    import logging
 
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
@@ -315,7 +309,7 @@ def test_validated_settings_empty_string_skips_key(monkeypatch: pytest.MonkeyPat
     values: dict[str, Any] = {"dump_llm_json_dir": "   "}
 
     # Capture module logs with a direct handler
-    import io, logging
+    import io
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     logger_name = "agentic_scraper.backend.core.settings_helpers"
@@ -361,7 +355,7 @@ def test_validated_settings_invalid_value_raises_and_logs_warning(
     values = {"log_level": "WRONG"}
 
     # Capture module logs with a direct handler
-    import io, logging
+    import io
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     logger_name = "agentic_scraper.backend.core.settings_helpers"
@@ -392,7 +386,9 @@ def test__coerce_and_validate_non_str_or_list_raises_and_logs() -> None:
         raise ValueError("out of range")
 
     # Capture module logs with a direct handler
-    import io, logging, pytest
+    import io
+
+    import pytest
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     logger_name = "agentic_scraper.backend.core.settings_helpers"

@@ -3,12 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Iterator
+from collections.abc import Iterator
 
 import pytest
 
 from agentic_scraper.backend.api.routes import scrape_cancel_registry as reg
-
 
 # --- fixtures -----------------------------------------------------------------
 

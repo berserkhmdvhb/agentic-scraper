@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Set
+from typing import Any
 
 import httpx
 import pytest
@@ -12,12 +12,12 @@ from agentic_scraper import __version__ as version
 from agentic_scraper.backend.core import settings as settings_module
 
 
-def _all_paths(app: FastAPI) -> Set[str]:
+def _all_paths(app: FastAPI) -> set[str]:
     # Only APIRoute has `.path`; filter accordingly for mypy.
     return {route.path for route in app.routes if isinstance(route, APIRoute)}
 
 
-def _has_path_prefix(paths: Set[str], prefix: str) -> bool:
+def _has_path_prefix(paths: set[str], prefix: str) -> bool:
     return any(p.startswith(prefix) for p in paths)
 
 

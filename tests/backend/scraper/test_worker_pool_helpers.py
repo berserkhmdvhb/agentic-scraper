@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from collections import deque
-from typing import Any, Callable, cast
+from collections.abc import Callable
+from typing import Any, cast
 
 import pytest
 
 from agentic_scraper.backend.config.messages import (
+    MSG_DEBUG_WORKER_PICKED_URL,
     MSG_WARNING_ON_ERROR_CALLBACK_FAILED,
     MSG_WARNING_ON_ITEM_PROCESSED_FAILED,
     MSG_WARNING_PROGRESS_CALLBACK_FAILED,
-    MSG_DEBUG_WORKER_PICKED_URL,
     MSG_WARNING_WORKER_FAILED_SHORT,
 )
 from agentic_scraper.backend.config.types import OpenAIConfig

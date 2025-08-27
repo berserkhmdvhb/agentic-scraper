@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Callable
-from uuid import UUID, uuid4, uuid5, NAMESPACE_URL
+from collections.abc import Callable
+from typing import Any
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import httpx
 import pytest
@@ -54,7 +55,7 @@ async def test_create_scrape_job_accepted_sets_location_and_body(
 
     loc = res.headers.get("Location")
     assert isinstance(loc, str)
-    assert loc.endswith(f"/api/{api_version}/scrapes/{str(job.id)}")
+    assert loc.endswith(f"/api/{api_version}/scrapes/{job.id!s}")
 
 
 @pytest.mark.asyncio

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import logging
 import io
-import os
+import logging
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import pytest
-from _pytest.logging import LogCaptureFixture
 
+import agentic_scraper.backend.utils.validators as v
 from agentic_scraper.backend.config.constants import (
     FETCH_ERROR_PREFIX,
     MIN_ENCRYPTION_SECRET_LENGTH,
@@ -22,6 +22,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_BACKOFF_MIN_GREATER_THAN_MAX,
     MSG_ERROR_EMPTY_AUTH0_ALGORITHMS,
     MSG_ERROR_EMPTY_STRING,
+    MSG_ERROR_INVALID_AGENT_MODE,
     MSG_ERROR_INVALID_API_AUDIENCE,
     MSG_ERROR_INVALID_AUTH0_ALGORITHMS,
     MSG_ERROR_INVALID_AUTH0_DOMAIN,
@@ -37,13 +38,8 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_LOG_BACKUP_COUNT_INVALID,
     MSG_ERROR_MISSING_API_KEY,
     MSG_ERROR_NOT_A_DIRECTORY,
-    MSG_ERROR_INVALID_AGENT_MODE,
-    MSG_ERROR_INVALID_TIMEOUT,
 )
 from agentic_scraper.backend.config.types import AgentMode
-import agentic_scraper.backend.utils.validators as v
-
-
 
 # ------------------------------ small helpers ------------------------------- #
 

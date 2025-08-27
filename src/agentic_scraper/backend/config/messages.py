@@ -703,3 +703,12 @@ MSG_ERROR_NAIVE_DATETIME = "Datetime must be timezone-aware (UTC)"
 MSG_ERROR_INVALID_URL = "Invalid URL: {value}"
 MSG_ERROR_INVALID_LIMIT = "Invalid limit: {value}. Allowed range is {min}..{max}."
 MSG_ERROR_INVALID_STATUS = "Invalid status: {value}. Allowed: {valid_options}."
+
+
+# ---------------------------------------------------------------------
+# tests/
+# ---------------------------------------------------------------------
+
+# conftest.py
+MSG_ERROR_NO_NETWORK = "Network disabled in tests"
+MSG_ERROR_INVALID_CIPHERTEXT = "Invalid ciphertext"

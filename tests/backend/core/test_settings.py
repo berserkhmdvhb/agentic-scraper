@@ -1,45 +1,46 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pydantic
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
-from agentic_scraper.backend.core.settings import (
-    Settings,
-    get_settings,
-    get_environment,
-    get_log_dir,
-    get_log_level,
-    get_log_max_bytes,
-    get_log_backup_count,
-    get_log_format,
-)
 from agentic_scraper.backend.config.constants import (
-    PROJECT_NAME,
+    DEFAULT_AGENT_MODE,
+    DEFAULT_DEBUG_MODE,
+    DEFAULT_DUMP_LLM_JSON_DIR,
     DEFAULT_ENV,
-    DEFAULT_OPENAI_MODEL,
-    DEFAULT_LOG_LEVEL,
-    DEFAULT_LOG_FORMAT,
-    DEFAULT_LOG_MAX_BYTES,
+    DEFAULT_LLM_MAX_TOKENS,
+    DEFAULT_LLM_SCHEMA_RETRIES,
+    DEFAULT_LLM_TEMPERATURE,
     DEFAULT_LOG_BACKUP_COUNT,
     DEFAULT_LOG_DIR,
-    DEFAULT_RETRY_ATTEMPTS,
-    DEFAULT_RETRY_BACKOFF_MIN,
-    DEFAULT_RETRY_BACKOFF_MAX,
-    DEFAULT_SCREENSHOT_ENABLED,
-    DEFAULT_SCREENSHOT_DIR,
+    DEFAULT_LOG_FORMAT,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_MAX_BYTES,
     DEFAULT_MAX_CONCURRENT_REQUESTS,
-    DEFAULT_LLM_MAX_TOKENS,
-    DEFAULT_LLM_TEMPERATURE,
-    DEFAULT_LLM_SCHEMA_RETRIES,
+    DEFAULT_OPENAI_MODEL,
     DEFAULT_REQUEST_TIMEOUT,
-    DEFAULT_AGENT_MODE,
-    DEFAULT_DUMP_LLM_JSON_DIR,
+    DEFAULT_RETRY_ATTEMPTS,
+    DEFAULT_RETRY_BACKOFF_MAX,
+    DEFAULT_RETRY_BACKOFF_MIN,
+    DEFAULT_SCREENSHOT_DIR,
+    DEFAULT_SCREENSHOT_ENABLED,
     DEFAULT_VERBOSE,
-    DEFAULT_DEBUG_MODE,
     MIN_LLM_TEMPERATURE,
+    PROJECT_NAME,
+)
+from agentic_scraper.backend.core.settings import (
+    Settings,
+    get_environment,
+    get_log_backup_count,
+    get_log_dir,
+    get_log_format,
+    get_log_level,
+    get_log_max_bytes,
+    get_settings,
 )
 
 
@@ -185,7 +186,7 @@ def test_llm_schema_retries_bounds(settings_factory: Callable[..., Settings]) ->
     # Strict validation: negative values must raise
     with pytest.raises(pydantic.ValidationError):
         settings_factory(llm_schema_retries=-1)
- 
+
 
 
 def test_llm_temperature_out_of_bounds(settings_factory: Callable[..., Settings]) -> None:

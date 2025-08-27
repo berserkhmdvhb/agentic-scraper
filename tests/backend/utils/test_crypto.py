@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from cryptography.fernet import Fernet, InvalidToken
 import importlib
+from collections.abc import Callable, Generator
+
 import pytest
-from typing import Generator
 from _pytest.monkeypatch import MonkeyPatch
+from cryptography.fernet import Fernet, InvalidToken
 
 from agentic_scraper.backend.core import settings as settings_module
 from agentic_scraper.backend.utils import crypto as crypto_mod
@@ -59,7 +59,7 @@ def reload_crypto_with_key(monkeypatch: pytest.MonkeyPatch) -> Generator[None, N
         yield
     finally:
         crypto_ref.fernet = original_fernet
-        
+
 
 def test_module_uses_current_settings_key(
     monkeypatch: MonkeyPatch,

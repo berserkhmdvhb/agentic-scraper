@@ -1,7 +1,6 @@
 import logging
 from logging import LogRecord
 
-import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from agentic_scraper.backend.core.logger_helpers import (
@@ -20,7 +19,7 @@ def test_environment_filter_sets_env(monkeypatch: MonkeyPatch) -> None:
     f = EnvironmentFilter()
     rec: LogRecord = logging.LogRecord("x", logging.INFO, __file__, 10, "msg", (), None)
     assert f.filter(rec) is True
-    assert getattr(rec, "env") == "TESTENV"
+    assert rec.env == "TESTENV"
 
 
 def test_safe_formatter_injects_env_when_missing() -> None:
@@ -32,7 +31,7 @@ def test_safe_formatter_injects_env_when_missing() -> None:
 
     # If env exists, it’s preserved
     rec2: LogRecord = logging.LogRecord("x", logging.WARNING, __file__, 10, "bye", (), None)
-    setattr(rec2, "env", "DEV")
+    rec2.env = "DEV"
     out2 = fmt.format(rec2)
     assert out2.startswith("[DEV] ")
 
@@ -48,7 +47,7 @@ def test_json_formatter_structure_and_time(monkeypatch: MonkeyPatch) -> None:
 
     rec: LogRecord = logging.LogRecord("my.logger", logging.ERROR, __file__, 20, "boom", (), None)
     # simulate env injected by filter
-    setattr(rec, "env", "PROD")
+    rec.env = "PROD"
 
     out = jf.format(rec)
     assert '"timestamp": "2020-01-02T03:04:05"' in out
@@ -59,8 +58,8 @@ def test_json_formatter_structure_and_time(monkeypatch: MonkeyPatch) -> None:
 
     # With extra fields
     rec2: LogRecord = logging.LogRecord("my.logger", logging.INFO, __file__, 10, "ok", (), None)
-    setattr(rec2, "env", "DEV")
-    setattr(rec2, "extra", {"job_id": "J123", "stage": "fetch"})
+    rec2.env = "DEV"
+    rec2.extra = {"job_id": "J123", "stage": "fetch"}
     out2 = jf.format(rec2)
     assert '"job_id": "J123"' in out2
     assert '"stage": "fetch"' in out2
@@ -81,6 +80,6 @@ def test_json_formatter_includes_traceback() -> None:
             (),
             (RuntimeError, e, e.__traceback__),
         )
-        setattr(rec, "env", "DEV")
+        rec.env = "DEV"
         out = jf.format(rec)
         assert '"traceback":' in out

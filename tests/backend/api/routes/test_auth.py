@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Type
 from types import TracebackType
+from typing import Any
 
 import httpx
 import pytest
 from fastapi import status
-
-import agentic_scraper.backend.api.routes.auth as auth_mod
 
 
 class DummyResp:
     def __init__(
         self,
         status_code: int,
-        json_data: Optional[dict[str, Any]] = None,
+        json_data: dict[str, Any] | None = None,
         text: str = "",
         content_type: str = "application/json",
     ) -> None:
@@ -37,14 +35,14 @@ class DummyClient:
     def __init__(self, resp: DummyResp) -> None:
         self._resp = resp
 
-    async def __aenter__(self) -> "DummyClient":
+    async def __aenter__(self) -> DummyClient:
         return self
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc: Optional[BaseException],
-        tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
     ) -> None:
         return None
 
@@ -55,14 +53,14 @@ class DummyClient:
 class ExplodingClient:
     """Raises an exception when used, to exercise error path."""
 
-    async def __aenter__(self) -> "ExplodingClient":
+    async def __aenter__(self) -> ExplodingClient:
         return self
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc: Optional[BaseException],
-        tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
     ) -> None:
         return None
 

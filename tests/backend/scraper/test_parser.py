@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from bs4 import BeautifulSoup
-from typing import Any 
 
-from agentic_scraper.backend.core.settings import Settings
-from agentic_scraper.backend.scraper import parser as parser_mod
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_PARSED_AUTHOR,
     MSG_DEBUG_PARSED_META_DESCRIPTION,
@@ -14,6 +13,9 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_NO_META_DESCRIPTION,
     MSG_INFO_NO_TITLE,
 )
+from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.backend.scraper import parser as parser_mod
+
 TEST_FERNET_KEY = "A"*43 + "="
 
 def _settings(**overrides: object) -> Settings:
