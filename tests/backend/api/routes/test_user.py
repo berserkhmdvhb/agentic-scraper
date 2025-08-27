@@ -1,27 +1,36 @@
+# tests/backend/api/routes/test_user.py
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING
 
-import httpx
 import pytest
 from fastapi import status
 
+import agentic_scraper.backend.api.routes.user as user_routes  # for monkeypatch
 from agentic_scraper.backend.api.schemas.user import (
     UserCredentialsOut,
     UserCredentialsStatus,
     UserProfile,
 )
 
+# Avoid importing httpx at runtime; only needed for type checking of fixtures.
+if TYPE_CHECKING:
+    import httpx
+
+# These tests rely on the JWKS mock being in place but don't use it directly.
+pytestmark = pytest.mark.usefixtures("jwks_mock")
+
+
 # --------------------------------------------------------------------------- #
 # /user/me
 # --------------------------------------------------------------------------- #
+
 
 @pytest.mark.asyncio
 async def test_get_me_ok(
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
     # Include the scope and a couple of profile claims
@@ -44,7 +53,6 @@ async def test_get_me_ok(
 async def test_get_me_missing_scope_forbidden(
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
     # No read:user_profile scope
@@ -59,14 +67,13 @@ async def test_get_me_missing_scope_forbidden(
 # OpenAI credentials CRUD
 # --------------------------------------------------------------------------- #
 
+
+@pytest.mark.usefixtures("user_store_mod", "stub_crypto")
 @pytest.mark.asyncio
 async def test_credentials_status_defaults_false(
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
-    user_store_mod: Any,  # ensure temp store path is in-place
-    stub_crypto: None,    # ensure stubbed encrypt/decrypt
 ) -> None:
     token = make_jwt(scope="create:openai_credentials")
     test_client.headers.update({"Authorization": f"Bearer {token}"})
@@ -77,19 +84,17 @@ async def test_credentials_status_defaults_false(
     assert status_body.has_credentials is False
 
 
+@pytest.mark.usefixtures("user_store_mod", "stub_crypto")
 @pytest.mark.asyncio
 async def test_credentials_crud_happy_path(
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
-    user_store_mod: Any,
-    stub_crypto: None,
 ) -> None:
     token = make_jwt(scope="create:openai_credentials")
     test_client.headers.update({"Authorization": f"Bearer {token}"})
 
-    # PUT (create)
+    # Create
     api_key = "sk-abc123456789"
     project_id = "proj_1"
 
@@ -103,7 +108,7 @@ async def test_credentials_crud_happy_path(
     assert out_put.api_key.endswith(api_key[-4:])
     assert "*" in out_put.api_key
 
-    # GET (masked)
+    # Read - masked
     get_res = await test_client.get(f"{api_base}/user/openai-credentials")
     assert get_res.status_code == status.HTTP_200_OK, get_res.text
     out_get = UserCredentialsOut.model_validate(get_res.json())
@@ -111,13 +116,13 @@ async def test_credentials_crud_happy_path(
     assert out_get.api_key.endswith(api_key[-4:])
     assert "*" in out_get.api_key
 
-    # status -> true
+    # Status → true
     st_res = await test_client.get(f"{api_base}/user/openai-credentials/status")
     assert st_res.status_code == status.HTTP_200_OK
     st = UserCredentialsStatus.model_validate(st_res.json())
     assert st.has_credentials is True
 
-    # DELETE
+    # Delete
     del_res = await test_client.delete(f"{api_base}/user/openai-credentials")
     assert del_res.status_code == status.HTTP_204_NO_CONTENT
 
@@ -131,14 +136,12 @@ async def test_credentials_crud_happy_path(
     assert st2.has_credentials is False
 
 
+@pytest.mark.usefixtures("user_store_mod", "stub_crypto")
 @pytest.mark.asyncio
 async def test_get_credentials_404_when_missing(
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
-    user_store_mod: Any,
-    stub_crypto: None,
 ) -> None:
     token = make_jwt(scope="create:openai_credentials")
     test_client.headers.update({"Authorization": f"Bearer {token}"})
@@ -147,14 +150,12 @@ async def test_get_credentials_404_when_missing(
     assert res.status_code == status.HTTP_404_NOT_FOUND
 
 
+@pytest.mark.usefixtures("user_store_mod", "stub_crypto")
 @pytest.mark.asyncio
 async def test_delete_credentials_404_when_missing(
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
-    user_store_mod: Any,
-    stub_crypto: None,
 ) -> None:
     token = make_jwt(scope="create:openai_credentials")
     test_client.headers.update({"Authorization": f"Bearer {token}"})
@@ -163,21 +164,18 @@ async def test_delete_credentials_404_when_missing(
     assert res.status_code == status.HTTP_404_NOT_FOUND
 
 
+@pytest.mark.usefixtures("user_store_mod", "stub_crypto")
 @pytest.mark.asyncio
 async def test_put_credentials_value_error_returns_400(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
-    user_store_mod: Any,
-    stub_crypto: None,
 ) -> None:
     # Force save_user_credentials to raise ValueError so we hit the 400 branch.
-    import agentic_scraper.backend.api.routes.user as user_routes
-
-    def _boom(*_args: Any, **_kwargs: Any) -> None:
-        raise ValueError("bad creds")
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        msg = "bad creds"
+        raise ValueError(msg)
 
     monkeypatch.setattr(user_routes, "save_user_credentials", _boom, raising=True)
 
@@ -191,20 +189,17 @@ async def test_put_credentials_value_error_returns_400(
     assert res.status_code == status.HTTP_400_BAD_REQUEST
 
 
+@pytest.mark.usefixtures("user_store_mod", "stub_crypto")
 @pytest.mark.asyncio
 async def test_put_credentials_oserror_returns_500(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
-    user_store_mod: Any,
-    stub_crypto: None,
 ) -> None:
-    import agentic_scraper.backend.api.routes.user as user_routes
-
-    def _boom(*_args: Any, **_kwargs: Any) -> None:
-        raise OSError("disk full")
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        msg = "disk full"
+        raise OSError(msg)
 
     monkeypatch.setattr(user_routes, "save_user_credentials", _boom, raising=True)
 

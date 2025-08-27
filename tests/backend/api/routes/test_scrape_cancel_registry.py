@@ -11,6 +11,7 @@ from agentic_scraper.backend.api.routes import scrape_cancel_registry as reg
 
 # --- fixtures -----------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def _reset_registry() -> Iterator[None]:
     # Ensure a clean slate before/after each test since the module holds globals
@@ -23,11 +24,13 @@ def _reset_registry() -> Iterator[None]:
 
 # --- helpers ------------------------------------------------------------------
 
+
 def _jid() -> str:
     return str(uuid.uuid4())
 
 
 # --- tests --------------------------------------------------------------------
+
 
 def test_register_returns_event_and_reuses_and_get() -> None:
     jid = _jid()
@@ -121,14 +124,14 @@ def test_clear_all_clears_both_maps() -> None:
 def test_invalid_uuid_raises_value_error() -> None:
     bad = "not-a-uuid"
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid UUID"):
         reg.register_cancel_event(bad)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid UUID"):
         reg.get_cancel_event(bad)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid UUID"):
         reg.set_canceled(bad)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid UUID"):
         reg.cleanup(bad)

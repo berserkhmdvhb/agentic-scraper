@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+import importlib
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from bs4 import BeautifulSoup
@@ -13,26 +14,34 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_NO_META_DESCRIPTION,
     MSG_INFO_NO_TITLE,
 )
-from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper import parser as parser_mod
 
-TEST_FERNET_KEY = "A"*43 + "="
+if TYPE_CHECKING:
+    # typing-only to satisfy TC001 without importing application code at runtime
+    from agentic_scraper.backend.core.settings import Settings
+
+TEST_FERNET_KEY = "A" * 43 + "="
+
 
 def _settings(**overrides: object) -> Settings:
-    from agentic_scraper.backend.core.settings import Settings
-    base = Settings.model_validate({
-        # provide required fields minimally; tests may override
-        "AUTH0_DOMAIN": "x",
-        "AUTH0_ISSUER": "https://x/",
-        "AUTH0_CLIENT_ID": "x",
-        "AUTH0_CLIENT_SECRET": "x",
-        "AUTH0_API_AUDIENCE": "x",
-        "ENV": "PROD",
-        "ENCRYPTION_SECRET": TEST_FERNET_KEY,
-        "BACKEND_DOMAIN": "http://x",
-        "FRONTEND_DOMAIN": "http://x",
-        "AUTH0_REDIRECT_URI": "http://x/cb",
-    })
+    # Runtime import via importlib to avoid PLC0415 while keeping TC001 happy
+    settings_mod = importlib.import_module("agentic_scraper.backend.core.settings")
+    settings_cls = cast("type[Settings]", settings_mod.Settings)
+    base = settings_cls.model_validate(
+        {
+            # Provide minimally valid values that satisfy current validators
+            "AUTH0_DOMAIN": "test.auth0.com",
+            "AUTH0_ISSUER": "https://test.auth0.com/",
+            "AUTH0_CLIENT_ID": "client-id",
+            "AUTH0_CLIENT_SECRET": "client-secret",
+            "AUTH0_API_AUDIENCE": "https://api.example.com",
+            "ENV": "PROD",
+            "ENCRYPTION_SECRET": TEST_FERNET_KEY,
+            "BACKEND_DOMAIN": "http://api.example.com",
+            "FRONTEND_DOMAIN": "http://app.example.com",
+            "AUTH0_REDIRECT_URI": "http://app.example.com/cb",
+        }
+    )
     return base.model_copy(update={"verbose": False, **overrides})
 
 
@@ -53,22 +62,30 @@ def test_extract_main_text_strips_scripts_and_normalizes_whitespace() -> None:
     # newline preserved, no script/style/noscript, no extra blanks
     assert text.splitlines() == ["ignored title", "Line 1", "Line 2", "Line 3"]
 
-@pytest.mark.parametrize(("html", "expected"), [
-    ("<html><head><title> Hello </title></head><body></body></html>", "Hello"),
-    ("<html><head></head><body></body></html>", None),
-])
-def test_extract_title_logging(html: str, expected: str | None, monkeypatch: pytest.MonkeyPatch) -> None:
+
+@pytest.mark.parametrize(
+    ("html", "expected"),
+    [
+        ("<html><head><title> Hello </title></head><body></body></html>", "Hello"),
+        ("<html><head></head><body></body></html>", None),
+    ],
+)
+def test_extract_title_logging(
+    html: str,
+    expected: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     settings_verbose = _settings(verbose=True)
     settings_quiet = _settings(verbose=False)
 
     # --- Intercept logger calls directly to avoid handler/propagation differences ---
     logged: dict[str, list[str]] = {"debug": [], "info": []}
 
-    def fake_debug(msg: str, *args: Any, **kwargs: Any) -> None:
-        # mimic logging’s %-formatting if someone passed args (we don't here, but safe)
+    def fake_debug(msg: str, *args: object, **_kwargs: object) -> None:
+        # mimic logging's %-formatting if someone passed args (we don't here)
         logged["debug"].append(msg if not args else msg % args)
 
-    def fake_info(msg: str, *args: Any, **kwargs: Any) -> None:
+    def fake_info(msg: str, *args: object, **_kwargs: object) -> None:
         logged["info"].append(msg if not args else msg % args)
 
     monkeypatch.setattr(parser_mod.logger, "debug", fake_debug, raising=True)
@@ -98,11 +115,12 @@ def test_extract_title_logging(html: str, expected: str | None, monkeypatch: pyt
     prefix = MSG_DEBUG_PARSED_TITLE.split("{", 1)[0]
     assert not any(m.startswith(prefix) for m in logged["debug"])
 
+
 @pytest.mark.parametrize(
     ("meta_attrs", "content", "expected"),
     [
         ({"name": "description"}, "This is a summary.", "This is a summary."),
-        ({"property": "og:description"}, "ignored", None),  # not parsed by current code
+        ({"property": "og:description"}, "ignored", None),
         ({}, "", None),
     ],
 )
@@ -113,8 +131,7 @@ def test_extract_meta_description_logging(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     if meta_attrs:
-        # Build attribute string outside the f-string to avoid backslashes in expressions
-        # (required for Python < 3.12 where f-strings disallow backslashes in expr parts).
+        # Build attribute string outside the f-string to avoid backslashes
         attrs = " ".join(f'{k}="{v}"' for k, v in meta_attrs.items())
         html = f"<html><head><meta {attrs} content='{content}'></head></html>"
     else:
@@ -127,10 +144,10 @@ def test_extract_meta_description_logging(
     # Patch logger (avoid caplog flakiness)
     logged: dict[str, list[str]] = {"debug": [], "info": []}
 
-    def fake_debug(msg: str, *args: Any, **kwargs: Any) -> None:
+    def fake_debug(msg: str, *args: object, **_kwargs: object) -> None:
         logged["debug"].append(msg if not args else msg % args)
 
-    def fake_info(msg: str, *args: Any, **kwargs: Any) -> None:
+    def fake_info(msg: str, *args: object, **_kwargs: object) -> None:
         logged["info"].append(msg if not args else msg % args)
 
     monkeypatch.setattr(parser_mod.logger, "debug", fake_debug, raising=True)
@@ -147,6 +164,7 @@ def test_extract_meta_description_logging(
         assert any(MSG_INFO_NO_META_DESCRIPTION in m for m in logged["info"])
         prefix = MSG_DEBUG_PARSED_META_DESCRIPTION.split("{", 1)[0]
         assert not any(m.startswith(prefix) for m in logged["debug"])
+
     # Quiet path
     logged["debug"].clear()
     logged["info"].clear()
@@ -157,18 +175,18 @@ def test_extract_meta_description_logging(
     if expected is None:
         assert any(MSG_INFO_NO_META_DESCRIPTION in m for m in logged["info"])
 
+
 @pytest.mark.parametrize(
-    ("meta_html", "expected_source_key", "expected_value"),
+    ("meta_html", "expected_value"),
     [
-        ('<meta name="author" content="Alice">', "name", "Alice"),
-        ('<meta property="article:author" content="Bob">', "property", "Bob"),
-        ('<meta name="byline" content="Carol">', "name", "Carol"),
-        ("", None, None),
+        ('<meta name="author" content="Alice">', "Alice"),
+        ('<meta property="article:author" content="Bob">', "Bob"),
+        ('<meta name="byline" content="Carol">', "Carol"),
+        ("", None),
     ],
 )
 def test_extract_author_logging(
     meta_html: str,
-    expected_source_key: str | None,
     expected_value: str | None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -180,10 +198,10 @@ def test_extract_author_logging(
     # Patch logger (avoid caplog flakiness)
     logged: dict[str, list[str]] = {"debug": [], "info": []}
 
-    def fake_debug(msg: str, *args: Any, **kwargs: Any) -> None:
+    def fake_debug(msg: str, *args: object, **_kwargs: object) -> None:
         logged["debug"].append(msg if not args else msg % args)
 
-    def fake_info(msg: str, *args: Any, **kwargs: Any) -> None:
+    def fake_info(msg: str, *args: object, **_kwargs: object) -> None:
         logged["info"].append(msg if not args else msg % args)
 
     monkeypatch.setattr(parser_mod.logger, "debug", fake_debug, raising=True)
@@ -200,6 +218,7 @@ def test_extract_author_logging(
         assert any(MSG_INFO_NO_AUTHOR in m for m in logged["info"])
         prefix = MSG_DEBUG_PARSED_AUTHOR.split("{", 1)[0]
         assert not any(m.startswith(prefix) for m in logged["debug"])
+
     # Quiet path
     logged["debug"].clear()
     logged["info"].clear()
@@ -209,6 +228,7 @@ def test_extract_author_logging(
     assert not any(m.startswith(prefix) for m in logged["debug"])
     if expected_value is None:
         assert any(MSG_INFO_NO_AUTHOR in m for m in logged["info"])
+
 
 def test_parse_all_metadata_roundtrip() -> None:
     html = """

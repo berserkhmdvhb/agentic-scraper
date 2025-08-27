@@ -1,25 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 from fastapi import HTTPException, status
 
-from agentic_scraper.backend.core import settings as settings_module
+if TYPE_CHECKING:
+    # Type-only imports (avoid TC001/TC002 issues at runtime)
+    from _pytest.monkeypatch import MonkeyPatch
+
+    from agentic_scraper.backend.core import settings as settings_module
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("jwks_mock")
 async def test_verify_jwt_success(
-    jwks_mock: None,
     make_jwt: Callable[..., str],
     settings: settings_module.Settings,
 ) -> None:
-    # Import after fixtures; then align module-level settings with fixture.
-    from agentic_scraper.backend.api.auth import auth0_helpers as ah
+    from agentic_scraper.backend.api.auth import auth0_helpers as ah  # noqa: PLC0415
 
-    ah.settings = settings  # ensure issuer/audience/algorithms match the minted token
+    ah.settings = settings
 
     token: str = make_jwt(scope="read:user_profile")
     payload = await ah.verify_jwt(token)
@@ -32,12 +34,12 @@ async def test_verify_jwt_success(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("jwks_mock")
 async def test_verify_jwt_expired_raises_http_401(
-    jwks_mock: None,
     make_jwt: Callable[..., str],
     settings: settings_module.Settings,
 ) -> None:
-    from agentic_scraper.backend.api.auth import auth0_helpers as ah
+    from agentic_scraper.backend.api.auth import auth0_helpers as ah  # noqa: PLC0415
 
     ah.settings = settings
 
@@ -49,12 +51,12 @@ async def test_verify_jwt_expired_raises_http_401(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("jwks_mock")
 async def test_verify_jwt_wrong_audience_raises_http_401(
-    jwks_mock: None,
     make_jwt: Callable[..., str],
     settings: settings_module.Settings,
 ) -> None:
-    from agentic_scraper.backend.api.auth import auth0_helpers as ah
+    from agentic_scraper.backend.api.auth import auth0_helpers as ah  # noqa: PLC0415
 
     ah.settings = settings
 
@@ -66,13 +68,13 @@ async def test_verify_jwt_wrong_audience_raises_http_401(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("jwks_mock")
 async def test_verify_jwt_no_matching_kid_raises_http_401(
-    jwks_mock: None,
     make_jwt: Callable[..., str],
     monkeypatch: MonkeyPatch,
     settings: settings_module.Settings,
 ) -> None:
-    from agentic_scraper.backend.api.auth import auth0_helpers as ah
+    from agentic_scraper.backend.api.auth import auth0_helpers as ah  # noqa: PLC0415
 
     ah.settings = settings
 
@@ -92,7 +94,7 @@ async def test_verify_jwt_no_matching_kid_raises_http_401(
 async def test_verify_jwt_empty_token_raises_http_401(
     settings: settings_module.Settings,
 ) -> None:
-    from agentic_scraper.backend.api.auth import auth0_helpers as ah
+    from agentic_scraper.backend.api.auth import auth0_helpers as ah  # noqa: PLC0415
 
     ah.settings = settings
 

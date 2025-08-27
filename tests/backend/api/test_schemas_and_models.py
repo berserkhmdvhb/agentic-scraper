@@ -1,3 +1,4 @@
+# tests/backend/api/test_schemas_and_models.py
 from __future__ import annotations
 
 import uuid
@@ -30,13 +31,23 @@ from agentic_scraper.backend.config.constants import (
 from agentic_scraper.backend.config.types import AgentMode, JobStatus, OpenAIModel
 from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
+# Named test constants to avoid magic numbers
+PROGRESS_HALF = 0.5
+EXTRA_RATING = 5
+
+
 # -----------------------------
 # ScrapeCreate (boundary input)
 # -----------------------------
 
+
 def test_scrape_create_urls_normalize_and_dedupe() -> None:
     data: dict[str, Any] = {
-        "urls": [" https://example.com/a ", "https://example.com/a", "https://example.com/b"],
+        "urls": [
+            " https://example.com/a ",
+            "https://example.com/a",
+            "https://example.com/b",
+        ],
         "agent_mode": DEFAULT_AGENT_MODE,
         "openai_model": OpenAIModel.GPT_3_5,
         "llm_concurrency": 2,
@@ -48,34 +59,45 @@ def test_scrape_create_urls_normalize_and_dedupe() -> None:
     }
     sc = ScrapeCreate.model_validate(data)
     # HttpUrl coerces to str on model_dump, order preserved after dedupe
-    assert [str(u) for u in sc.urls] == ["https://example.com/a", "https://example.com/b"]
+    assert [str(u) for u in sc.urls] == [
+        "https://example.com/a",
+        "https://example.com/b",
+    ]
+
 
 def test_scrape_create_urls_must_be_list_type_error() -> None:
     with pytest.raises((TypeError, ValidationError)):
         # @field_validator("urls", mode="before") raises TypeError for non-list
-        ScrapeCreate.model_validate({"urls": "https://example.com", "agent_mode": DEFAULT_AGENT_MODE})
+        ScrapeCreate.model_validate(
+            {
+                "urls": "https://example.com",
+                "agent_mode": DEFAULT_AGENT_MODE,
+            }
+        )
+
 
 def test_scrape_create_urls_max_len_enforced() -> None:
     urls = [f"https://example.com/{i}" for i in range(MAX_URLS_PER_REQUEST + 1)]
     with pytest.raises(ValidationError):
         ScrapeCreate.model_validate(
-            {"urls": urls, "agent_mode": DEFAULT_AGENT_MODE, "openai_model": OpenAIModel.GPT_3_5}
+            {
+                "urls": urls,
+                "agent_mode": DEFAULT_AGENT_MODE,
+                "openai_model": OpenAIModel.GPT_3_5,
+            }
         )
 
+
 @pytest.mark.parametrize(
-    "mode,requires_model",
+    ("mode", "requires_model"),
     [
         (AgentMode.RULE_BASED, False),
         (AgentMode.LLM_FIXED, True),
         (AgentMode.LLM_DYNAMIC, True),
     ],
 )
-def test_scrape_create_openai_model_requirement(mode: AgentMode, requires_model: bool) -> None:
-    payload = {
-        "urls": ["https://example.com/x"],
-        "agent_mode": mode,
-        # openai_model omitted intentionally sometimes
-    }
+def test_scrape_create_openai_model_requirement(mode: AgentMode, *, requires_model: bool) -> None:
+    payload = {"urls": ["https://example.com/x"], "agent_mode": mode}
     if requires_model:
         with pytest.raises(ValidationError):
             ScrapeCreate.model_validate(payload)
@@ -88,6 +110,7 @@ def test_scrape_create_openai_model_requirement(mode: AgentMode, requires_model:
 # ScrapeJob (boundary output)
 # -----------------------------
 
+
 def test_scrape_job_parses_uuid4_and_progress_bounds() -> None:
     job_id = str(uuid.uuid4())
     job = ScrapeJob.model_validate(
@@ -96,14 +119,15 @@ def test_scrape_job_parses_uuid4_and_progress_bounds() -> None:
             "status": JobStatus.QUEUED,
             "created_at": "2024-01-01T00:00:00Z",
             "updated_at": "2024-01-01T00:00:00Z",
-            "progress": 0.5,
+            "progress": PROGRESS_HALF,
             "error": None,
             "result": None,
         }
     )
     # id parsed to UUID object by the schema
     assert str(job.id) == job_id
-    assert job.progress == 0.5
+    assert job.progress == PROGRESS_HALF
+
 
 @pytest.mark.parametrize("bad_progress", [-0.01, 1.01])
 def test_scrape_job_rejects_invalid_progress(bad_progress: float) -> None:
@@ -117,6 +141,7 @@ def test_scrape_job_rejects_invalid_progress(bad_progress: float) -> None:
                 "progress": bad_progress,
             }
         )
+
 
 def test_scrape_job_error_empty_string_rejected() -> None:
     with pytest.raises(ValidationError):
@@ -135,6 +160,7 @@ def test_scrape_job_error_empty_string_rejected() -> None:
 # Scrape results (from_internal helpers)
 # -------------------------------------
 
+
 def test_scrape_result_fixed_and_dynamic_from_internal() -> None:
     # Build internal ScrapedItem (allows extra fields)
     item = ScrapedItem.model_validate(
@@ -146,7 +172,7 @@ def test_scrape_result_fixed_and_dynamic_from_internal() -> None:
             "author": None,
             "date_published": None,
             "screenshot_path": None,
-            "rating": 5,  # extra
+            "rating": EXTRA_RATING,  # extra
         }
     )
     stats = {"total_urls": 1, "succeeded": 1, "failed": 0, "duration_sec": 0.01}
@@ -162,12 +188,13 @@ def test_scrape_result_fixed_and_dynamic_from_internal() -> None:
     dynamic_item = dynamic.items[0].model_dump()
 
     assert "rating" not in fixed_item
-    assert dynamic_item.get("rating") == 5
+    assert dynamic_item.get("rating") == EXTRA_RATING
 
 
 # -----------------------------
 # Item DTOs (boundary objects)
 # -----------------------------
+
 
 def test_item_dto_requires_http_url_and_cleans_optionals() -> None:
     # Valid URL (HttpUrl is validated by the model from a plain string)
@@ -178,14 +205,17 @@ def test_item_dto_requires_http_url_and_cleans_optionals() -> None:
     with pytest.raises(ValidationError):
         ScrapedItemFixedDTO(url="https://example.com", title="  ")
 
+
 def test_item_dynamic_allows_extra_fields() -> None:
     dto = ScrapedItemDynamicDTO(url="https://example.com", foo="bar")
-    assert dto.model_extra and dto.model_extra.get("foo") == "bar"
+    assert dto.model_extra
+    assert dto.model_extra.get("foo") == "bar"
 
 
 # -----------------------------
 # User schemas
 # -----------------------------
+
 
 def test_user_credentials_in_project_id_trim_and_non_empty() -> None:
     creds = UserCredentialsIn(api_key="sk-abc", project_id="  proj_123  ")
@@ -194,14 +224,20 @@ def test_user_credentials_in_project_id_trim_and_non_empty() -> None:
     with pytest.raises(ValidationError):
         UserCredentialsIn(api_key="sk-abc", project_id="   ")
 
+
 def test_user_credentials_out_shape() -> None:
-    out = UserCredentialsOut(api_key="sk-********************************cdef", project_id="proj_123")
+    out = UserCredentialsOut(
+        api_key="sk-********************************cdef",
+        project_id="proj_123",
+    )
     assert out.api_key.endswith("cdef")
     assert out.project_id == "proj_123"
+
 
 def test_user_credentials_status_simple() -> None:
     status = UserCredentialsStatus(has_credentials=True)
     assert status.has_credentials is True
+
 
 def test_user_profile_validations() -> None:
     profile = UserProfile(sub="  auth0|abc123  ", email="u@example.com", name="Alice ")
@@ -223,13 +259,16 @@ def test_user_profile_validations() -> None:
 # Auth models (OwnerSub, scopes)
 # -----------------------------
 
+
 def test_owner_sub_from_value() -> None:
     good = OwnerSub.from_value("auth0|abc123")
     assert isinstance(good, OwnerSub)
     assert str(good) == "auth0|abc123"
 
-    with pytest.raises(ValueError):
-        _ = OwnerSub.from_value("no-pipe-here")
+    # Match any non-empty error message to satisfy PT011
+    with pytest.raises(ValueError, match="."):
+        OwnerSub.from_value("no-pipe-here")
+
 
 def test_required_scopes_values() -> None:
     values = {s.value for s in RequiredScopes}

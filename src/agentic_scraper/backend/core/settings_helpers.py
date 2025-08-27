@@ -146,12 +146,54 @@ def _validate_optional_list(
     _coerce_and_validate(values, key, parse_str_list, validator)
 
 
+def _bridge_aliases(values: dict[str, Any]) -> None:
+    """
+    Copy known validation_alias environment keys (UPPER_SNAKE) to their field names
+    (lowercase) so that 'mode="before"' validation sees them.
+    """
+    alias_map = {
+        # Auth / security
+        "AUTH0_DOMAIN": "auth0_domain",
+        "AUTH0_ISSUER": "auth0_issuer",
+        "AUTH0_CLIENT_ID": "auth0_client_id",
+        "AUTH0_CLIENT_SECRET": "auth0_client_secret",
+        "AUTH0_ALGORITHMS": "auth0_algorithms",
+        "AUTH0_API_AUDIENCE": "auth0_api_audience",
+        "ENCRYPTION_SECRET": "encryption_secret",
+        # Domains / URLs
+        "BACKEND_DOMAIN": "backend_domain",
+        "FRONTEND_DOMAIN": "frontend_domain",
+        "AUTH0_REDIRECT_URI": "auth0_redirect_uri",
+        # Logging
+        "LOG_LEVEL": "log_level",
+        "LOG_MAX_BYTES": "log_max_bytes",
+        "LOG_BACKUP_COUNT": "log_backup_count",
+        "LOG_DIR": "log_dir",
+        "DUMP_LLM_JSON_DIR": "dump_llm_json_dir",
+        "SCREENSHOT_DIR": "screenshot_dir",
+        # Behavior / misc
+        "VERBOSE": "verbose",
+        "AGENT_MODE": "agent_mode",
+        "REQUEST_TIMEOUT": "request_timeout",
+        "LLM_TEMPERATURE": "llm_temperature",
+        "LLM_SCHEMA_RETRIES": "llm_schema_retries",
+    }
+    for alias, field in alias_map.items():
+        if alias in values:
+            # Always let explicit alias input override the field-value,
+            # because this runs before Pydantic maps aliases.
+            values[field] = values[alias]
+
+
 def validated_settings(values: dict[str, Any]) -> dict[str, Any]:
     """
     Coerce & validate raw incoming settings (e.g., env vars) prior to model instantiation.
     Prefer pydantic-native constraints when possible; use centralized validators to normalize and
     keep behavior consistent across the project.
     """
+    # Ensure env-style aliases are visible to the 'before' validator.
+    _bridge_aliases(values)
+
     _validate_optional_openai_model(values)
     _validate_optional_int(values, "request_timeout", validate_timeout)
     _validate_optional_str(values, "log_level", validate_log_level)

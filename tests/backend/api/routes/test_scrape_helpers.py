@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from agentic_scraper.backend.api.schemas.scrape import (
     ScrapeJob,
@@ -12,6 +13,8 @@ from agentic_scraper.backend.api.schemas.scrape import (
     ScrapeResultFixed,
 )
 from agentic_scraper.backend.config.types import JobStatus
+
+EXPECTED_COUNT = 2
 
 
 def _aware_now() -> datetime:
@@ -55,10 +58,10 @@ def test_scrape_job_accepts_fixed_result_union() -> None:
     )
     assert job.status == JobStatus.SUCCEEDED
     # Optional extra guard if you want to be explicit:
-    # assert str(job.status) == JobStatus.SUCCEEDED.value
 
-    # Don’t force the exact union branch; accept either
+    # Don't force the exact union branch; accept either
     assert isinstance(job.result, (ScrapeResultFixed, ScrapeResultDynamic))
+
 
 def test_scrape_job_accepts_dynamic_result_union() -> None:
     created = _aware_now()
@@ -77,7 +80,7 @@ def test_scrape_job_accepts_dynamic_result_union() -> None:
 
     # Use equality, not identity
     assert job.status == JobStatus.SUCCEEDED
-    # Don’t over-constrain the union branch; Pydantic may resolve to either
+    # Don't over-constrain the union branch; Pydantic may resolve to either
     assert isinstance(job.result, (ScrapeResultDynamic, ScrapeResultFixed))
 
 
@@ -109,7 +112,7 @@ def test_scrape_job_progress_bounds() -> None:
     )
 
     # out of range should fail
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         ScrapeJob.model_validate(
             {
                 "id": str(uuid4()),
@@ -119,7 +122,7 @@ def test_scrape_job_progress_bounds() -> None:
                 "progress": -0.1,
             }
         )
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         ScrapeJob.model_validate(
             {
                 "id": str(uuid4()),
@@ -187,5 +190,5 @@ def test_scrape_list_wraps_jobs_and_cursor() -> None:
 
     lst = ScrapeList(items=[j_fixed, j_dyn], next_cursor="cursor-2")
     dump = lst.model_dump()
-    assert len(lst.items) == 2
+    assert len(lst.items) == EXPECTED_COUNT
     assert dump["next_cursor"] == "cursor-2"

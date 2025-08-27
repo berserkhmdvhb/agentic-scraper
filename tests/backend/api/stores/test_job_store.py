@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from agentic_scraper.backend.api.models import OwnerSub
 from agentic_scraper.backend.api.stores import job_store as js
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_JOB_STATUS,
@@ -16,13 +16,24 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.config.types import JobStatus
 from agentic_scraper.backend.utils.validators import validate_uuid
 
+if TYPE_CHECKING:
+    # Avoid importing app models at runtime (fixes TC001)
+    from agentic_scraper.backend.api.models import OwnerSub
+
+# Test constants (fix PLR2004 "magic values")
+PROGRESS_QUARTER = 0.25
+PAGE_LIMIT_TWO = 2
+
+
 # ---------- helpers / fixtures ----------
+
 
 @pytest.fixture(autouse=True)
 def _clear_store_between_tests() -> None:
-    # Ensure a clean in-memory store for each test
-    with js._LOCK:
-        js._STORE.clear()
+    """Ensure a clean in-memory store for each test."""
+    # Access to private members is test-only; suppress SLF001.
+    with js._LOCK:  # noqa: SLF001
+        js._STORE.clear()  # noqa: SLF001
 
 
 def _aware(dt: datetime) -> datetime:
@@ -30,6 +41,7 @@ def _aware(dt: datetime) -> datetime:
 
 
 # ---------- create_job ----------
+
 
 def test_create_job_basic_fields() -> None:
     urls: list[str] = ["https://a"]
@@ -42,8 +54,13 @@ def test_create_job_basic_fields() -> None:
     validate_uuid(job["id"])
     assert job["status"] is JobStatus.QUEUED
     assert job["owner_sub"] == owner_sub
-    assert isinstance(job["created_at"], datetime) and job["created_at"].tzinfo is not None
-    assert isinstance(job["updated_at"], datetime) and job["updated_at"].tzinfo is not None
+
+    assert isinstance(job["created_at"], datetime)
+    assert job["created_at"].tzinfo is not None
+
+    assert isinstance(job["updated_at"], datetime)
+    assert job["updated_at"].tzinfo is not None
+
     assert job["progress"] == 0.0
     assert job["error"] is None
     assert job["result"] is None
@@ -67,6 +84,7 @@ def test_create_job_unique_ids() -> None:
 
 
 # ---------- get_job ----------
+
 
 def test_get_job_returns_deep_copy_and_none_for_unknown() -> None:
     owner_sub: OwnerSub = cast("OwnerSub", "auth0|user123")
@@ -92,16 +110,19 @@ def test_get_job_returns_deep_copy_and_none_for_unknown() -> None:
 
 # ---------- update_job ----------
 
+
 def test_update_job_status_progress_error_result_and_updated_at() -> None:
     owner_sub: OwnerSub = cast("OwnerSub", "auth0|user123")
     job = js.create_job({"x": 1}, owner_sub)
     jid = job["id"]
 
     # set to RUNNING via string coercion
-    updated = js.update_job(jid, status=JobStatus.RUNNING.value, progress=0.25, error=None)
+    updated = js.update_job(
+        jid, status=JobStatus.RUNNING.value, progress=PROGRESS_QUARTER, error=None
+    )
     assert updated is not None
     assert updated["status"] is JobStatus.RUNNING
-    assert updated["progress"] == 0.25
+    assert updated["progress"] == PROGRESS_QUARTER
     assert updated["error"] is None
 
     # update result (deep copied)
@@ -129,14 +150,12 @@ def test_update_job_invalid_status_and_progress_validation() -> None:
     jid = job["id"]
 
     # invalid status string -> ValueError with expected message
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(ValueError, match=re.escape(MSG_ERROR_INVALID_JOB_STATUS.split("{", 1)[0])):
         js.update_job(jid, status="nope")
-    assert MSG_ERROR_INVALID_JOB_STATUS.format(status="nope") in str(e.value)
 
     # invalid progress range -> ValueError
-    with pytest.raises(ValueError) as e2:
+    with pytest.raises(ValueError, match=MSG_ERROR_INVALID_PROGRESS.split("{", 1)[0]):
         js.update_job(jid, progress=1.5)
-    assert MSG_ERROR_INVALID_PROGRESS.split("{", 1)[0] in str(e2.value)
 
 
 def test_update_job_rejects_naive_updated_at() -> None:
@@ -144,8 +163,8 @@ def test_update_job_rejects_naive_updated_at() -> None:
     job = js.create_job({"x": 1}, owner_sub)
     jid = job["id"]
 
-    naive = datetime.now()  # naive datetime (no tzinfo)
-    with pytest.raises(ValueError):
+    naive = datetime.now()  # noqa: DTZ005 - intentional naive datetime to exercise validation
+    with pytest.raises(ValueError, match="timezone-aware"):
         js.update_job(jid, updated_at=naive)
 
 
@@ -156,7 +175,8 @@ def test_update_job_terminal_guard_blocks_mutations() -> None:
 
     # move to SUCCEEDED
     j1 = js.update_job(jid, status=JobStatus.SUCCEEDED)
-    assert j1 is not None and j1["status"] is JobStatus.SUCCEEDED
+    assert j1 is not None
+    assert j1["status"] is JobStatus.SUCCEEDED
 
     # attempts to change status/progress/result/error are ignored
     j2 = js.update_job(
@@ -175,12 +195,13 @@ def test_update_job_terminal_guard_blocks_mutations() -> None:
 
 # ---------- list_jobs ----------
 
+
 def test_list_jobs_order_limit_cursor_and_filters(monkeypatch: pytest.MonkeyPatch) -> None:
     owner_a: OwnerSub = cast("OwnerSub", "auth0|A")
     owner_b: OwnerSub = cast("OwnerSub", "auth0|B")
 
     # deterministic, unbounded timestamps by patching _utcnow
-    base = _aware(datetime(2025, 1, 1, 0, 0, 0))
+    base = _aware(datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc))
     tick = {"i": 0}
 
     def fake_now() -> datetime:
@@ -206,8 +227,8 @@ def test_list_jobs_order_limit_cursor_and_filters(monkeypatch: pytest.MonkeyPatc
     assert next_cur is None
 
     # limit=2 -> next_cursor set (since more remain)
-    items2, cur2 = js.list_jobs(limit=2)
-    assert len(items2) == 2
+    items2, cur2 = js.list_jobs(limit=PAGE_LIMIT_TWO)
+    assert len(items2) == PAGE_LIMIT_TWO
     assert cur2 == items2[-1]["id"]
 
     # next page using cursor
@@ -225,15 +246,17 @@ def test_list_jobs_order_limit_cursor_and_filters(monkeypatch: pytest.MonkeyPatc
 
     # limit=0 -> empty slice, no next cursor
     empty, cur0 = js.list_jobs(limit=0)
-    assert empty == [] and cur0 is None
+    assert empty == []
+    assert cur0 is None
 
 
 def test_list_jobs_invalid_cursor_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="uuid"):
         js.list_jobs(cursor="not-a-uuid")
 
 
 # ---------- cancel_job ----------
+
 
 def test_cancel_job_from_queued_or_running_sets_fields() -> None:
     owner: OwnerSub = cast("OwnerSub", "auth0|user123")

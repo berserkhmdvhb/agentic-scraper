@@ -5,28 +5,25 @@ import importlib
 import json
 import logging
 import os
+import socket
 import time
 from collections.abc import AsyncGenerator, Callable, Generator
 from dataclasses import dataclass
-from httpx import ASGITransport
 from io import StringIO
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, TypeAlias
-import socket
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
+
 import httpx
 import pytest
 import pytest_asyncio
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from httpx import ASGITransport
 from jose import jwt
 from pydantic_settings import SettingsConfigDict
 
 from agentic_scraper import __api_version__ as api_version
-from agentic_scraper.backend.config.messages import (
-    MSG_ERROR_NO_NETWORK,
-    MSG_ERROR_INVALID_CIPHERTEXT,
-)
 from agentic_scraper.backend.config.constants import (
     DEFAULT_AUTH0_ALGORITHM,
     DEFAULT_DEBUG_MODE,
@@ -52,12 +49,16 @@ from agentic_scraper.backend.config.constants import (
     DEFAULT_SCREENSHOT_ENABLED,
     DEFAULT_VERBOSE,
 )
+from agentic_scraper.backend.config.messages import (
+    MSG_ERROR_INVALID_CIPHERTEXT,
+    MSG_ERROR_NO_NETWORK,
+)
 from agentic_scraper.backend.core import settings as settings_module
 
 if TYPE_CHECKING:
     from _pytest.logging import LogCaptureFixture
-    from fastapi import FastAPI
     from _pytest.monkeypatch import MonkeyPatch
+    from fastapi import FastAPI
 
 
 __all__ = [
@@ -123,12 +124,11 @@ AGENTIC_ENV_VARS = [
     "SKIP_JWKS_PRELOAD",
 ]
 
-TEST_FERNET_KEY = "A"*43 + "="
+TEST_FERNET_KEY = "A" * 43 + "="
 
 
 Store: TypeAlias = dict[str, dict[str, Any]]
-ERR_NO_NETWORK = "Network disabled in tests"
-ERR_INVALID_CIPHERTEXT = "invalid ciphertext"
+
 
 @dataclass(frozen=True)
 class JWKSKeypair:
@@ -136,19 +136,21 @@ class JWKSKeypair:
     public_jwk: dict[str, str]
     kid: str
 
+
 # --------------------------------------------------------------------------- #
 # Ensure baseline env exists *before* test collection/imports
 # (prevents import-time get_settings() from failing in modules like utils/crypto)
 # --------------------------------------------------------------------------- #
 
-def pytest_sessionstart(_session: pytest.Session) -> None:
+
+def pytest_sessionstart(session: pytest.Session) -> None:
     """Seed minimal env so modules that call get_settings() at import time don't explode."""
+    _ = session  # silence unused-argument warning (Ruff ARG001)
     defaults = {
         # Runtime / OpenAI (use project defaults to avoid drift)
         "OPENAI_API_KEY": "test-key",
-        "ENV": DEFAULT_ENV,                    # e.g., "DEV"
+        "ENV": DEFAULT_ENV,  # e.g., "DEV"
         "OPENAI_MODEL": DEFAULT_OPENAI_MODEL,  # e.g., "gpt-4o" if that's your default
-
         # Auth0
         "AUTH0_ALGORITHMS": json.dumps([DEFAULT_AUTH0_ALGORITHM]),
         "AUTH0_DOMAIN": "dev-xxxxxx.us.auth0.com",
@@ -158,21 +160,17 @@ def pytest_sessionstart(_session: pytest.Session) -> None:
         "AUTH0_CLIENT_SECRET": "your-client-secret",
         "AUTH0_API_AUDIENCE": "https://api.example.com",
         "AUTH0_REDIRECT_URI": "https://api.example.com/api/{api_version}/auth/callback",
-
         # Domains
         "BACKEND_DOMAIN": "https://api.example.com",
         "FRONTEND_DOMAIN": "https://app.example.com",
-
         # Tests should never hit network for JWKS preload
         "SKIP_JWKS_PRELOAD": "true",
-
         # Crypto
         # Valid Fernet key: 32 url-safe base64-encoded bytes (44 chars)
         "ENCRYPTION_SECRET": TEST_FERNET_KEY,
     }
     for k, v in defaults.items():
         os.environ.setdefault(k, v)
-
 
 
 def _b64url_uint(n: int) -> str:
@@ -185,20 +183,28 @@ def _b64url_uint(n: int) -> str:
 # Settings isolation
 # --------------------------------------------------------------------------- #
 
+
 @pytest.fixture(autouse=True)
 def clear_agentic_env(monkeypatch: MonkeyPatch) -> None:
     for var in AGENTIC_ENV_VARS:
         monkeypatch.delenv(var, raising=False)
 
 
-@pytest.fixture(autouse=True)
-def disable_env_file(monkeypatch: MonkeyPatch) -> None:
-    """Patch Settings to disable .env file loading (avoids pydantic warning)."""
+@pytest.fixture(autouse=True, scope="session")
+def disable_env_file() -> Generator[None, None, None]:
+    """Disable .env loading for the whole test session
+    without using the function-scoped monkeypatch."""
+    mp = pytest.MonkeyPatch()
+
     class ConfiglessSettings(settings_module.Settings):
-        # pydantic-settings v2 style
+        # pydantic-settings v2 style: ensure no .env files are read
         model_config = SettingsConfigDict(env_file=None)
 
-    monkeypatch.setattr(settings_module, "Settings", ConfiglessSettings)
+    mp.setattr(settings_module, "Settings", ConfiglessSettings)
+    try:
+        yield
+    finally:
+        mp.undo()
 
 
 @pytest.fixture
@@ -241,6 +247,19 @@ def mock_env(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SKIP_JWKS_PRELOAD", "true")
 
 
+# --- alias fixtures for underscored variants used by tests ------------------- #
+@pytest.fixture
+def _mock_env(mock_env: None) -> None:
+    """Alias to enforce execution order; depends on `mock_env`."""
+    _ = mock_env  # consume to satisfy Ruff ARG001
+
+
+@pytest.fixture
+def _reset_settings_cache(reset_settings_cache: None) -> None:
+    """Alias to enforce execution order; depends on `reset_settings_cache`."""
+    _ = reset_settings_cache  # consume to satisfy Ruff ARG001
+
+
 @pytest.fixture
 def reset_settings_cache() -> Generator[None, None, None]:
     settings_module.get_settings.cache_clear()
@@ -273,14 +292,14 @@ def set_env_var(monkeypatch: MonkeyPatch) -> Callable[[str, str], None]:
 
 
 @pytest.fixture
-def settings(mock_env: None, reset_settings_cache: Any) -> settings_module.Settings:
+def settings(_mock_env: None, _reset_settings_cache: None) -> settings_module.Settings:
     # Use model_validate to bypass env file loading entirely
     return settings_module.Settings.model_validate({})
 
 
 @pytest.fixture
 def settings_factory() -> Callable[..., settings_module.Settings]:
-    def _make(**overrides: Any) -> settings_module.Settings:
+    def _make(**overrides: object) -> settings_module.Settings:
         # Minimal base to satisfy validation; tests can override as needed
         base = {
             "AUTH0_DOMAIN": "test.auth0.com",
@@ -301,6 +320,7 @@ def settings_factory() -> Callable[..., settings_module.Settings]:
 # --------------------------------------------------------------------------- #
 # Logging & misc
 # --------------------------------------------------------------------------- #
+
 
 @pytest.fixture
 def log_stream() -> StringIO:
@@ -334,11 +354,10 @@ def caplog_debug(caplog: LogCaptureFixture) -> LogCaptureFixture:
 @pytest.fixture
 def no_network(monkeypatch: MonkeyPatch) -> None:
     """Disable real network calls in tests that must remain offline."""
-    import socket
 
     class NoNetSocket(socket.socket):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            raise RuntimeError("Network disabled in tests")
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            raise RuntimeError(MSG_ERROR_NO_NETWORK)
 
     monkeypatch.setattr(socket, "socket", NoNetSocket)
 
@@ -347,11 +366,12 @@ def no_network(monkeypatch: MonkeyPatch) -> None:
 # FastAPI client
 # --------------------------------------------------------------------------- #
 
+
 @pytest.fixture
 def app_fast(
     monkeypatch: MonkeyPatch,
-    mock_env: None,
-    jwks_mock: None,
+    _mock_env: None,
+    _jwks_mock: None,
 ) -> FastAPI:
     """
     Import the FastAPI app with slow side effects stubbed:
@@ -362,8 +382,10 @@ def app_fast(
     monkeypatch.setattr(logger_setup, "setup_logging", lambda: None, raising=True)
 
     # Now import the app after patches are in place
-    from agentic_scraper.backend.api.main import app
-    return app
+
+    app_mod = importlib.import_module("agentic_scraper.backend.api.main")
+    return cast("FastAPI", app_mod.app)
+
 
 @pytest_asyncio.fixture
 async def test_client(app_fast: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
@@ -371,8 +393,6 @@ async def test_client(app_fast: FastAPI) -> AsyncGenerator[httpx.AsyncClient, No
     ASGI-aware HTTPX client bound to the FastAPI app.
     Uses app lifespan() and avoids mypy complaints by using ASGITransport.
     """
-    from httpx import ASGITransport
-
 
     transport = ASGITransport(app=app_fast)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -388,6 +408,7 @@ def api_base() -> str:
 # --------------------------------------------------------------------------- #
 # Auth fixtures (JWKS / JWT) using @dataclass
 # --------------------------------------------------------------------------- #
+
 
 @pytest.fixture(scope="session")
 def jwks_keypair() -> JWKSKeypair:
@@ -418,12 +439,18 @@ def jwks_keypair() -> JWKSKeypair:
 @pytest.fixture
 def jwks_mock(monkeypatch: MonkeyPatch, jwks_keypair: JWKSKeypair) -> None:
     """Monkeypatch JWKS fetch to return our in-memory JWK."""
-    from agentic_scraper.backend.api.auth import auth0_helpers as ah
+    ah = importlib.import_module("agentic_scraper.backend.api.auth.auth0_helpers")
 
     async def _fake_get_jwks() -> list[dict[str, str]]:
         return [jwks_keypair.public_jwk]
 
     monkeypatch.setattr(ah.jwks_cache_instance, "get_jwks", _fake_get_jwks, raising=True)
+
+
+@pytest.fixture
+def _jwks_mock(jwks_mock: None) -> None:
+    """Alias to enforce execution order; depends on `jwks_mock`."""
+    _ = jwks_mock  # consume to satisfy Ruff ARG001
 
 
 @pytest.fixture
@@ -433,6 +460,7 @@ def make_jwt(settings: settings_module.Settings, jwks_keypair: JWKSKeypair) -> C
     Usage:
         token = make_jwt(sub="auth0|123", scope="read:user_profile")
     """
+
     def _issue(
         *,
         sub: str = "auth0|user123",
@@ -471,13 +499,14 @@ def auth_header(make_jwt: Callable[..., str]) -> dict[str, str]:
 @pytest.fixture
 def authorized_client_jwt(
     test_client: httpx.AsyncClient,
-    jwks_mock: None,
+    _jwks_mock: None,
     make_jwt: Callable[..., str],
 ) -> Callable[[str | None], httpx.AsyncClient]:
     """
     Returns an HTTPX client with Authorization header set using a minted JWT.
     Call: client = authorized_client_jwt("read:user_profile")
     """
+
     def _with_scope(scope: str | list[str] | None = None) -> httpx.AsyncClient:
         token: str = make_jwt(scope=scope) if scope is not None else make_jwt()
         test_client.headers.update({"Authorization": f"Bearer {token}"})
@@ -491,11 +520,9 @@ def authorized_client_jwt(
 # --------------------------------------------------------------------------- #
 
 
-
-
 @pytest.fixture
 def user_store_mod(monkeypatch: MonkeyPatch, tmp_path: Path) -> ModuleType:
-    import agentic_scraper.backend.api.stores.user_store as us
+    us = importlib.import_module("agentic_scraper.backend.api.stores.user_store")
 
     store_path: Path = tmp_path / "user_store.json"
     store_path.write_text("{}")
@@ -511,12 +538,11 @@ def stub_crypto(monkeypatch: MonkeyPatch, user_store_mod: ModuleType) -> None:
 
     def _dec(value: str) -> str:
         if not isinstance(value, str) or not value.startswith("enc:"):
-            raise ValueError("invalid ciphertext")
+            raise ValueError(MSG_ERROR_INVALID_CIPHERTEXT)
         return value.split("enc:", 1)[1]
 
     monkeypatch.setattr(user_store_mod, "encrypt", _enc, raising=True)
     monkeypatch.setattr(user_store_mod, "decrypt", _dec, raising=True)
-
 
 
 @pytest.fixture
@@ -529,13 +555,14 @@ def patch_job_store(monkeypatch: MonkeyPatch) -> Callable[[ModuleType, Store | N
         # sh.get_job("queued") -> {"status": "queued"}
         # sh.update_job("queued", status="running")
     """
+
     def _patch(module: ModuleType, initial: Store | None = None) -> Store:
         store: Store = dict(initial or {})
 
         def get_job(job_id: str) -> dict[str, Any] | None:
             return store.get(job_id)
 
-        def update_job(job_id: str, **kwargs: Any) -> dict[str, Any] | None:
+        def update_job(job_id: str, **kwargs: object) -> dict[str, Any] | None:
             snap = store.get(job_id)
             if snap is None:
                 return None
@@ -547,3 +574,11 @@ def patch_job_store(monkeypatch: MonkeyPatch) -> Callable[[ModuleType, Store | N
         return store
 
     return _patch
+
+
+@pytest.fixture(name="_settings")
+def _settings_alias(
+    settings: settings_module.Settings,
+) -> settings_module.Settings:
+    """Back-compat alias so tests using `_settings` use the canonical `settings`."""
+    return settings

@@ -1,17 +1,25 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
-import httpx
 import pytest
 from fastapi import status
 
+# Import route module once at top-level (avoid PLC0415 in tests)
+import agentic_scraper.backend.api.routes.scrape as scrape_routes
 from agentic_scraper import __api_version__ as api_version
 from agentic_scraper.backend.api.schemas.scrape import ScrapeJob, ScrapeList
 from agentic_scraper.backend.api.stores import job_store as js
 from agentic_scraper.backend.config.types import JobStatus
+
+if TYPE_CHECKING:
+    import httpx  # for type hints only
+
+# Always ensure JWKS mock is active (avoid PT019 on each test)
+pytestmark = pytest.mark.usefixtures("_jwks_mock")
+PAGE_SIZE_TWO = 2
 
 
 def _unique_sub(tag: str) -> str:
@@ -19,25 +27,23 @@ def _unique_sub(tag: str) -> str:
     return f"auth0|{uuid5(NAMESPACE_URL, tag)}"
 
 
+async def _noop(*_args: object, **_kwargs: object) -> None:  # typed, no Any
+    return None
+
+
 @pytest.mark.asyncio
 async def test_create_scrape_job_accepted_sets_location_and_body(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
     # Stub the background task to a no-op so the pipeline doesn't run.
-    async def _noop(*_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    import agentic_scraper.backend.api.routes.scrape as scrape_routes
     monkeypatch.setattr(scrape_routes, "_run_scrape_job", _noop, raising=True)
 
     sub = _unique_sub("create-ok")
-    test_client.headers.update({
-        "Authorization": f"Bearer {make_jwt(sub=sub, scope=['create:scrapes','read:scrapes'])}"
-    })
+    scopes = ["create:scrapes", "read:scrapes"]
+    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=sub, scope=scopes)}"})
 
     payload = {
         "urls": [
@@ -63,17 +69,13 @@ async def test_create_scrape_job_invalid_urls_returns_422(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
-    async def _noop(*_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    import agentic_scraper.backend.api.routes.scrape as scrape_routes
     monkeypatch.setattr(scrape_routes, "_run_scrape_job", _noop, raising=True)
 
     sub = _unique_sub("create-bad-url")
-    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=sub, scope='create:scrapes')}"})
+    token = make_jwt(sub=sub, scope="create:scrapes")
+    test_client.headers.update({"Authorization": f"Bearer {token}"})
 
     res = await test_client.post(
         f"{api_base}/scrapes/",
@@ -87,19 +89,13 @@ async def test_list_scrape_jobs_default_and_pagination(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
-    async def _noop(*_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    import agentic_scraper.backend.api.routes.scrape as scrape_routes
     monkeypatch.setattr(scrape_routes, "_run_scrape_job", _noop, raising=True)
 
     sub = _unique_sub("list-default")
-    test_client.headers.update({
-        "Authorization": f"Bearer {make_jwt(sub=sub, scope=['create:scrapes','read:scrapes'])}"
-    })
+    scopes = ["create:scrapes", "read:scrapes"]
+    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=sub, scope=scopes)}"})
 
     ids: list[str] = []
     for suffix in ("/a", "/b", "/c"):
@@ -119,7 +115,7 @@ async def test_list_scrape_jobs_default_and_pagination(
     res2 = await test_client.get(f"{api_base}/scrapes/?limit=2")
     assert res2.status_code == status.HTTP_200_OK
     body2 = ScrapeList.model_validate(res2.json())
-    assert len(body2.items) == 2
+    assert len(body2.items) == PAGE_SIZE_TWO
     cur = body2.next_cursor
     assert isinstance(cur, str)
 
@@ -135,19 +131,13 @@ async def test_list_scrape_jobs_status_filter_and_limit_zero(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
-    async def _noop(*_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    import agentic_scraper.backend.api.routes.scrape as scrape_routes
     monkeypatch.setattr(scrape_routes, "_run_scrape_job", _noop, raising=True)
 
     sub = _unique_sub("list-status")
-    test_client.headers.update({
-        "Authorization": f"Bearer {make_jwt(sub=sub, scope=['create:scrapes','read:scrapes'])}"
-    })
+    scopes = ["create:scrapes", "read:scrapes"]
+    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=sub, scope=scopes)}"})
 
     r1 = await test_client.post(
         f"{api_base}/scrapes/",
@@ -178,11 +168,11 @@ async def test_list_scrape_jobs_status_filter_and_limit_zero(
 async def test_list_scrape_jobs_invalid_limit_cursor_and_status(
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
     sub = _unique_sub("list-invalids")
-    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=sub, scope='read:scrapes')}"})
+    token = make_jwt(sub=sub, scope="read:scrapes")
+    test_client.headers.update({"Authorization": f"Bearer {token}"})
 
     res_limit = await test_client.get(f"{api_base}/scrapes/?limit=-1")
     assert res_limit.status_code == status.HTTP_400_BAD_REQUEST
@@ -199,23 +189,21 @@ async def test_get_scrape_job_404_and_forbidden_on_owner_mismatch(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
     # Stub background runner
-    async def _noop(*_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    import agentic_scraper.backend.api.routes.scrape as scrape_routes
     monkeypatch.setattr(scrape_routes, "_run_scrape_job", _noop, raising=True)
 
     # Reader token (will try to GET)
     reader_sub = _unique_sub("get-forbidden-reader")
-    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=reader_sub, scope='read:scrapes')}"})
+    token_reader = make_jwt(sub=reader_sub, scope="read:scrapes")
+    test_client.headers.update({"Authorization": f"Bearer {token_reader}"})
 
     # Swap to creator token to create a job owned by someone else
     owner_sub = _unique_sub("get-forbidden-owner")
-    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=owner_sub, scope='create:scrapes')}"})
+    token_owner = make_jwt(sub=owner_sub, scope="create:scrapes")
+    test_client.headers.update({"Authorization": f"Bearer {token_owner}"})
+
     create_res = await test_client.post(
         f"{api_base}/scrapes/",
         json={"urls": ["https://example.com/owned-by-else"]},
@@ -224,7 +212,7 @@ async def test_get_scrape_job_404_and_forbidden_on_owner_mismatch(
     job_id = create_res.json()["id"]
 
     # Restore reader token
-    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=reader_sub, scope='read:scrapes')}"})
+    test_client.headers.update({"Authorization": f"Bearer {token_reader}"})
 
     # 404 for missing job
     res_missing = await test_client.get(f"{api_base}/scrapes/{uuid4()}")
@@ -240,19 +228,13 @@ async def test_cancel_scrape_job_happy_and_idempotent(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
-    async def _noop(*_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    import agentic_scraper.backend.api.routes.scrape as scrape_routes
     monkeypatch.setattr(scrape_routes, "_run_scrape_job", _noop, raising=True)
 
     sub = _unique_sub("cancel-ok")
-    test_client.headers.update({
-        "Authorization": f"Bearer {make_jwt(sub=sub, scope=['cancel:scrapes','read:scrapes','create:scrapes'])}"
-    })
+    scopes = ["cancel:scrapes", "read:scrapes", "create:scrapes"]
+    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=sub, scope=scopes)}"})
 
     r = await test_client.post(
         f"{api_base}/scrapes/",
@@ -274,19 +256,13 @@ async def test_cancel_scrape_job_not_found_and_not_cancelable(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
-    async def _noop(*_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    import agentic_scraper.backend.api.routes.scrape as scrape_routes
     monkeypatch.setattr(scrape_routes, "_run_scrape_job", _noop, raising=True)
 
     sub = _unique_sub("cancel-misc")
-    test_client.headers.update({
-        "Authorization": f"Bearer {make_jwt(sub=sub, scope=['cancel:scrapes','read:scrapes','create:scrapes'])}"
-    })
+    scopes = ["cancel:scrapes", "read:scrapes", "create:scrapes"]
+    test_client.headers.update({"Authorization": f"Bearer {make_jwt(sub=sub, scope=scopes)}"})
 
     res_missing = await test_client.delete(f"{api_base}/scrapes/{uuid4()}")
     assert res_missing.status_code == status.HTTP_404_NOT_FOUND
@@ -308,32 +284,30 @@ async def test_scope_enforcement(
     monkeypatch: pytest.MonkeyPatch,
     test_client: httpx.AsyncClient,
     make_jwt: Callable[..., str],
-    jwks_mock: None,
     api_base: str,
 ) -> None:
     # Stub background runner (we create jobs below)
-    async def _noop(*_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    import agentic_scraper.backend.api.routes.scrape as scrape_routes
     monkeypatch.setattr(scrape_routes, "_run_scrape_job", _noop, raising=True)
 
     # Missing create scope -> 401/403
     sub_ro = _unique_sub("scopes-read-only")
-    test_client.headers.update({
-        "Authorization": f"Bearer {make_jwt(sub=sub_ro, scope='read:scrapes')}"
-    })
+    token_ro = make_jwt(sub=sub_ro, scope="read:scrapes")
+    test_client.headers.update({"Authorization": f"Bearer {token_ro}"})
     res_create = await test_client.post(
         f"{api_base}/scrapes/",
         json={"urls": ["https://example.com"]},
     )
-    assert res_create.status_code in {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN}
+    assert res_create.status_code in {
+        status.HTTP_401_UNAUTHORIZED,
+        status.HTTP_403_FORBIDDEN,
+    }
 
     # Missing cancel scope -> 401/403
     sub_nc = _unique_sub("scopes-no-cancel")
-    test_client.headers.update({
-        "Authorization": f"Bearer {make_jwt(sub=sub_nc, scope=['read:scrapes','create:scrapes'])}"
-    })
+    scopes_no_cancel = ["read:scrapes", "create:scrapes"]
+    test_client.headers.update(
+        {"Authorization": f"Bearer {make_jwt(sub=sub_nc, scope=scopes_no_cancel)}"}
+    )
     r = await test_client.post(
         f"{api_base}/scrapes/",
         json={"urls": ["https://example.com/need-cancel"]},
@@ -342,4 +316,7 @@ async def test_scope_enforcement(
     jid = ScrapeJob.model_validate(r.json()).id
 
     res_cancel = await test_client.delete(f"{api_base}/scrapes/{jid}")
-    assert res_cancel.status_code in {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN}
+    assert res_cancel.status_code in {
+        status.HTTP_401_UNAUTHORIZED,
+        status.HTTP_403_FORBIDDEN,
+    }

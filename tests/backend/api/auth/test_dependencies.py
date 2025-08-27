@@ -1,28 +1,26 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 
 from agentic_scraper.backend.api.auth import dependencies as deps
-from agentic_scraper.backend.core import settings as settings_module
+
+if TYPE_CHECKING:
+    # Type-only import to avoid application import at runtime (TC001).
+    from agentic_scraper.backend.core import settings as settings_module  # noqa: F401
+
+# Ensure JWKS and settings fixtures are active without injecting as parameters.
+pytestmark = pytest.mark.usefixtures("jwks_mock", "settings")
 
 
 @pytest.mark.asyncio
 async def test_get_current_user_success(
-    jwks_mock: None,
     make_jwt: Callable[..., str],
-    settings: settings_module.Settings,
-    monkeypatch: MonkeyPatch,
 ) -> None:
-    # Ensure auth0_helpers uses the same settings as the minted token
-    from agentic_scraper.backend.api.auth import auth0_helpers as ah
-
-    ah.settings = settings
-
     token: str = make_jwt(scope="read:user_profile")
     creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
     user = await deps.get_current_user(creds)
@@ -35,15 +33,8 @@ async def test_get_current_user_success(
 
 @pytest.mark.asyncio
 async def test_get_current_user_missing_sub_raises_401(
-    jwks_mock: None,
     make_jwt: Callable[..., str],
-    settings: settings_module.Settings,
-    monkeypatch: MonkeyPatch,
 ) -> None:
-    from agentic_scraper.backend.api.auth import auth0_helpers as ah
-
-    ah.settings = settings
-
     token: str = make_jwt(extra_claims={"sub": None})
     creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
     with pytest.raises(HTTPException) as exc:
@@ -54,7 +45,7 @@ async def test_get_current_user_missing_sub_raises_401(
 
 @pytest.mark.asyncio
 async def test_get_current_user_propagates_401_from_verify(
-    monkeypatch: MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Patch verify_jwt imported in dependencies to raise HTTP 401
     async def _fake_verify(_token: str) -> dict[str, str]:

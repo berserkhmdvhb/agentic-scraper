@@ -92,7 +92,7 @@ def _coerce_status(value: JobStatus | str) -> JobStatus:
     try:
         return JobStatus(value)
     except ValueError as err:
-        # Preserve original cause for clearer tracebacks (B904)
+        # standardized message for tests
         raise ValueError(MSG_ERROR_INVALID_JOB_STATUS.format(status=value)) from err
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from typing import Any, cast
 
 import httpx
@@ -11,7 +12,8 @@ from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.cancel_helpers import CancelToken
 from agentic_scraper.backend.scraper.fetcher import fetch_all, fetch_url
 
-TEST_FERNET_KEY = "A"*43 + "="
+TEST_FERNET_KEY = "A" * 43 + "="
+EXPECTED_RETRY_ATTEMPTS = 2  # avoid magic number in assertions
 
 
 def _settings(**overrides: object) -> Settings:
@@ -19,7 +21,6 @@ def _settings(**overrides: object) -> Settings:
     Real Settings with small timeouts; provide required fields inline so CI
     doesn't depend on environment variables or global fixtures.
     """
-
     base = Settings.model_validate(
         {
             # Required auth/security (use actual field names)
@@ -35,7 +36,7 @@ def _settings(**overrides: object) -> Settings:
             "AUTH0_REDIRECT_URI": "http://api.example.com/auth/callback",
         }
     )
-    # Apply per-test tweaks (don’t try to set the is_verbose_mode property)
+    # Apply per-test tweaks (don't try to set the is_verbose_mode property)
     return base.model_copy(
         update={
             "request_timeout": 0.05,
@@ -44,19 +45,25 @@ def _settings(**overrides: object) -> Settings:
         }
     )
 
-def _factory_with_transport(transport: httpx.MockTransport) -> Any:
+
+def _factory_with_transport(transport: httpx.MockTransport) -> Callable[..., httpx.AsyncClient]:
     """
     Return a factory callable compatible with fetch_all(client_factory=...).
-
-    We keep **kwargs typed as Any to avoid mypy overconstraining all possible
-    httpx.AsyncClient kwargs.
+    We keep **kwargs typed broadly to cover possible httpx.AsyncClient kwargs.
     """
-    def factory(**kwargs: Any) -> httpx.AsyncClient:
+
+    def factory(**kwargs: dict[str, Any]) -> httpx.AsyncClient:
+        # mypy: AsyncClient(**kwargs) expects precisely-typed kwargs. Since this
+        # is a test helper that forwards whatever fetch_all passes through, cast
+        # to a permissive mapping.
+        kwargs_any = cast("dict[str, Any]", kwargs)
         return httpx.AsyncClient(
             transport=cast("httpx.AsyncBaseTransport", transport),
-            **kwargs,
+            **kwargs_any,
         )
+
     return factory
+
 
 @pytest.mark.asyncio
 async def test_fetch_all_empty_returns_empty() -> None:
@@ -114,7 +121,7 @@ async def test_fetch_all_records_http_errors() -> None:
 @pytest.mark.asyncio
 async def test_fetch_url_retry_then_success() -> None:
     # First attempt -> timeout, second attempt -> 200 OK
-    settings = _settings(request_timeout=0.01, retry_attempts=2)
+    settings = _settings(request_timeout=0.01, retry_attempts=EXPECTED_RETRY_ATTEMPTS)
 
     attempts = {"n": 0}
 
@@ -122,7 +129,8 @@ async def test_fetch_url_retry_then_success() -> None:
         attempts["n"] += 1
         if attempts["n"] == 1:
             # Simulate timeout on first call by raising from transport
-            raise httpx.ReadTimeout("timeout", request=request)
+            msg = "timeout"
+            raise httpx.ReadTimeout(msg, request=request)
         return httpx.Response(200, text="<ok-after-retry/>", request=request)
 
     transport = httpx.MockTransport(handler)
@@ -135,7 +143,7 @@ async def test_fetch_url_retry_then_success() -> None:
             should_cancel=None,
         )
     assert html == "<ok-after-retry/>"
-    assert attempts["n"] == 2
+    assert attempts["n"] == EXPECTED_RETRY_ATTEMPTS
 
 
 @pytest.mark.asyncio

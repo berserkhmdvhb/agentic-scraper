@@ -21,7 +21,23 @@ from agentic_scraper.backend.scraper.schemas import (
     ScrapedItem,
 )
 
-# ---------- ScrapeRequest ----------
+# ------------------------ Test constants to avoid "magic numbers" ------------------------ #
+
+BEST_SCORE = 0.85
+BEST_VALID_SCORE = 0.8
+
+PIPE_TOTAL = 3
+PIPE_SUCCEEDED = 2
+PIPE_FAILED = 1
+PIPE_DURATION = 1.234
+
+DEFAULT_CONCURRENCY = 10
+CUSTOM_CONCURRENCY = 3
+CUSTOM_MAX_QUEUE = 50
+
+
+# ------------------------------------ ScrapeRequest ------------------------------------- #
+
 
 def test_scrape_request_minimal() -> None:
     sr = ScrapeRequest(text="hello world", url="https://example.com/page")
@@ -45,6 +61,7 @@ def test_scrape_request_full() -> None:
     assert sr.take_screenshot is True
     assert sr.context_hints == {"category": "blog", "lang": "en"}
 
+
 def test_scrape_request_rejects_blank_text() -> None:
     with pytest.raises(ValidationError) as ei:
         ScrapeRequest(text="   ", url="https://example.com")
@@ -61,13 +78,14 @@ def test_scrape_request_context_hints_trim_and_reject_empty() -> None:
     assert sr.context_hints == {"k": "v"}
 
     # rejects empty key or value:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r".*"):
         ScrapeRequest(text="x", url="https://example.com", context_hints={"": "v"})
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r".*"):
         ScrapeRequest(text="x", url="https://example.com", context_hints={"k": ""})
 
 
-# ---------- RetryContext ----------
+# ------------------------------------ RetryContext -------------------------------------- #
+
 
 def _fake_msg(role: str, content: str) -> dict[str, Any]:
     # ChatCompletionMessageParam is a TypedDict; a minimal dict suffices at runtime
@@ -91,38 +109,45 @@ def test_retry_context_mutability() -> None:
     )
 
     # mutate and ensure fields track
-    rc.best_score = 0.85
-    rc.best_valid_score = 0.8
+    rc.best_score = BEST_SCORE
+    rc.best_valid_score = BEST_VALID_SCORE
     rc.best_fields = {"title": "New"}
     rc.all_fields = {"title": "New", "author": "A"}
     rc.has_done_discovery = True
 
-    assert rc.best_score == 0.85
-    assert rc.best_valid_score == 0.8
+    assert rc.best_score == BEST_SCORE
+    assert rc.best_valid_score == BEST_VALID_SCORE
     assert rc.best_fields == {"title": "New"}
     assert rc.all_fields.get("author") == "A"
     assert rc.has_done_discovery is True
 
 
-# ---------- PipelineStats ----------
+# ------------------------------------ PipelineStats ------------------------------------- #
+
 
 def test_pipeline_stats_roundtrip_and_non_negative() -> None:
-    stats = PipelineStats(total_urls=3, succeeded=2, failed=1, duration_sec=1.234)
-    assert stats.total_urls == 3
-    assert stats.succeeded == 2
-    assert stats.failed == 1
-    assert stats.duration_sec == pytest.approx(1.234)
+    stats = PipelineStats(
+        total_urls=PIPE_TOTAL,
+        succeeded=PIPE_SUCCEEDED,
+        failed=PIPE_FAILED,
+        duration_sec=PIPE_DURATION,
+    )
+    assert stats.total_urls == PIPE_TOTAL
+    assert stats.succeeded == PIPE_SUCCEEDED
+    assert stats.failed == PIPE_FAILED
+    assert stats.duration_sec == pytest.approx(PIPE_DURATION)
 
-    # negative should error (via validator using MSG_ERROR_INVALID_LIMIT)
-    with pytest.raises(ValueError):
+    # negative should error (validator-specific messages not imported -> use generic match)
+    with pytest.raises(ValueError, match=r".*"):
         PipelineStats(total_urls=-1, succeeded=0, failed=0, duration_sec=0.0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r".*"):
         PipelineStats(total_urls=1, succeeded=-1, failed=2, duration_sec=0.0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r".*"):
         PipelineStats(total_urls=1, succeeded=1, failed=0, duration_sec=-0.1)
 
 
-# ---------- ScrapedItem ----------
+# ------------------------------------- ScrapedItem -------------------------------------- #
+
 
 def test_scraped_item_minimal_and_extra_fields_allowed() -> None:
     item = ScrapedItem(
@@ -153,13 +178,14 @@ def test_scraped_item_price_cleaning_valid() -> None:
     assert isinstance(item.price, float)
     assert item.price == pytest.approx(1299.99)
 
+
 def test_scraped_item_price_cleaning_invalid_raises() -> None:
     with pytest.raises(ValidationError) as ei:
         ScrapedItem(
             url="https://example.com/p",
             title="T",
             description=None,
-            price="N/A",  # cleaned to empty → invalid format
+            price="N/A",  # cleaned to empty -> invalid format
             author=None,
             date_published=None,
         )
@@ -181,9 +207,9 @@ def test_scraped_item_optional_string_empty_raises(field_name: str) -> None:
         "screenshot_path": None,
     }
     payload[field_name] = ""  # empty string not allowed for optional fields
-    with pytest.raises(ValidationError) as ei:  # <- expect ValidationError
+    with pytest.raises(ValidationError) as ei:  # expect ValidationError
         ScrapedItem(**payload)
-    # Pydantic’s str(exception) is a multi-line report; check substring
+    # Pydantic's str(exception) is a multi-line report; check substring
     assert MSG_ERROR_EMPTY_STRING.format(field=field_name) in str(ei.value)
 
 
@@ -196,7 +222,12 @@ def test_pipeline_output_with_items() -> None:
         author=None,
         date_published=None,
     )
-    stats = PipelineStats(total_urls=1, succeeded=1, failed=0, duration_sec=0.01)
+    stats = PipelineStats(
+        total_urls=1,
+        succeeded=1,
+        failed=0,
+        duration_sec=0.01,
+    )
     out = PipelineOutput(items=[item], stats=stats)
 
     assert len(out.items) == 1
@@ -204,13 +235,14 @@ def test_pipeline_output_with_items() -> None:
     assert out.stats.succeeded == 1
 
 
-# ---------- WorkerPoolConfig ----------
+# ---------------------------------- WorkerPoolConfig ------------------------------------ #
+
 
 def test_worker_pool_config_defaults_and_customization() -> None:
     # defaults
     cfg = WorkerPoolConfig(take_screenshot=False)
     assert cfg.openai is None
-    assert cfg.concurrency == 10
+    assert cfg.concurrency == DEFAULT_CONCURRENCY
     assert cfg.max_queue_size is None
     assert cfg.on_item_processed is None
     assert cfg.on_error is None
@@ -228,8 +260,8 @@ def test_worker_pool_config_defaults_and_customization() -> None:
 
     custom = WorkerPoolConfig(
         take_screenshot=True,
-        concurrency=3,
-        max_queue_size=50,
+        concurrency=CUSTOM_CONCURRENCY,
+        max_queue_size=CUSTOM_MAX_QUEUE,
         on_item_processed=None,
         on_error=None,
         on_progress=on_progress,
@@ -238,8 +270,8 @@ def test_worker_pool_config_defaults_and_customization() -> None:
     )
 
     assert custom.take_screenshot is True
-    assert custom.concurrency == 3
-    assert custom.max_queue_size == 50
+    assert custom.concurrency == CUSTOM_CONCURRENCY
+    assert custom.max_queue_size == CUSTOM_MAX_QUEUE
     assert custom.preserve_order is True
 
     # exercise callbacks for signature correctness
@@ -249,19 +281,28 @@ def test_worker_pool_config_defaults_and_customization() -> None:
 
 
 def test_worker_pool_config_invalid_numbers_raise_and_zero_allowed() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r".*"):
         WorkerPoolConfig(take_screenshot=False, concurrency=0)
     # With the new validator, max_queue_size=0 is valid and means "unbounded"
     cfg = WorkerPoolConfig(take_screenshot=False, max_queue_size=0)
     assert cfg.max_queue_size == 0
     # Negative still invalid
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r".*"):
         WorkerPoolConfig(take_screenshot=False, max_queue_size=-1)
 
+
 def test_scrape_request_invalid_url_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r".*"):
         ScrapeRequest(text="x", url="not-a-url")
 
+
 def test_scraped_item_invalid_url_raises() -> None:
-    with pytest.raises(ValueError):
-        ScrapedItem(url="ftp://example.com/p", title=None, description=None, price=None, author=None, date_published=None)
+    with pytest.raises(ValueError, match=r".*"):
+        ScrapedItem(
+            url="ftp://example.com/p",
+            title=None,
+            description=None,
+            price=None,
+            author=None,
+            date_published=None,
+        )

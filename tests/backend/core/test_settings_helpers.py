@@ -1,4 +1,8 @@
+from __future__ import annotations
+
+import io
 import logging
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,10 +21,17 @@ from agentic_scraper.backend.core.settings_helpers import (
     validated_settings,
 )
 
+# Avoid "magic numbers" in assertions
+LOG_MAX_BYTES = 1_048_576
+LOG_BACKUP_COUNT = 5
+REQ_TIMEOUT_INT = 30
+
+
 # ---------- Primitive helpers ----------
 
+
 @pytest.mark.parametrize(
-    "raw, expected",
+    ("raw", "expected"),
     [
         ("1", True),
         ("true", True),
@@ -35,7 +46,7 @@ from agentic_scraper.backend.core.settings_helpers import (
         ("   ", False),
     ],
 )
-def test_str_to_bool(raw: str, expected: bool) -> None:
+def test_str_to_bool(raw: str, expected: bool) -> None:  # noqa: FBT001
     assert str_to_bool(raw) is expected
     # sanity: TRUE_STRINGS covers the positive set
     if expected:
@@ -43,7 +54,7 @@ def test_str_to_bool(raw: str, expected: bool) -> None:
 
 
 @pytest.mark.parametrize(
-    "raw, expected",
+    ("raw", "expected"),
     [
         ("a,b,c", ["a", "b", "c"]),
         (" a , b ,  c ", ["a", "b", "c"]),
@@ -57,11 +68,11 @@ def test_parse_str_list(raw: str, expected: list[str]) -> None:
 
 
 @pytest.mark.parametrize(
-    "raw, expected",
+    ("raw", "expected"),
     [
         ("5", 5),
         ("5.0", 5),
-        ("7.9", 7),   # int(float("7.9")) -> 7
+        ("7.9", 7),  # int(float("7.9")) -> 7
         ("  10  ", 10),
     ],
 )
@@ -70,6 +81,8 @@ def test_safe_int(raw: str, expected: int) -> None:
 
 
 # ---------- _coerce_and_validate (internal) ----------
+
+
 def test__coerce_and_validate_string_ok() -> None:
     values: dict[str, Any] = {"log_level": "info"}
 
@@ -79,8 +92,6 @@ def test__coerce_and_validate_string_ok() -> None:
     def validator(v: str) -> str:
         assert isinstance(v, str)
         return v.upper()
-
-    import io
 
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
@@ -106,13 +117,12 @@ def test__coerce_and_validate_list_ok() -> None:
     values: dict[str, Any] = {"auth0_algorithms": ["RS256", "ES256"]}
 
     def coerce_list(_: str) -> list[str]:
-        raise AssertionError("should not be called for list input")
+        msg = "should not be called for list input"  # avoid EM101/TRY003
+        raise AssertionError(msg)
 
     def validator(v: list[str]) -> list[str]:
         assert isinstance(v, list)
         return [x.upper() for x in v]
-
-    import io
 
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
@@ -133,6 +143,7 @@ def test__coerce_and_validate_list_ok() -> None:
         logger.removeHandler(handler)
         handler.close()
 
+
 def test__coerce_and_validate_empty_string_skips() -> None:
     values: dict[str, Any] = {"dump_llm_json_dir": "   "}
 
@@ -141,8 +152,6 @@ def test__coerce_and_validate_empty_string_skips() -> None:
 
     def validator(v: str) -> str:
         return v
-
-    import io
 
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
@@ -171,9 +180,8 @@ def test__coerce_and_validate_raises_logs_warning() -> None:
         return s
 
     def validator(_: str) -> str:
-        raise ValueError("bad level")
-
-    import io
+        msg = "bad level"  # avoid EM101/TRY003
+        raise ValueError(msg)
 
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
@@ -183,9 +191,7 @@ def test__coerce_and_validate_raises_logs_warning() -> None:
     logger.setLevel(logging.DEBUG)
 
     try:
-        import pytest
-
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="bad level"):
             _coerce_and_validate(values, "log_level", coerce, validator)
 
         handler.flush()
@@ -197,11 +203,19 @@ def test__coerce_and_validate_raises_logs_warning() -> None:
         handler.close()
 
 
-
 # ---------- validated_settings (integration) ----------
+
+
 def test_validated_settings_parses_csv_list_and_bool(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,  # use temp locations to avoid S108
 ) -> None:
+    # Create safe temp dirs (no /tmp literals)
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    llm_dir = tmp_path / "llm"
+    llm_dir.mkdir()
+
     # Patch the names used *inside* settings_helpers (not the validators module)
     monkeypatch.setattr(
         "agentic_scraper.backend.core.settings_helpers.validate_auth0_algorithms",
@@ -252,13 +266,13 @@ def test_validated_settings_parses_csv_list_and_bool(
         "auth0_algorithms": "RS256, ES256  ,  HS256",
         "verbose": "YeS",
         "log_level": "debug",
-        "log_max_bytes": "1048576",
-        "log_backup_count": "5",
-        "log_dir": "/tmp/logs",
-        "dump_llm_json_dir": "/tmp/llm",
+        "log_max_bytes": str(LOG_MAX_BYTES),
+        "log_backup_count": str(LOG_BACKUP_COUNT),
+        "log_dir": str(logs_dir),
+        "dump_llm_json_dir": str(llm_dir),
         "screenshot_dir": "/data/imgs",
         "agent_mode": "dynamic",
-        "request_timeout": "30",
+        "request_timeout": str(REQ_TIMEOUT_INT),
         "openai_model": "gpt-4o",
         "auth0_api_audience": "https://api.example.com",
         "auth0_domain": "test.auth0.com",
@@ -266,8 +280,6 @@ def test_validated_settings_parses_csv_list_and_bool(
     }
 
     # Capture module logs with a direct handler (more reliable than caplog here)
-    import io
-
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     logger_name = "agentic_scraper.backend.core.settings_helpers"
@@ -281,13 +293,13 @@ def test_validated_settings_parses_csv_list_and_bool(
         assert out["auth0_algorithms"] == ["RS256", "ES256", "HS256"]
         assert out["verbose"] is True
         assert out["log_level"] == "debug"
-        assert out["log_max_bytes"] == 1048576
-        assert out["log_backup_count"] == 5
-        assert out["log_dir"] == "/tmp/logs"
-        assert out["dump_llm_json_dir"] == "/tmp/llm"
+        assert out["log_max_bytes"] == LOG_MAX_BYTES
+        assert out["log_backup_count"] == LOG_BACKUP_COUNT
+        assert out["log_dir"] == str(logs_dir)
+        assert out["dump_llm_json_dir"] == str(llm_dir)
         assert out["screenshot_dir"] == "/data/imgs"
         assert out["agent_mode"] == "dynamic"
-        assert out["request_timeout"] == 30
+        assert out["request_timeout"] == REQ_TIMEOUT_INT
         assert out["openai_model"] == "gpt-4o"
 
         handler.flush()
@@ -299,7 +311,9 @@ def test_validated_settings_parses_csv_list_and_bool(
         handler.close()
 
 
-def test_validated_settings_empty_string_skips_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_validated_settings_empty_string_skips_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Patch validate_path at the callsite used inside settings_helpers
     monkeypatch.setattr(
         "agentic_scraper.backend.core.settings_helpers.validate_path",
@@ -309,7 +323,6 @@ def test_validated_settings_empty_string_skips_key(monkeypatch: pytest.MonkeyPat
     values: dict[str, Any] = {"dump_llm_json_dir": "   "}
 
     # Capture module logs with a direct handler
-    import io
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     logger_name = "agentic_scraper.backend.core.settings_helpers"
@@ -330,7 +343,9 @@ def test_validated_settings_empty_string_skips_key(monkeypatch: pytest.MonkeyPat
         handler.close()
 
 
-def test_validated_settings_list_input_passes_through(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_validated_settings_list_input_passes_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Patch validate_auth0_algorithms at settings_helpers callsite
     monkeypatch.setattr(
         "agentic_scraper.backend.core.settings_helpers.validate_auth0_algorithms",
@@ -340,11 +355,13 @@ def test_validated_settings_list_input_passes_through(monkeypatch: pytest.Monkey
     out = validated_settings(values)
     assert out["auth0_algorithms"] == ["RS256"]
 
+
 def test_validated_settings_invalid_value_raises_and_logs_warning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def bad_level(_: str) -> str:
-        raise ValueError("boom")
+        msg = "boom"  # avoid EM101
+        raise ValueError(msg)
 
     # Patch validate_log_level at settings_helpers callsite
     monkeypatch.setattr(
@@ -355,7 +372,6 @@ def test_validated_settings_invalid_value_raises_and_logs_warning(
     values = {"log_level": "WRONG"}
 
     # Capture module logs with a direct handler
-    import io
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     logger_name = "agentic_scraper.backend.core.settings_helpers"
@@ -363,9 +379,8 @@ def test_validated_settings_invalid_value_raises_and_logs_warning(
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG)
 
-    import pytest
     try:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="boom"):
             validated_settings(values)
 
         handler.flush()
@@ -376,19 +391,18 @@ def test_validated_settings_invalid_value_raises_and_logs_warning(
         logger.removeHandler(handler)
         handler.close()
 
+
 def test__coerce_and_validate_non_str_or_list_raises_and_logs() -> None:
     values: dict[str, Any] = {"llm_schema_retries": -1}
 
     def coerce(s: str) -> int:
         return int(s)
 
-    def validator(v: int) -> int:
-        raise ValueError("out of range")
+    def validator(_v: int) -> int:
+        msg = "out of range"  # avoid EM101/TRY003
+        raise ValueError(msg)
 
     # Capture module logs with a direct handler
-    import io
-
-    import pytest
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     logger_name = "agentic_scraper.backend.core.settings_helpers"
@@ -397,7 +411,7 @@ def test__coerce_and_validate_non_str_or_list_raises_and_logs() -> None:
     logger.setLevel(logging.DEBUG)
 
     try:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="out of range"):
             _coerce_and_validate(values, "llm_schema_retries", coerce, validator)
 
         handler.flush()

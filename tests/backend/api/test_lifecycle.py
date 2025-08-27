@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import httpx
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 from fastapi import FastAPI, status
 from httpx import ASGITransport, TimeoutException
 
@@ -16,6 +17,10 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_SHUTDOWN_LOG,
     MSG_WARNING_JWKS_PRELOAD_FAILED_STARTING_LAZILY,
 )
+
+if TYPE_CHECKING:
+    # Only for type hints; avoids runtime import (fixes TC002)
+    from _pytest.monkeypatch import MonkeyPatch
 
 
 def _make_app() -> FastAPI:
@@ -32,7 +37,7 @@ def _spy_logger(monkeypatch: MonkeyPatch) -> list[str]:
     """Monkeypatch lifecycle_mod.logger to capture messages emitted via info/warning/exception."""
     messages: list[str] = []
 
-    def rec(msg: object, *args: object, **kwargs: object) -> None:
+    def rec(msg: object, *_: object, **__: object) -> None:
         messages.append(str(msg))
 
     monkeypatch.setattr(lifecycle_mod.logger, "info", rec, raising=True)
@@ -52,12 +57,12 @@ async def test_lifespan_preloads_jwks_success_logs_info(
     monkeypatch.setattr(ah.jwks_cache_instance, "get_jwks", _ok, raising=True)
 
     app = _make_app()
-    async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            resp = await client.get("/ping")
-            assert resp.status_code == status.HTTP_200_OK
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client,
+    ):
+        resp = await client.get("/ping")
+        assert resp.status_code == status.HTTP_200_OK
 
     # Assert messages
     assert MSG_INFO_PRELOADING_JWKS in messages
@@ -70,18 +75,19 @@ async def test_lifespan_preload_timeout_logs_warning(
     monkeypatch: MonkeyPatch,
 ) -> None:
     async def _timeout() -> list[dict[str, str]]:
-        raise TimeoutException("slow")
+        msg = "slow"
+        raise TimeoutException(msg)
 
     messages = _spy_logger(monkeypatch)
     monkeypatch.setattr(ah.jwks_cache_instance, "get_jwks", _timeout, raising=True)
 
     app = _make_app()
-    async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            resp = await client.get("/ping")
-            assert resp.status_code == status.HTTP_200_OK
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client,
+    ):
+        resp = await client.get("/ping")
+        assert resp.status_code == status.HTTP_200_OK
 
     assert MSG_INFO_PRELOADING_JWKS in messages
     assert MSG_ERROR_PRELOADING_JWKS in messages
@@ -94,18 +100,19 @@ async def test_lifespan_preload_http_error_logs_warning(
     monkeypatch: MonkeyPatch,
 ) -> None:
     async def _http_error() -> list[dict[str, str]]:
-        raise httpx.HTTPError("boom")
+        msg = "boom"
+        raise httpx.HTTPError(msg)
 
     messages = _spy_logger(monkeypatch)
     monkeypatch.setattr(ah.jwks_cache_instance, "get_jwks", _http_error, raising=True)
 
     app = _make_app()
-    async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            resp = await client.get("/ping")
-            assert resp.status_code == status.HTTP_200_OK
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client,
+    ):
+        resp = await client.get("/ping")
+        assert resp.status_code == status.HTTP_200_OK
 
     assert MSG_INFO_PRELOADING_JWKS in messages
     assert MSG_ERROR_PRELOADING_JWKS in messages
@@ -118,18 +125,19 @@ async def test_lifespan_preload_unexpected_error_logs_warning(
     monkeypatch: MonkeyPatch,
 ) -> None:
     async def _boom() -> list[dict[str, str]]:
-        raise RuntimeError("kaboom")
+        msg = "kaboom"
+        raise RuntimeError(msg)
 
     messages = _spy_logger(monkeypatch)
     monkeypatch.setattr(ah.jwks_cache_instance, "get_jwks", _boom, raising=True)
 
     app = _make_app()
-    async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            resp = await client.get("/ping")
-            assert resp.status_code == status.HTTP_200_OK
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client,
+    ):
+        resp = await client.get("/ping")
+        assert resp.status_code == status.HTTP_200_OK
 
     assert MSG_INFO_PRELOADING_JWKS in messages
     assert MSG_ERROR_PRELOADING_JWKS in messages
@@ -150,17 +158,17 @@ async def test_shutdown_clears_cancel_events(
 
     async def _ok() -> list[dict[str, str]]:
         return []
-    monkeypatch.setattr(ah.jwks_cache_instance, "get_jwks", _ok, raising=True)
 
+    monkeypatch.setattr(ah.jwks_cache_instance, "get_jwks", _ok, raising=True)
     monkeypatch.setattr(lifecycle_mod, "clear_cancel_events", _clear_all, raising=True)
 
     app = _make_app()
-    async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            resp = await client.get("/ping")
-            assert resp.status_code == status.HTTP_200_OK
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client,
+    ):
+        resp = await client.get("/ping")
+        assert resp.status_code == status.HTTP_200_OK
 
     assert called["cleared"] is True
     assert MSG_INFO_SHUTDOWN_LOG in messages

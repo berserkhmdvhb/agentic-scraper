@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Any
+from typing import Any, Self
 
 import httpx
 import pytest
@@ -25,7 +25,8 @@ class DummyResp:
 
     def json(self) -> dict[str, Any]:
         if self._data is None:
-            raise ValueError("No JSON available")
+            msg = "No JSON available"
+            raise ValueError(msg)
         return self._data
 
 
@@ -35,7 +36,7 @@ class DummyClient:
     def __init__(self, resp: DummyResp) -> None:
         self._resp = resp
 
-    async def __aenter__(self) -> DummyClient:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(
@@ -46,14 +47,14 @@ class DummyClient:
     ) -> None:
         return None
 
-    async def post(self, *_args: Any, **_kwargs: Any) -> DummyResp:
+    async def post(self, *_args: object, **_kwargs: object) -> DummyResp:
         return self._resp
 
 
 class ExplodingClient:
     """Raises an exception when used, to exercise error path."""
 
-    async def __aenter__(self) -> ExplodingClient:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(
@@ -64,8 +65,9 @@ class ExplodingClient:
     ) -> None:
         return None
 
-    async def post(self, *_args: Any, **_kwargs: Any) -> DummyResp:
-        raise RuntimeError("boom")
+    async def post(self, *_args: object, **_kwargs: object) -> DummyResp:
+        err = RuntimeError("boom")
+        raise err
 
 
 @pytest.mark.asyncio

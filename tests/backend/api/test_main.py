@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import httpx
 import pytest
 from fastapi import FastAPI, status
 from fastapi.routing import APIRoute
 
 from agentic_scraper import __api_version__ as api_version
 from agentic_scraper import __version__ as version
-from agentic_scraper.backend.core import settings as settings_module
+
+if TYPE_CHECKING:
+    import httpx
+
+    from agentic_scraper.backend.core import settings as settings_module
 
 
 def _all_paths(app: FastAPI) -> set[str]:

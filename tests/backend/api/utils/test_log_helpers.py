@@ -17,12 +17,13 @@ from agentic_scraper.backend.config.messages import (
     MSG_WARNING_USER_FAILED_AUTHORIZATION,
 )
 
+STATUS_FORBIDDEN = 403
+STATUS_UNAUTHORIZED = 401
+STATUS_INTERNAL_ERROR = 500
+
 
 def _find_log(caplog: pytest.LogCaptureFixture, level: int, substring: str) -> bool:
-    return any(
-        (rec.levelno == level) and (substring in rec.getMessage())
-        for rec in caplog.records
-    )
+    return any((rec.levelno == level) and (substring in rec.getMessage()) for rec in caplog.records)
 
 
 def test_raise_forbidden_logs_and_raises(caplog: pytest.LogCaptureFixture) -> None:
@@ -33,15 +34,13 @@ def test_raise_forbidden_logs_and_raises(caplog: pytest.LogCaptureFixture) -> No
         lh.raise_forbidden(required)
 
     exc = ei.value
-    assert exc.status_code == 403
+    assert exc.status_code == STATUS_FORBIDDEN
     scopes_str = " ".join(required)
     assert exc.detail == MSG_ERROR_MISSING_SCOPES.format(scopes=scopes_str)
     assert exc.headers == {"WWW-Authenticate": "Bearer"}
 
     # warning log contains formatted scopes
-    assert _find_log(
-        caplog, logging.WARNING, MSG_WARNING_INSUFFICIENT_PERMISSIONS.split("{")[0]
-    )
+    assert _find_log(caplog, logging.WARNING, MSG_WARNING_INSUFFICIENT_PERMISSIONS.split("{")[0])
     assert _find_log(caplog, logging.WARNING, scopes_str)
 
 
@@ -53,13 +52,12 @@ def test_raise_unauthorized_logs_and_raises(caplog: pytest.LogCaptureFixture) ->
         lh.raise_unauthorized(err)
 
     exc = ei.value
-    assert exc.status_code == 401
+    assert exc.status_code == STATUS_UNAUTHORIZED
     # detail is hardcoded in implementation (recommend moving to constants)
     assert exc.detail == "Invalid or expired token"
     assert exc.headers == {"WWW-Authenticate": "Bearer"}
 
-    # An exception-level log with formatted error text
-    # (logger.exception → ERROR level)
+    # An exception-level log with formatted error text (logger.exception → ERROR level)
     expect_prefix = MSG_ERROR_INVALID_TOKEN.split("{")[0]
     assert _find_log(caplog, logging.ERROR, expect_prefix)
     assert _find_log(caplog, logging.ERROR, "boom-why")
@@ -73,7 +71,7 @@ def test_raise_internal_error_logs_and_raises(caplog: pytest.LogCaptureFixture) 
         lh.raise_internal_error(err)
 
     exc = ei.value
-    assert exc.status_code == 500
+    assert exc.status_code == STATUS_INTERNAL_ERROR
     # detail is hardcoded in implementation (recommend moving to constants)
     assert exc.detail == "Internal server error during token validation"
     assert exc.headers == {"WWW-Authenticate": "Bearer"}
@@ -94,6 +92,7 @@ def test_log_helpers_info_warning_error(caplog: pytest.LogCaptureFixture) -> Non
     assert _find_log(caplog, logging.WARNING, "hello-warn")
     # log_raise_error uses logger.exception → ERROR level
     assert _find_log(caplog, logging.ERROR, "hello-err")
+
 
 def test_log_raise_user_authorization(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)

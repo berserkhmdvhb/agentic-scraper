@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import json
 from types import ModuleType
-from typing import Any, cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
-from _pytest.logging import LogCaptureFixture
-from _pytest.monkeypatch import MonkeyPatch
 
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_DECRYPTION_FAILED,
@@ -16,13 +14,19 @@ from agentic_scraper.backend.config.messages import (
 )
 from agentic_scraper.backend.config.types import OpenAIConfig
 
+if TYPE_CHECKING:
+    from _pytest.logging import LogCaptureFixture
+
+# Apply the crypto stub to all tests that need it without adding unused args
+pytestmark = pytest.mark.usefixtures("stub_crypto")
+
 
 def read_store_json(user_store_mod: ModuleType) -> dict[str, dict[str, str]]:
-    loaded: Any = json.loads(user_store_mod.USER_STORE.read_text())
+    loaded = json.loads(user_store_mod.USER_STORE.read_text())
     return cast("dict[str, dict[str, str]]", loaded)
 
 
-def test_save_and_load_roundtrip(user_store_mod: ModuleType, stub_crypto: None) -> None:
+def test_save_and_load_roundtrip(user_store_mod: ModuleType) -> None:
     user_id = "auth0|abc123"
     user_store_mod.save_user_credentials(user_id, "sk-test", "proj-xyz")
     assert user_store_mod.has_user_credentials(user_id) is True
@@ -40,7 +44,6 @@ def test_save_and_load_roundtrip(user_store_mod: ModuleType, stub_crypto: None) 
 
 def test_delete_credentials_success(
     user_store_mod: ModuleType,
-    stub_crypto: None,
     caplog_debug: LogCaptureFixture,
 ) -> None:
     user_id = "auth0|to_delete"
@@ -80,23 +83,25 @@ def test_delete_missing_credentials_returns_false_and_logs(
 
 def test_save_user_credentials_encrypt_failure_raises_http(
     user_store_mod: ModuleType,
-    monkeypatch: MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _boom(_value: str) -> str:
-        raise RuntimeError("boom")
+        err_msg = "boom"
+        raise RuntimeError(err_msg)
 
     monkeypatch.setattr(user_store_mod, "encrypt", _boom, raising=True)
 
-    with pytest.raises(OSError) as e:
+    with pytest.raises(OSError, match="Failed to save user store") as e:
         user_store_mod.save_user_credentials("auth0|abc", "k", "p")
     # The store surfaces a generic OSError; routes map it to a 500.
     msg = str(e.value)
     assert "Failed to save user store" in msg
     assert "boom" in msg
 
+
 def test_load_user_credentials_decrypt_failure_returns_none(
     user_store_mod: ModuleType,
-    monkeypatch: MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
     caplog_debug: LogCaptureFixture,
 ) -> None:
     user_id = "auth0|baddec"
@@ -105,7 +110,8 @@ def test_load_user_credentials_decrypt_failure_returns_none(
     )
 
     def _dec(_v: str) -> str:
-        raise ValueError("cannot decrypt")
+        err_msg = "cannot decrypt"
+        raise ValueError(err_msg)
 
     monkeypatch.setattr(user_store_mod, "decrypt", _dec, raising=True)
 
@@ -120,27 +126,28 @@ def test__load_store_with_malformed_json_returns_empty_dict(
     user_store_mod: ModuleType,
 ) -> None:
     user_store_mod.USER_STORE.write_text("{")
-    assert user_store_mod._load_store() == {}
+    assert user_store_mod._load_store() == {}  # noqa: SLF001
 
 
 def test__save_store_ioerror_wraps_with_message(
     user_store_mod: ModuleType,
-    monkeypatch: MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _raising_named_tmpfile(*args: object, **kwargs: object) -> object:
-        raise OSError("disk full")
+    def _raising_named_tmpfile(*_args: object, **_kwargs: object) -> object:
+        err = OSError("disk full")
+        raise err
 
     monkeypatch.setattr(
         user_store_mod.tempfile, "NamedTemporaryFile", _raising_named_tmpfile, raising=True
     )
 
-    with pytest.raises(OSError) as e:
-        user_store_mod._save_store({"u": {"api_key": "x", "project_id": "y"}})
+    with pytest.raises(OSError, match=r".+") as e:
+        user_store_mod._save_store({"u": {"api_key": "x", "project_id": "y"}})  # noqa: SLF001
 
     assert MSG_ERROR_SAVING_USER_STORE.format(error="disk full") in str(e.value)
 
 
-def test_has_user_credentials_true_false(user_store_mod: ModuleType, stub_crypto: None) -> None:
+def test_has_user_credentials_true_false(user_store_mod: ModuleType) -> None:
     uid = "auth0|x"
     assert user_store_mod.has_user_credentials(uid) is False
     user_store_mod.save_user_credentials(uid, "k", "p")
@@ -150,20 +157,17 @@ def test_has_user_credentials_true_false(user_store_mod: ModuleType, stub_crypto
 @pytest.mark.parametrize("bad", ["", "   ", None, 123])
 def test_public_functions_validate_user_id(
     user_store_mod: ModuleType,
-    stub_crypto: None,
-    bad: Any,
+    bad: object,
 ) -> None:
     # All should raise ValueError via validate_user_id before any I/O
-    import typing as _t
-
-    with pytest.raises(ValueError):
-        user_store_mod.save_user_credentials(_t.cast("str", bad), "k", "p")
-    with pytest.raises(ValueError):
-        user_store_mod.load_user_credentials(_t.cast("str", bad))
-    with pytest.raises(ValueError):
-        user_store_mod.delete_user_credentials(_t.cast("str", bad))
-    with pytest.raises(ValueError):
-        user_store_mod.has_user_credentials(_t.cast("str", bad))
+    with pytest.raises(ValueError, match=r".+"):
+        user_store_mod.save_user_credentials(cast("str", bad), "k", "p")
+    with pytest.raises(ValueError, match=r".+"):
+        user_store_mod.load_user_credentials(cast("str", bad))
+    with pytest.raises(ValueError, match=r".+"):
+        user_store_mod.delete_user_credentials(cast("str", bad))
+    with pytest.raises(ValueError, match=r".+"):
+        user_store_mod.has_user_credentials(cast("str", bad))
 
 
 @pytest.mark.parametrize(
@@ -172,10 +176,8 @@ def test_public_functions_validate_user_id(
 )
 def test_save_user_credentials_validates_pair(
     user_store_mod: ModuleType,
-    api: Any,
-    proj: Any,
+    api: object,
+    proj: object,
 ) -> None:
-    import typing as _t
-
-    with pytest.raises(ValueError):
-        user_store_mod.save_user_credentials("auth0|ok", _t.cast("str", api), _t.cast("str", proj))
+    with pytest.raises(ValueError, match=r".+"):
+        user_store_mod.save_user_credentials("auth0|ok", cast("str", api), cast("str", proj))
