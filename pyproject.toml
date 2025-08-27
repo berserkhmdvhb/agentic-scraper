@@ -43,6 +43,20 @@ dependencies = [
 ]
 
 
+classifiers = [
+  "Intended Audience :: Developers",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Utilities",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Typing :: Typed",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
 [project.optional-dependencies]
 # Dev tools only (keep runtime out of here)
 dev = [
@@ -57,20 +71,6 @@ dev = [
   "ruff",
   "twine",
   "types-beautifulsoup4",
-]
-
-classifiers = [
-  "Intended Audience :: Developers",
-  "Topic :: Internet :: WWW/HTTP",
-  "Topic :: Utilities",
-  "License :: OSI Approved :: MIT License",
-  "Operating System :: OS Independent",
-  "Typing :: Typed",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
 ]
 
 
