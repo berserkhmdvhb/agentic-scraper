@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Any, Self
+from typing import Any
 
 import httpx
 import pytest
 from fastapi import status
+from typing_extensions import Self  # py310-compatible
 
 
 class DummyResp:
@@ -41,9 +42,9 @@ class DummyClient:
 
     async def __aexit__(
         self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _tb: TracebackType | None,
     ) -> None:
         return None
 
@@ -59,9 +60,9 @@ class ExplodingClient:
 
     async def __aexit__(
         self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _tb: TracebackType | None,
     ) -> None:
         return None
 
@@ -76,7 +77,10 @@ async def test_auth_callback_missing_code_redirects_error(
     api_base: str,
 ) -> None:
     res = await test_client.get(f"{api_base}/auth/callback")
-    assert res.status_code in {status.HTTP_302_FOUND, status.HTTP_307_TEMPORARY_REDIRECT}
+    assert res.status_code in {
+        status.HTTP_302_FOUND,
+        status.HTTP_307_TEMPORARY_REDIRECT,
+    }
     assert "error=missing_code" in (res.headers.get("location") or "")
 
 
@@ -94,7 +98,10 @@ async def test_auth_callback_success_token_redirects_with_token(
     )
 
     res = await test_client.get(f"{api_base}/auth/callback?code=abc123")
-    assert res.status_code in {status.HTTP_302_FOUND, status.HTTP_307_TEMPORARY_REDIRECT}
+    assert res.status_code in {
+        status.HTTP_302_FOUND,
+        status.HTTP_307_TEMPORARY_REDIRECT,
+    }
     loc = res.headers.get("location") or ""
     assert "token=tok_123" in loc
 
@@ -113,7 +120,10 @@ async def test_auth_callback_non_200_yields_token_exchange_failed(
     )
 
     res = await test_client.get(f"{api_base}/auth/callback?code=abc123")
-    assert res.status_code in {status.HTTP_302_FOUND, status.HTTP_307_TEMPORARY_REDIRECT}
+    assert res.status_code in {
+        status.HTTP_302_FOUND,
+        status.HTTP_307_TEMPORARY_REDIRECT,
+    }
     assert "error=token_exchange_failed" in (res.headers.get("location") or "")
 
 
@@ -131,7 +141,10 @@ async def test_auth_callback_200_missing_token_yields_missing_token(
     )
 
     res = await test_client.get(f"{api_base}/auth/callback?code=abc123")
-    assert res.status_code in {status.HTTP_302_FOUND, status.HTTP_307_TEMPORARY_REDIRECT}
+    assert res.status_code in {
+        status.HTTP_302_FOUND,
+        status.HTTP_307_TEMPORARY_REDIRECT,
+    }
     assert "error=missing_token" in (res.headers.get("location") or "")
 
 
@@ -141,8 +154,16 @@ async def test_auth_callback_exception_path_yields_token_exchange_failed(
     test_client: httpx.AsyncClient,
     api_base: str,
 ) -> None:
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_kw: ExplodingClient(), raising=True)
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **_kw: ExplodingClient(),
+        raising=True,
+    )
 
     res = await test_client.get(f"{api_base}/auth/callback?code=abc123")
-    assert res.status_code in {status.HTTP_302_FOUND, status.HTTP_307_TEMPORARY_REDIRECT}
+    assert res.status_code in {
+        status.HTTP_302_FOUND,
+        status.HTTP_307_TEMPORARY_REDIRECT,
+    }
     assert "error=token_exchange_failed" in (res.headers.get("location") or "")
