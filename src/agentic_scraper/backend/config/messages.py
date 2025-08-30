@@ -400,7 +400,7 @@ MSG_INFO_NO_AUTHOR = "[PARSER] No author meta tag found."
 MSG_ERROR_SCREENSHOT_FAILED = "[SCREENSHOT] Failed to capture screenshot"
 MSG_INFO_SCREENSHOT_SAVED = "[SCREENSHOT] Screenshot saved: {path}"
 MSG_INFO_WORKER_POOL_START = "[SCREENSHOT] Running worker pool with screenshots enabled = {enabled}"
-MSG_ERROR_SCREENSHOT_FAILED = "[SCREENSHOT] Failed to capture screenshot"
+MSG_ERROR_SCREENSHOT_FAILED = "[SCREENSHOT] Failed to capture screenshot: {url}"
 MSG_INFO_SCREENSHOT_SAVED = "[SCREENSHOT] Screenshot saved to {path}"
 MSG_ERROR_INVALID_SCREENSHOT_URL = "[SCREENSHOT] Invalid URL passed to capture_screenshot: {url}"
 

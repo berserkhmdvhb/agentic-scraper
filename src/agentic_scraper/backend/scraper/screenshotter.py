@@ -24,7 +24,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_SCREENSHOT_FAILED,
     MSG_INFO_SCREENSHOT_SAVED,
 )
-from agentic_scraper.backend.utils.validators import is_valid_url, validate_path
+from agentic_scraper.backend.utils.validators import validate_path, validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,9 @@ async def capture_screenshot(url: str, output_dir: Path) -> str | None:
     Raises:
         Logs an error if the URL is invalid or screenshot fails.
     """
-    if not is_valid_url(url):
+    try:
+        url = validate_url(url)  # trims + validates
+    except ValueError:
         logger.exception(MSG_ERROR_INVALID_SCREENSHOT_URL.format(url=url))
         return None
 
@@ -90,5 +92,5 @@ async def capture_screenshot(url: str, output_dir: Path) -> str | None:
             logger.info(MSG_INFO_SCREENSHOT_SAVED.format(path=file_path))
             return file_path.as_posix()
     except Exception:
-        logger.exception("%s [URL: %s]", MSG_ERROR_SCREENSHOT_FAILED, url)
+        logger.exception(MSG_ERROR_SCREENSHOT_FAILED.format(url=url))
         return None
