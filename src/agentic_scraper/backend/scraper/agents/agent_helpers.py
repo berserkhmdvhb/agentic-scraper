@@ -21,10 +21,14 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
-from openai import APIError, OpenAIError, RateLimitError
 from playwright.async_api import Error as PlaywrightError
 from pydantic import ValidationError
 
+from agentic_scraper.backend.config.aliases import (
+    APIErrorT,
+    OpenAIErrorT,
+    RateLimitErrorT,
+)
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_API_EXCEPTION,
     MSG_DEBUG_CONTEXT_HINTS_EXTRACTED,
@@ -145,26 +149,23 @@ async def capture_optional_screenshot(url: str, settings: Settings) -> str | Non
         return None
 
 
-def handle_openai_exception(e: OpenAIError, url: str, settings: Settings) -> None:
+def handle_openai_exception(e: OpenAIErrorT, url: str, settings: Settings) -> None:
     """
     Log and handle OpenAI-related errors with verbosity-aware logging.
 
     Args:
-        e (OpenAIError): The OpenAI exception raised.
+        e (OpenAIErrorT): The OpenAI exception raised.
         url (str): The URL that triggered the exception.
         settings (Settings): Runtime config for verbosity.
 
     Returns:
         None
-
-    Raises:
-        None
     """
-    if isinstance(e, RateLimitError):
+    if isinstance(e, RateLimitErrorT):
         logger.warning(MSG_ERROR_RATE_LIMIT_LOG_WITH_URL.format(url=url))
         if settings.is_verbose_mode:
             logger.debug(MSG_ERROR_RATE_LIMIT_DETAIL.format(error=e))
-    elif isinstance(e, APIError):
+    elif isinstance(e, APIErrorT):
         logger.warning(MSG_ERROR_API_LOG_WITH_URL.format(url=url))
         if settings.is_verbose_mode:
             logger.debug(MSG_DEBUG_API_EXCEPTION)
@@ -194,9 +195,11 @@ def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
     Raises:
         None
     """
-    if not settings.is_verbose_mode:
+    # Honor the explicit verbose flag used in tests/config to control dumping.
+    # Some environments may compute is_verbose_mode differently (e.g., via log level),
+    # so we use the explicit flag to avoid unexpected dumps.
+    if not getattr(settings, "verbose", False):
         return
-
     summary = {
         k: f"str({len(v)})" if isinstance(v, str) else "None" if v is None else type(v).__name__
         for k, v in data.items()
@@ -369,7 +372,9 @@ def score_and_log_fields(
         if v not in [None, ""]
     }
 
-    score = score_nonempty_fields(raw_data or dict.fromkeys(nonempty_keys, "nonempty"))
+    # Base score may exceed 1.0 depending on weights; normalize to [0.0, 1.0].
+    base_score = score_nonempty_fields(raw_data or dict.fromkeys(nonempty_keys, "nonempty"))
+    score = max(0.0, min(1.0, float(base_score)))
 
     logger.debug(
         MSG_DEBUG_LLM_FIELD_SCORE_DETAILS.format(
