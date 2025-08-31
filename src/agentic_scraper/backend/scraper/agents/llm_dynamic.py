@@ -1,3 +1,4 @@
+# src/agentic_scraper/backend/scraper/agents/llm_dynamic.py
 """
 Dynamic LLM-based extraction agent for single-pass structured data scraping.
 
@@ -6,18 +7,15 @@ webpage content using OpenAI's Chat API. It performs a single pass with
 configurable retry logic for transient API failures. The agent supports optional
 screenshot capture and key normalization.
 
-Usage:
-    Used when adaptive retries are not necessary, and a single-shot response
-    from the LLM is expected to be sufficient.
-
 Primary entrypoint:
     - extract_structured_data(request, settings)
 """
 
-import logging
-from typing import TYPE_CHECKING
+from __future__ import annotations
 
-from openai import APIError, AsyncOpenAI, OpenAIError, RateLimitError
+import logging
+from typing import TYPE_CHECKING, Any
+
 from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,
@@ -25,12 +23,13 @@ from tenacity import (
     wait_exponential,
 )
 
+from agentic_scraper.backend.config.aliases import APIErrorT, OpenAIErrorT, RateLimitErrorT
 from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_LLM_PROMPT_WITH_URL,
     MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL,
     MSG_INFO_FIELD_DISCOVERY_SCORE,
+    MSG_OPENAI_CLIENT_UNAVAILABLE,
 )
-from agentic_scraper.backend.core.settings import Settings
 from agentic_scraper.backend.scraper.agents.agent_helpers import (
     capture_optional_screenshot,
     handle_openai_exception,
@@ -45,15 +44,60 @@ from agentic_scraper.backend.scraper.agents.field_utils import (
     score_nonempty_fields,
 )
 from agentic_scraper.backend.scraper.agents.prompt_helpers import build_prompt
-from agentic_scraper.backend.scraper.models import ScrapeRequest
-from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 if TYPE_CHECKING:
-    from openai.types.chat import ChatCompletionMessageParam
+    from agentic_scraper.backend.core.settings import Settings
+    from agentic_scraper.backend.scraper.models import ScrapeRequest
+    from agentic_scraper.backend.scraper.schemas import ScrapedItem
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["extract_structured_data"]
+
+# -----------------------------------------------------------------------------
+# OpenAI client import with safe fallback (single assignment for mypy)
+# -----------------------------------------------------------------------------
+try:  # pragma: no cover (import-path dependent)
+    from openai import AsyncOpenAI as _ImportedAsyncOpenAI
+
+    _AsyncOpenAI_cls: type = _ImportedAsyncOpenAI
+except ImportError:  # pragma: no cover
+
+    class _AsyncOpenAIStub:
+        """Minimal stub that mimics `openai.AsyncOpenAI` enough for our usage and tests."""
+
+        def __init__(self, *, api_key: str | None = None, project: str | None = None) -> None:
+            self.api_key = api_key
+            self.project = project
+            self.chat = self.Chat()
+
+        class Chat:
+            def __init__(self) -> None:
+                self.completions = self.Completions()
+
+            class Completions:
+                @staticmethod
+                async def create(
+                    *,
+                    model: str,
+                    messages: list[dict[str, object]],
+                    temperature: float,
+                    max_tokens: int,
+                ) -> object:
+                    _ = (model, messages, temperature, max_tokens)
+                    # Mirrors llm_fixed stub behavior with a clear message constant
+                    msg = MSG_OPENAI_CLIENT_UNAVAILABLE
+                    raise RuntimeError(msg)
+
+    _AsyncOpenAI_cls = _AsyncOpenAIStub
+
+# Bind the public name exactly once so mypy doesn't see a redefinition.
+AsyncOpenAI: type = _AsyncOpenAI_cls
+
+
+# -----------------------------------------------------------------------------
+# Public API
+# -----------------------------------------------------------------------------
 
 
 async def extract_structured_data(
@@ -63,20 +107,9 @@ async def extract_structured_data(
 ) -> ScrapedItem | None:
     """
     LLM-based structured data extraction using a dynamic prompt and retry logic.
-
-    Internally retries the extraction process on transient OpenAI errors
-    using exponential backoff. Delegates core extraction logic to `_extract_impl`.
-
-    Args:
-        request (ScrapeRequest): Contains page text, URL, OpenAI credentials, and screenshot flag.
-        settings (Settings): Retry, token, and model configuration.
-
-    Returns:
-        ScrapedItem | None: Validated structured data or None on failure.
-
-    Raises:
-        None: All exceptions are internally handled or retried.
     """
+    retry_on = (OpenAIErrorT, APIErrorT, RateLimitErrorT)
+
     async for attempt in AsyncRetrying(
         stop=stop_after_attempt(settings.retry_attempts),
         wait=wait_exponential(
@@ -84,11 +117,12 @@ async def extract_structured_data(
             min=settings.retry_backoff_min,
             max=settings.retry_backoff_max,
         ),
-        retry=retry_if_exception_type(OpenAIError),
+        retry=retry_if_exception_type(retry_on),
         reraise=True,
     ):
         with attempt:
             return await _extract_impl(request=request, settings=settings)
+
     return None
 
 
@@ -99,19 +133,6 @@ async def _extract_impl(
 ) -> ScrapedItem | None:
     """
     Core logic for extracting structured data from page content using OpenAI's Chat API.
-
-    Builds a dynamic prompt, sends it to the LLM, parses and validates the response,
-    and optionally captures a screenshot if enabled.
-
-    Args:
-        request (ScrapeRequest): Encapsulated scraping input and credentials.
-        settings (Settings): Application-wide configuration.
-
-    Returns:
-        ScrapedItem | None: Parsed and validated data or None on failure.
-
-    Raises:
-        None: All OpenAI-related exceptions are handled via `handle_openai_exception`.
     """
     prompt = build_prompt(
         text=request.text,
@@ -120,18 +141,17 @@ async def _extract_impl(
         context_hints=request.context_hints,
     )
     logger.debug(MSG_DEBUG_LLM_PROMPT_WITH_URL.format(url=request.url, prompt=prompt))
-    messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
-    api_key, project_id = retrieve_openai_credentials(request.openai)
 
-    client = AsyncOpenAI(
-        api_key=api_key,
-        project=project_id,
-    )
+    # Use a dict-based message shape to satisfy both the real client and the stub.
+    messages_payload: list[dict[str, object]] = [{"role": "user", "content": prompt}]
+    api_key, project_id = retrieve_openai_credentials(request.openai)
+    client = AsyncOpenAI(api_key=api_key, project=project_id)
 
     try:
-        response = await client.chat.completions.create(
+        # Both the real SDK and the stub expose: client.chat.completions.create(...)
+        response: Any = await client.chat.completions.create(
             model=settings.openai_model,
-            messages=messages,
+            messages=messages_payload,
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
         )
@@ -141,7 +161,7 @@ async def _extract_impl(
             logger.warning(MSG_ERROR_LLM_RESPONSE_EMPTY_CONTENT_WITH_URL.format(url=request.url))
             return None
 
-        # ─── Parse, Normalize, and Score ──────────────────────────────────────
+        # Parse and normalize
         raw_data = parse_llm_response(content, request.url, settings)
         if raw_data is None:
             return None
@@ -161,7 +181,7 @@ async def _extract_impl(
 
         normalized = normalize_fields(raw_data)
 
-        # ─── Screenshot (Optional) ────────────────────────────────────────────
+        # Optional screenshot
         if request.take_screenshot:
             screenshot_path = await capture_optional_screenshot(request.url, settings)
             if screenshot_path:
@@ -169,6 +189,6 @@ async def _extract_impl(
 
         return try_validate_scraped_item(normalized, request.url, settings)
 
-    except (RateLimitError, APIError, OpenAIError) as e:
+    except (RateLimitErrorT, APIErrorT, OpenAIErrorT) as e:
         handle_openai_exception(e, url=request.url, settings=settings)
         return None

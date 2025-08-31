@@ -596,7 +596,7 @@ MSG_INFO_FIELD_DISCOVERY_SCORE = (
 )
 MSG_DEBUG_LLM_PROMPT_WITH_URL = "[AGENT] [LLM] [{url}] Prompt sent to OpenAI:\n{prompt}"
 
-
+MSG_OPENAI_CLIENT_UNAVAILABLE = "[AGENT] [LLM] OpenAI client not available in this environment."
 # llm_dynamic_adaptive.py
 
 MSG_DEBUG_MISSING_IMPORTANT_FIELDS = (
