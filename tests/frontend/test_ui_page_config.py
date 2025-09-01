@@ -44,10 +44,6 @@ st.session_state["raw_urls"] = raw
     app_file = tmp_path / "mini_app_paste.py"
     app_file.write_text(app_code, encoding="utf-8")
 
-    from typing import TYPE_CHECKING, cast
-    if TYPE_CHECKING:
-        from streamlit.testing.v1 import AppTest  # for typing only
-
     at = cast("AppTest", streamlit_app_test(str(app_file)))
     at.run()
 
