@@ -167,6 +167,7 @@ def test_fetch_openai_credentials_success(
 
 # ---------------------- fetch_openai_credentials_status ----------------------
 
+
 def test_fetch_openai_credentials_status_happy(monkeypatch: pytest.MonkeyPatch) -> None:
     st.session_state.clear()
     _set_jwt()
