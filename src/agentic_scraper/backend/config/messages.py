@@ -589,6 +589,10 @@ MSG_DEBUG_RULE_BASED_VALIDATION_FAILED_FIELDS = (
 )
 MSG_ERROR_RULE_BASED_EXTRACTION_FAILED = "[AGENT] [RULE_BASED] Validation failed for URL: {url}"
 
+MSG_WARN_RULE_BASED_NO_FIELDS = (
+    "[AGENT] [RULE_BASED] Rule-based extraction produced no informative fields for {url}"
+)
+
 # llm_dynamic.py
 MSG_INFO_FIELD_DISCOVERY_SCORE = (
     "[AGENT] [LLM] [{url}] Field discovery score: "

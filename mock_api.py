@@ -10,7 +10,7 @@ import uvicorn
 # ─── CLI Args ─────────────────────────────────────────────────────────────────
 
 parser = argparse.ArgumentParser(description="Mock API Server")
-parser.add_argument("--fail-rate", type=float, default=0.05, help="Simulated failure rate (0.0–1.0)")
+parser.add_argument("--fail-rate", type=float, default=0.05, help="Simulated failure rate (0.0-1.0)")
 parser.add_argument("--port", type=int, default=8000, help="Port to run the server on")
 parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind the server to")
 
