@@ -697,9 +697,17 @@ def httpx_backend_mock(monkeypatch: MonkeyPatch) -> Callable[[], _MockRouter]:
     mock_transport = httpx.MockTransport(router)
 
     class PatchedAsyncClient(httpx.AsyncClient):
-        def __init__(self, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
-            # Force our mock transport unless explicitly provided
-            super().__init__(transport=transport or mock_transport)
+        def __init__(
+            self,
+            *,
+            transport: httpx.AsyncBaseTransport | None = None,
+            follow_redirects: bool | None = None,
+        ) -> None:
+            # Force our mock transport unless explicitly provided; allow follow_redirects
+            super().__init__(
+                transport=transport or mock_transport,
+                follow_redirects=bool(follow_redirects) if follow_redirects is not None else False,
+            )
 
     monkeypatch.setattr(httpx, "AsyncClient", PatchedAsyncClient, raising=True)
 
