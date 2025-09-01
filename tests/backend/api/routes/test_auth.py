@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 import pytest
 from fastapi import status
-from typing_extensions import Self  # py310-compatible
+from typing_extensions import Self
 
 
 class DummyResp:

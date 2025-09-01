@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Self
+from typing import Any
 
 import pytest
 import streamlit as st
+from typing_extensions import Self
 
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_JOB_FAILED,
