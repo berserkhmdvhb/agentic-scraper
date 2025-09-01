@@ -7,7 +7,7 @@ import logging
 import os
 import socket
 import time
-from collections.abc import AsyncGenerator, Callable, Generator
+from collections.abc import AsyncGenerator, Callable, Generator, Mapping
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, TypeAlias, cast
 import httpx
 import pytest
 import pytest_asyncio
+import streamlit as st
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import ASGITransport
@@ -59,7 +60,15 @@ if TYPE_CHECKING:
     from _pytest.logging import LogCaptureFixture
     from _pytest.monkeypatch import MonkeyPatch
     from fastapi import FastAPI
+    from streamlit.testing.v1 import AppTest as _AppTest
 
+    AppTest: _AppTest | None
+else:
+    try:
+        # Available in Streamlit 1.31+; safe to import conditionally.
+        from streamlit.testing.v1 import AppTest  # runtime import
+    except (ImportError, ModuleNotFoundError):
+        AppTest = None
 
 __all__ = [
     "api_base",
@@ -582,3 +591,119 @@ def _settings_alias(
 ) -> settings_module.Settings:
     """Back-compat alias so tests using `_settings` use the canonical `settings`."""
     return settings
+
+
+# --------------------------------------------------------------------------- #
+# streamlit- frontend/
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def st_session() -> Callable[[Mapping[str, Any] | None], None]:
+    """
+    Seed Streamlit's session_state in a controlled way.
+
+    Usage:
+        st_session({"jwt_token": "abc123", "some_flag": True})
+    """
+
+    def _seed(values: Mapping[str, Any] | None = None) -> None:
+        # Ensure a clean slate for each test that calls this
+        st.session_state.clear()
+        if values:
+            for k, v in values.items():
+                st.session_state[k] = v
+
+    return _seed
+
+
+@pytest.fixture
+def streamlit_app_test() -> Callable[[str], object]:
+    """
+    Run a Streamlit app file with the testing harness and return the AppTest instance.
+    Skips tests gracefully if the harness isn't available.
+    """
+    if AppTest is None:
+        pytest.skip("Streamlit testing harness is not available (streamlit.testing.v1).")
+
+    def _run(app_path: str) -> object:
+        return AppTest.from_file(app_path)
+
+    return _run
+
+
+class _MockRouter:
+    """
+    Simple router for httpx.MockTransport used in frontend tests.
+    Match by METHOD + absolute URL. Allows json/text/static responses or custom handlers.
+    """
+
+    def __init__(self) -> None:
+        self._routes: list[tuple[str, str, Callable[[httpx.Request], httpx.Response]]] = []
+
+    def add_json(
+        self,
+        method: str,
+        url: str,
+        status: int = 200,
+        json_data: object | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
+        def _handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(status, json=json_data, headers=dict(headers or {}))
+
+        self._routes.append((method.upper(), url, _handler))
+
+    def add_text(
+        self,
+        method: str,
+        url: str,
+        status: int = 200,
+        text: str = "",
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
+        def _handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(status, text=text, headers=dict(headers or {}))
+
+        self._routes.append((method.upper(), url, _handler))
+
+    def add_handler(
+        self, method: str, url: str, handler: Callable[[httpx.Request], httpx.Response]
+    ) -> None:
+        self._routes.append((method.upper(), url, handler))
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        method = request.method.upper()
+        url = str(request.url)
+        for meth, full_url, handler in self._routes:
+            if meth == method and full_url == url:
+                return handler(request)
+        # Default: 404 for unmatched routes to surface mistakes in tests
+        return httpx.Response(404, text=f"No mock route for {method} {url}")
+
+
+@pytest.fixture
+def httpx_backend_mock(monkeypatch: MonkeyPatch) -> Callable[[], _MockRouter]:
+    """
+    Patch httpx.AsyncClient to always use a MockTransport with a local router.
+    Tests can register routes against absolute URLs.
+
+    Usage:
+        router = httpx_backend_mock()
+        router.add_json("POST", "http://api.example.com/api/v1/scrape/start", 200, {"ok": True})
+        # Now code that creates httpx.AsyncClient() internally will hit this mock.
+    """
+    router = _MockRouter()
+    mock_transport = httpx.MockTransport(router)
+
+    class PatchedAsyncClient(httpx.AsyncClient):
+        def __init__(self, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
+            # Force our mock transport unless explicitly provided
+            super().__init__(transport=transport or mock_transport)
+
+    monkeypatch.setattr(httpx, "AsyncClient", PatchedAsyncClient, raising=True)
+
+    def _get_router() -> _MockRouter:
+        return router
+
+    return _get_router
