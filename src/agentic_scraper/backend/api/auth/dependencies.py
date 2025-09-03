@@ -22,7 +22,7 @@ Example:
 import itertools
 import logging
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
@@ -77,6 +77,14 @@ async def get_current_user(
         logger.warning(MSG_WARNING_JWT_VERIFICATION_FAILED, exc_info=err)
         raise_unauthorized(err)
 
+    except HTTPException as he:
+        # Let verify_jwt's HTTP status pass through (e.g., 401 on invalid/expired token)
+        if he.status_code == status.HTTP_401_UNAUTHORIZED:
+            logger.warning(MSG_WARNING_JWT_VERIFICATION_FAILED, exc_info=he)
+            raise
+        logger.exception(MSG_ERROR_UNEXPECTED_EXCEPTION, exc_info=he)
+        raise
+
     except Exception as e:
         logger.exception(MSG_ERROR_UNEXPECTED_EXCEPTION, exc_info=e)
         raise_internal_error(e)
@@ -89,5 +97,5 @@ async def get_current_user(
         "sub": OwnerSub.from_value(payload["sub"]),
         "email": payload.get(CLAIM_EMAIL, payload.get("email")),
         "name": payload.get(CLAIM_NAME, payload.get("name")),
-        "scope": payload.get("scope", ""),
+        "scope": payload.get("scope"),
     }

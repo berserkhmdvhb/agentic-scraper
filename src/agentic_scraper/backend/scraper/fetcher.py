@@ -11,10 +11,13 @@ Functions:
 Logging is verbosity-aware: detailed stack traces are logged only when verbose mode is enabled.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import httpx
 from tenacity import (
@@ -37,7 +40,13 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_FETCH_SUCCESS,
     MSG_WARNING_FETCH_FAILED,
 )
-from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.backend.scraper.cancel_helpers import (
+    CancelToken,
+    is_canceled,
+)
+
+if TYPE_CHECKING:
+    from agentic_scraper.backend.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -47,26 +56,8 @@ class FetchContext:
     client: httpx.AsyncClient
     sem: asyncio.Semaphore
     settings: Settings
-    cancel_event: asyncio.Event | None
-    should_cancel: Callable[[], bool] | None
+    cancel_token: CancelToken | None
     results: dict[str, str]
-
-
-def _is_canceled(
-    cancel_event: asyncio.Event | None,
-    should_cancel: Callable[[], bool] | None,
-) -> bool:
-    """Return True if either the event is set or the predicate requests cancel."""
-    if cancel_event and cancel_event.is_set():
-        return True
-    if should_cancel:
-        try:
-            return bool(should_cancel())
-        except Exception as e:  # noqa: BLE001
-            # Fail-open: log but default to not canceled
-            logger.debug("should_cancel() raised %r, ignoring", e)
-            return False
-    return False
 
 
 def _record_fetch_error(
@@ -95,16 +86,20 @@ async def _bounded_fetch(
     """Fetch one URL under semaphore; honor cancel; store result or error."""
     async with ctx.sem:
         try:
-            if _is_canceled(ctx.cancel_event, ctx.should_cancel):
+            if is_canceled(ctx.cancel_token):
                 ctx.results[url] = f"{FETCH_ERROR_PREFIX}: canceled"
                 return
+
+            # Expand the token into legacy args for fetch_url
+            cancel_event = ctx.cancel_token.event if ctx.cancel_token else None
+            should_cancel = ctx.cancel_token.should_cancel if ctx.cancel_token else None
 
             html = await fetch_url(
                 ctx.client,
                 url,
                 settings=ctx.settings,
-                cancel_event=ctx.cancel_event,
-                should_cancel=ctx.should_cancel,
+                cancel_event=cancel_event,
+                should_cancel=should_cancel,
             )
             ctx.results[url] = html
             logger.info(MSG_INFO_FETCH_SUCCESS.format(url=url))
@@ -156,10 +151,11 @@ async def fetch_url(
         ):
             with attempt:
                 # Short-circuit before each attempt on cancel
-                event_canceled = cancel_event and cancel_event.is_set()
-                manual_canceled = should_cancel and should_cancel()
+                event_canceled = cancel_event is not None and cancel_event.is_set()
+                manual_canceled = should_cancel is not None and should_cancel()
                 if event_canceled or manual_canceled:
                     raise asyncio.CancelledError
+
                 response = await client.get(url, timeout=settings.request_timeout)
                 response.raise_for_status()
 
@@ -178,10 +174,11 @@ async def fetch_url(
                 return response.text
     else:
         # Retry disabled or set to 1: only try once
-        event_canceled = cancel_event and cancel_event.is_set()
-        manual_canceled = should_cancel and should_cancel()
+        event_canceled = cancel_event is not None and cancel_event.is_set()
+        manual_canceled = should_cancel is not None and should_cancel()
         if event_canceled or manual_canceled:
             raise asyncio.CancelledError
+
         response = await client.get(url, timeout=settings.request_timeout)
         response.raise_for_status()
         return response.text
@@ -195,11 +192,18 @@ async def fetch_all(
     *,
     settings: Settings,
     concurrency: int,
-    cancel_event: asyncio.Event | None = None,
-    should_cancel: Callable[[], bool] | None = None,
+    cancel: CancelToken | None = None,
+    client_factory: Callable[..., httpx.AsyncClient] | None = None,
 ) -> dict[str, str]:
     """
     Fetch multiple URLs concurrently with a configurable concurrency limit.
+
+    Args:
+        urls: Target URLs.
+        settings: Global runtime settings.
+        concurrency: Max in-flight requests (clamped to >= 1).
+        cancel: Optional cancel token (event/predicate).
+        client_factory: Optional async client factory for testing/injection.
 
     Returns:
         dict[str, str]: Mapping of URL to HTML or error (prefixed with FETCH_ERROR_PREFIX).
@@ -210,13 +214,15 @@ async def fetch_all(
     results: dict[str, str] = {}
     sem = asyncio.Semaphore(max(1, int(concurrency)))
 
-    async with httpx.AsyncClient(headers=DEFAULT_HEADERS, follow_redirects=True) as client:
+    # Allow tests to inject a custom client (e.g., with MockTransport)
+    factory = client_factory or (lambda **kw: httpx.AsyncClient(**kw))
+
+    async with factory(headers=DEFAULT_HEADERS, follow_redirects=True) as client:
         ctx = FetchContext(
             client=client,
             sem=sem,
             settings=settings,
-            cancel_event=cancel_event,
-            should_cancel=should_cancel,
+            cancel_token=cancel,
             results=results,
         )
 
@@ -228,7 +234,7 @@ async def fetch_all(
             await asyncio.gather(*tasks)
         finally:
             # Ensure pending tasks are cancelled if an external cancel arrives mid-flight
-            if _is_canceled(cancel_event, should_cancel):
+            if is_canceled(cancel):
                 for t in tasks:
                     if not t.done():
                         t.cancel()

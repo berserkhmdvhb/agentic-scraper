@@ -32,7 +32,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_DEBUG_WORKER_CANCELLED,
     MSG_INFO_WORKER_POOL_START,
 )
-from agentic_scraper.backend.scraper.agents import extract_structured_data
+from agentic_scraper.backend.scraper import agents as agents_mode
 from agentic_scraper.backend.scraper.models import (
     ScrapeRequest,
     WorkerPoolConfig,
@@ -126,11 +126,13 @@ async def worker(
                 timeout_s = getattr(context.settings, "scrape_timeout_s", None)
                 if isinstance(timeout_s, (int, float)) and timeout_s > 0:
                     item = await asyncio.wait_for(
-                        extract_structured_data(request, settings=context.settings),
+                        agents_mode.extract_structured_data(request, settings=context.settings),
                         timeout=timeout_s,
                     )
                 else:
-                    item = await extract_structured_data(request, settings=context.settings)
+                    item = await agents_mode.extract_structured_data(
+                        request, settings=context.settings
+                    )
                 # Bail quickly if cancellation was signaled during extraction
                 early_cancel_or_raise(context.cancel_event, context.should_cancel)
 
@@ -193,13 +195,13 @@ async def run_worker_pool(
     start_t = time.perf_counter()
     total = len(inputs)
 
+    composed_should_cancel = config.should_cancel or should_cancel
+
     # Early exit: nothing to do
     if total == 0:
-        sc = config.should_cancel or should_cancel
-
         cb = config.on_progress
         event_canceled = cancel_event and cancel_event.is_set()
-        manual_canceled = sc and sc()
+        manual_canceled = composed_should_cancel and composed_should_cancel()
 
         if cb is not None and not event_canceled and not manual_canceled:
             with suppress(Exception):
@@ -208,11 +210,10 @@ async def run_worker_pool(
 
     # Initial progress for UIs
     # Do not force 100% when canceled; keep last honest counts
-    sc = config.should_cancel or should_cancel
 
     cb = config.on_progress
     event_canceled = cancel_event and cancel_event.is_set()
-    manual_canceled = sc and sc()
+    manual_canceled = composed_should_cancel and composed_should_cancel()
 
     if cb is not None and not event_canceled and not manual_canceled:
         with suppress(Exception):
@@ -241,7 +242,7 @@ async def run_worker_pool(
         on_error=config.on_error,
         on_progress=config.on_progress,
         cancel_event=cancel_event,
-        should_cancel=config.should_cancel or should_cancel,
+        should_cancel=composed_should_cancel,
         preserve_order=config.preserve_order,
         ordered_results=ordered_results,
         url_to_indices=url_to_indices,
@@ -263,18 +264,16 @@ async def run_worker_pool(
     logger.debug(MSG_DEBUG_POOL_SPAWNED_WORKERS.format(count=len(workers)))
 
     try:
-        await _await_join_with_optional_cancel(queue, cancel_event)
+        await _await_join_with_optional_cancel(queue, cancel_event, composed_should_cancel)
     finally:
         logger.debug(MSG_DEBUG_POOL_CANCELLING_WORKERS)
         for w in workers:
             w.cancel()
         await asyncio.gather(*workers, return_exceptions=True)
 
-    sc = config.should_cancel or should_cancel
-
     cb = config.on_progress
     event_canceled = cancel_event and cancel_event.is_set()
-    manual_canceled = sc and sc()
+    manual_canceled = composed_should_cancel and composed_should_cancel()
 
     if cb is not None and not event_canceled and not manual_canceled:
         with suppress(Exception):

@@ -1,9 +1,15 @@
 import logging
 import re
+import uuid
+from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+from pydantic import AnyUrl
+
 from agentic_scraper.backend.config.constants import (
+    ACCEPTED_UUID_VERSIONS,
     FETCH_ERROR_PREFIX,
     MIN_ENCRYPTION_SECRET_LENGTH,
     VALID_AUTH0_ALGORITHMS,
@@ -21,21 +27,32 @@ from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_AUTH0_ALGORITHMS,
     MSG_ERROR_INVALID_AUTH0_DOMAIN,
     MSG_ERROR_INVALID_BACKUP_COUNT,
+    MSG_ERROR_INVALID_CREDENTIALS,
     MSG_ERROR_INVALID_ENCRYPTION_SECRET,
     MSG_ERROR_INVALID_ENV,
+    MSG_ERROR_INVALID_LIMIT,
     MSG_ERROR_INVALID_LOG_BYTES,
     MSG_ERROR_INVALID_LOG_LEVEL,
     MSG_ERROR_INVALID_MODEL_NAME,
     MSG_ERROR_INVALID_PRICE,
     MSG_ERROR_INVALID_PRICE_FORMAT,
+    MSG_ERROR_INVALID_PROGRESS,
+    MSG_ERROR_INVALID_STATUS,
     MSG_ERROR_INVALID_TIMEOUT,
+    MSG_ERROR_INVALID_URL,
+    MSG_ERROR_INVALID_UUID,
     MSG_ERROR_LOG_BACKUP_COUNT_INVALID,
     MSG_ERROR_MISSING_API_KEY,
+    MSG_ERROR_NAIVE_DATETIME,
     MSG_ERROR_NOT_A_DIRECTORY,
+    MSG_ERROR_URLS_MUST_BE_LIST,
+    MSG_ERROR_USER_SCOPES_TYPE,
 )
 from agentic_scraper.backend.config.types import AgentMode
 
 logger = logging.getLogger(__name__)
+
+URLLike = str | AnyUrl
 
 
 def format_with_valid_options(
@@ -55,6 +72,14 @@ def is_valid_url(url: str) -> bool:
     """Check if a string is a valid HTTP/HTTPS URL."""
     parsed = urlparse(url.strip())
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def validate_url(url: URLLike) -> str:
+    """Validate a single HTTP/HTTPS URL (str or AnyUrl) and return the trimmed string value."""
+    trimmed = str(url).strip()
+    if not is_valid_url(trimmed):
+        raise ValueError(MSG_ERROR_INVALID_URL.format(value=url))
+    return trimmed
 
 
 def clean_input_urls(raw: str) -> list[str]:
@@ -81,6 +106,30 @@ def deduplicate_urls(urls: list[str]) -> list[str]:
             seen.add(url)
             result.append(url)
     return result
+
+
+def validate_url_list(
+    urls: Sequence[URLLike],
+    *,
+    min_len: int = 1,
+    max_len: int = 1000,
+    dedupe: bool = True,
+) -> list[str]:
+    """
+    Validate a list of URLs:
+    - list must have length within [min_len, max_len]
+    - each item must be a valid HTTP/HTTPS URL
+    - optionally deduplicate while preserving order
+    Returns the normalized (trimmed) list, possibly deduplicated.
+    """
+    # Accept sequences (e.g., list[HttpUrl]) but reject bare strings/bytes.
+    if not isinstance(urls, Sequence) or isinstance(urls, (str, bytes)):
+        raise TypeError(MSG_ERROR_URLS_MUST_BE_LIST)
+    trimmed: list[str] = [validate_url(u) for u in urls]
+    n = len(trimmed)
+    if n < min_len or n > max_len:
+        raise ValueError(MSG_ERROR_INVALID_LIMIT.format(value=n, min=min_len, max=max_len))
+    return deduplicate_urls(trimmed) if dedupe else trimmed
 
 
 def filter_successful(results: dict[str, str]) -> dict[str, str]:
@@ -147,6 +196,13 @@ def validate_log_backup_count(n: int) -> int:
     return n
 
 
+def validate_limit(limit: int, *, min_value: int = 1, max_value: int = 100) -> int:
+    """Ensure a pagination limit is within inclusive bounds."""
+    if limit < min_value or limit > max_value:
+        raise ValueError(MSG_ERROR_INVALID_LIMIT.format(value=limit, min=min_value, max=max_value))
+    return limit
+
+
 def validate_path(path_str: str) -> Path:
     """Convert a string to an absolute resolved Path."""
     return Path(path_str).resolve()
@@ -186,7 +242,8 @@ def ensure_directory(path: Path) -> Path:
     """Ensure the given path exists and is a directory."""
     path = path.resolve()
     if path.exists() and not path.is_dir():
-        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY % path)
+        # use the named placeholder "path"
+        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY.format(path=str(path)))
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -220,7 +277,8 @@ def validate_or_create_dir(path_str: str) -> str:
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
     elif not path.is_dir():
-        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY.format(path_str))
+        # before: raise ValueError(MSG_ERROR_NOT_A_DIRECTORY.format(path_str))
+        raise ValueError(MSG_ERROR_NOT_A_DIRECTORY.format(path=str(path.resolve())))
     return str(path.resolve())
 
 
@@ -258,10 +316,11 @@ def validate_auth0_domain(domain: str) -> str:
 
 
 def validate_api_audience(audience: str) -> str:
-    """Ensure the API audience starts with 'http'."""
-    if not audience.startswith("http"):
+    """Ensure the API audience starts with http(s). Do NOT enforce trailing slash."""
+    a = audience.strip()
+    if not a.startswith("http"):
         raise ValueError(MSG_ERROR_INVALID_API_AUDIENCE)
-    return audience.rstrip("/")
+    return a
 
 
 def validate_encryption_secret(secret: str) -> str:
@@ -287,3 +346,120 @@ def validate_auth0_algorithms(value: list[str]) -> list[str]:
             )
         )
     return value
+
+
+# ---------------------------------------------------------------------
+# api/stores/
+# ---------------------------------------------------------------------
+
+# job_store.py
+
+
+def validate_progress(value: float, *, min_value: float = 0.0, max_value: float = 1.0) -> float:
+    if not (min_value <= value <= max_value):
+        raise ValueError(
+            MSG_ERROR_INVALID_PROGRESS.format(min=min_value, max=max_value, value=value)
+        )
+    return value
+
+
+def validate_uuid(value: str) -> str:
+    try:
+        u = uuid.UUID(value)
+    except ValueError as err:
+        raise ValueError(MSG_ERROR_INVALID_UUID.format(value=value)) from err
+    if u.version not in ACCEPTED_UUID_VERSIONS:
+        raise ValueError(MSG_ERROR_INVALID_UUID.format(value=value))
+    return value
+
+
+def validate_cursor(cursor: str | None) -> str | None:
+    if cursor is None:
+        return None
+    # simplest form: UUIDv4 check; or base64 if you later encode.
+    return validate_uuid(cursor)
+
+
+def validate_job_status(status: str, *, allowed: set[str]) -> str:
+    """
+    Ensure a job status value is within the allowed set.
+    Returns the original value to allow callers to preserve their casing.
+    """
+    if status not in allowed:
+        raise ValueError(
+            format_with_valid_options(
+                MSG_ERROR_INVALID_STATUS,
+                value_label="value",
+                value=status,
+                valid_values=allowed,
+            )
+        )
+    return status
+
+
+def ensure_utc_aware(dt: datetime) -> datetime:
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        raise ValueError(MSG_ERROR_NAIVE_DATETIME)
+    return dt.astimezone(timezone.utc)
+
+
+# user_store.py
+
+
+def validate_user_id(user_id: str) -> str:
+    """
+    Ensure user_id is a non-empty string after trimming.
+    """
+    if not isinstance(user_id, str) or not user_id.strip():
+        raise ValueError(
+            MSG_ERROR_INVALID_CREDENTIALS.format(user_id=user_id, error="invalid user_id")
+        )
+    return user_id.strip()
+
+
+def validate_openai_credentials_pair(api_key: str, project_id: str) -> tuple[str, str]:
+    """
+    Ensure api_key and project_id are non-empty strings after trimming.
+    """
+    if not isinstance(api_key, str) or not api_key.strip():
+        raise ValueError(MSG_ERROR_INVALID_CREDENTIALS.format(user_id="?", error="invalid api_key"))
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise ValueError(
+            MSG_ERROR_INVALID_CREDENTIALS.format(user_id="?", error="invalid project_id")
+        )
+    return api_key.strip(), project_id.strip()
+
+
+# ---------------------------------------------------------------------
+# api/auth/
+# ---------------------------------------------------------------------
+
+# auth0_helpers.py
+
+
+def validate_jwt_token_str(token: str) -> str:
+    """
+    Ensure a JWT token string is present and non-empty after trimming.
+    """
+    if not isinstance(token, str) or not token.strip():
+        raise ValueError(MSG_ERROR_EMPTY_STRING.format(field="token"))
+    return token.strip()
+
+
+# scope_helpers.py
+
+
+def validate_scopes_input(user_scopes: str | list[str] | None) -> list[str]:
+    """
+    Normalize 'scope' from a JWT payload to a list[str].
+    - Accepts space-delimited string (Auth0 default) or list[str].
+    - Returns [] if None.
+    - Raises ValueError if type is invalid.
+    """
+    if user_scopes is None:
+        return []
+    if isinstance(user_scopes, str):
+        return [s for s in user_scopes.split() if s]
+    if isinstance(user_scopes, list) and all(isinstance(s, str) for s in user_scopes):
+        return user_scopes
+    raise ValueError(MSG_ERROR_USER_SCOPES_TYPE.format(actual_type=type(user_scopes).__name__))

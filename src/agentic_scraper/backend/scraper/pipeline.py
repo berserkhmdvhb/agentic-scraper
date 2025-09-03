@@ -13,8 +13,6 @@ Usage:
 Intended for internal use by API route handlers or CLI scripts.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import logging
@@ -33,15 +31,17 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_VALID_SCRAPE_INPUTS,
 )
 from agentic_scraper.backend.config.types import AgentMode, OpenAIConfig
+from agentic_scraper.backend.core.settings import Settings
+from agentic_scraper.backend.scraper.cancel_helpers import CancelToken
 from agentic_scraper.backend.scraper.fetcher import fetch_all
 from agentic_scraper.backend.scraper.models import WorkerPoolConfig
 from agentic_scraper.backend.scraper.parser import extract_main_text
+from agentic_scraper.backend.scraper.schemas import ScrapedItem
 from agentic_scraper.backend.scraper.worker_pool import run_worker_pool
 
 if TYPE_CHECKING:
     from agentic_scraper.backend.config.aliases import ScrapeInput
-    from agentic_scraper.backend.core.settings import Settings
-    from agentic_scraper.backend.scraper.schemas import ScrapedItem
+
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +82,7 @@ async def scrape_urls(
         urls=urls,
         settings=settings,
         concurrency=settings.fetch_concurrency,
-        cancel_event=cancel_event,
-        should_cancel=should_cancel,
+        cancel=CancelToken(event=cancel_event, should_cancel=should_cancel),
     )
 
     logger.info(MSG_INFO_FETCH_COMPLETE.format(count=len(html_by_url)))
@@ -198,7 +197,7 @@ async def scrape_with_stats(
     event_canceled = cancel_event and cancel_event.is_set()
     manual_canceled = should_cancel and should_cancel()
     was_canceled = bool(event_canceled or manual_canceled)
-    stats = {
+    stats: dict[str, float | int] = {
         "num_urls": len(urls),
         "num_success": len(results),
         "num_failed": len(urls) - len(results),

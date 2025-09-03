@@ -36,6 +36,7 @@ from agentic_scraper.backend.config.messages import (
     MSG_INFO_RETRYING,
 )
 from agentic_scraper.backend.core.settings import get_settings
+from agentic_scraper.backend.utils.validators import validate_jwt_token_str
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -140,6 +141,7 @@ async def verify_jwt(token: str) -> dict[str, Any]:
         HTTPException: If the JWT is expired, malformed, or unverifiable.
     """
     try:
+        token = validate_jwt_token_str(token)
         unverified_header = jwt.get_unverified_header(token)
         if not unverified_header:
             raise_http_exception(

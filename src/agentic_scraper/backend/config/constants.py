@@ -45,6 +45,13 @@ REQUIRED_CONFIG_FIELDS_FOR_LLM = (
 )
 
 URL_NUDGE_THRESHOLD = 50
+# ---------------------------------------------------------------------
+# utils/validators.py
+# ---------------------------------------------------------------------
+
+# RFC 4122 defines versions 1, 3, 4, 5;
+# newer drafts add 7. Python exposes this as UUID.version (int).
+ACCEPTED_UUID_VERSIONS: set[int] = {4}
 
 # ---------------------------------------------------------------------
 # core/
@@ -185,3 +192,12 @@ FIELD_SYNONYMS: dict[str, str] = {
 
 CLAIM_EMAIL = "https://agentic.scraper/email"
 CLAIM_NAME = "https://agentic.scraper/name"
+
+
+# ---------------------------------------------------------------------
+# api/routes/
+# ---------------------------------------------------------------------
+
+DEFAULT_JOB_LIST_MIN_LIMIT = 0
+DEFAULT_JOB_LIST_MAX_LIMIT = 50
+MAX_URLS_PER_REQUEST = 100

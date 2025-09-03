@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
@@ -32,6 +33,10 @@ from agentic_scraper.backend.api.stores.job_store import (
     get_job,
     list_jobs,
 )
+from agentic_scraper.backend.config.constants import (
+    DEFAULT_JOB_LIST_MAX_LIMIT,
+    DEFAULT_JOB_LIST_MIN_LIMIT,
+)
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_INVALID_JOB_STATUS,
     MSG_HTTP_FORBIDDEN_JOB_ACCESS,
@@ -46,6 +51,11 @@ from agentic_scraper.backend.config.messages import (
     MSG_JOB_NOT_FOUND,
 )
 from agentic_scraper.backend.config.types import AgentMode, JobStatus
+from agentic_scraper.backend.utils.validators import (
+    validate_cursor,
+    validate_job_status,
+    validate_limit,
+)
 
 router = APIRouter(prefix="/scrapes", tags=["Scrape"])
 logger = logging.getLogger(__name__)
@@ -117,16 +127,16 @@ async def create_scrape_job(
     user: CurrentUser,
     request: Request,
 ) -> ScrapeJob:
-    """
-    Create a new scrape job. Returns 202 Accepted with Location to poll the job.
-    """
+    """Create a new scrape job. Returns 202 Accepted with Location to poll the job."""
     # Scope: create:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_CREATE})
 
+    # URLs are normalized/deduped/bounded by ScrapeCreate
     logger.info(MSG_INFO_SCRAPE_REQUEST_RECEIVED.format(n=len(payload.urls)))
 
-    # Create queued job (record owner for authorization)
+    # Create queued job (record owner for authorization) using normalized payload
     request_payload = payload.model_dump()
+
     job = create_job(request_payload, owner_sub=user["sub"])
     logger.info(MSG_JOB_CREATED.format(job_id=job["id"]))
 
@@ -138,6 +148,7 @@ async def create_scrape_job(
         _run_scrape_job(job["id"], payload, user), name=f"scrape-job-{job['id']}"
     )
     _track_task(task)
+
     # Set Location header for polling (absolute)
     response_url = str(request.url_for("get_scrape_job", job_id=job["id"]))
     response.headers["Location"] = response_url
@@ -149,22 +160,22 @@ async def create_scrape_job(
 @router.get(
     "/{job_id}",
 )
-async def get_scrape_job(job_id: str, user: CurrentUser) -> ScrapeJob:
-    """
-    Get a scrape job by id. Includes result when status == 'succeeded'.
-    """
+async def get_scrape_job(job_id: UUID, user: CurrentUser) -> ScrapeJob:
+    """Get a scrape job by id. Includes result when status == 'succeeded'."""
     # Scope: read:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_READ})
 
-    job = get_job(job_id)
+    job = get_job(str(job_id))
     if not job:
-        logger.warning(MSG_JOB_NOT_FOUND.format(job_id=job_id))
+        logger.warning(MSG_JOB_NOT_FOUND.format(job_id=str(job_id)))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=MSG_HTTP_JOB_NOT_FOUND_DETAIL
         )
 
     if job.get("owner_sub") and job["owner_sub"] != user["sub"]:
-        logger.warning(MSG_HTTP_FORBIDDEN_JOB_ACCESS.format(user_sub=user["sub"], job_id=job_id))
+        logger.warning(
+            MSG_HTTP_FORBIDDEN_JOB_ACCESS.format(user_sub=user["sub"], job_id=str(job_id))
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=MSG_HTTP_FORBIDDEN_JOB_ACCESS
         )
@@ -178,7 +189,7 @@ async def get_scrape_job(job_id: str, user: CurrentUser) -> ScrapeJob:
 async def list_scrape_jobs(
     user: CurrentUser,
     status_: str | None = None,
-    limit: int = 50,
+    limit: int = DEFAULT_JOB_LIST_MAX_LIMIT,
     cursor: str | None = None,
 ) -> ScrapeList:
     """
@@ -186,7 +197,7 @@ async def list_scrape_jobs(
 
     Args:
         status_ (str | None): Optional status filter (queued, running, succeeded, failed, canceled).
-        limit (int): Max number of jobs to return (default 50).
+        limit (int): Max number of jobs to return.
         cursor (str | None): Opaque cursor for pagination.
 
     Returns:
@@ -195,12 +206,28 @@ async def list_scrape_jobs(
     # Scope: read:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_READ})
 
-    logger.info(MSG_JOB_LIST_REQUESTED.format(status=status_, limit=limit, cursor=cursor))
+    # Validate query params centrally
+    try:
+        safe_limit = validate_limit(
+            limit,
+            min_value=DEFAULT_JOB_LIST_MIN_LIMIT,
+            max_value=DEFAULT_JOB_LIST_MAX_LIMIT,
+        )
+    except ValueError as err:
+        # Bad limit → 400
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
 
-    # Convert query string to enum expected by list_jobs
+    try:
+        safe_cursor = validate_cursor(cursor)
+    except ValueError as err:
+        # Bad cursor → 400 (validator message uses centralized constants)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
+
     status_filter: JobStatus | None = None
     if status_ is not None:
         try:
+            # Validate string choice centrally, but preserve existing API message on error
+            validate_job_status(status_.lower(), allowed={s.value for s in JobStatus})
             status_filter = JobStatus(status_.lower())
         except ValueError as err:
             raise HTTPException(
@@ -208,9 +235,11 @@ async def list_scrape_jobs(
                 detail=MSG_ERROR_INVALID_JOB_STATUS.format(status=status_),
             ) from err
 
+    logger.info(MSG_JOB_LIST_REQUESTED.format(status=status_, limit=safe_limit, cursor=safe_cursor))
+
     # Filter by owner inside the store so pagination is correct
     items, next_cursor = list_jobs(
-        status=status_filter, limit=limit, cursor=cursor, owner_sub=user["sub"]
+        status=status_filter, limit=safe_limit, cursor=safe_cursor, owner_sub=user["sub"]
     )
 
     return ScrapeList(items=[ScrapeJob(**j) for j in items], next_cursor=next_cursor)
@@ -220,43 +249,66 @@ async def list_scrape_jobs(
     "/{job_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def cancel_scrape_job(job_id: str, user: CurrentUser) -> Response:
+async def cancel_scrape_job(job_id: UUID, user: CurrentUser) -> Response:
     """
     Cancel a queued or running scrape job.
-    Returns 204 on success, 404 if missing, 409 if not cancelable.
+
+    Returns:
+      - 204 on success (idempotent: also returns 204 if already canceled)
+      - 404 if the job does not exist
+      - 403 if the caller does not own the job
+      - 409 if the job exists but is not cancelable (e.g., succeeded/failed)
     """
     # Scope: cancel:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_CANCEL})
 
-    logger.info(MSG_JOB_CANCEL_REQUESTED.format(job_id=job_id))
+    job_id_str = str(job_id)
+    logger.info(MSG_JOB_CANCEL_REQUESTED.format(job_id=job_id_str))
 
-    job = get_job(job_id)
+    job = get_job(job_id_str)
     if not job:
-        logger.warning(MSG_JOB_NOT_FOUND.format(job_id=job_id))
+        logger.warning(MSG_JOB_NOT_FOUND.format(job_id=job_id_str))
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=MSG_HTTP_JOB_NOT_FOUND_DETAIL
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=MSG_HTTP_JOB_NOT_FOUND_DETAIL,
         )
 
-    # Ownership check (guarded)
+    # Ownership guard
     if job.get("owner_sub") and job["owner_sub"] != user["sub"]:
-        logger.warning(MSG_HTTP_FORBIDDEN_JOB_ACCESS.format(user_sub=user["sub"], job_id=job_id))
+        logger.warning(
+            MSG_HTTP_FORBIDDEN_JOB_ACCESS.format(user_sub=user["sub"], job_id=job_id_str)
+        )
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=MSG_HTTP_FORBIDDEN_JOB_ACCESS
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=MSG_HTTP_FORBIDDEN_JOB_ACCESS,
         )
 
-    ok = cancel_job(job_id, user_sub=user["sub"])
-    if not ok:
-        # Not cancelable (already finished or already canceled)
-        current_status = job.get("status")
-        if str(current_status).lower() == "canceled":
-            # Idempotent: already canceled → 204
-            set_canceled(job_id)  # ensure any waiting workers wake up
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
+    # Normalize status to JobStatus (store should already give enum, but be defensive)
+    current_status = job.get("status")
+    try:
+        status_enum = (
+            current_status
+            if isinstance(current_status, JobStatus)
+            else JobStatus(str(current_status).lower())
+        )
+    except ValueError:
+        # Unknown status value: treat as not cancelable
+        status_enum = None
+
+    # Idempotency: if already canceled, still return 204 and signal waiters
+    if status_enum is JobStatus.CANCELED:
+        set_canceled(job_id_str)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # Try to transition to CANCELED
+    if not cancel_job(job_id_str, user_sub=user["sub"]):
+        # Not cancelable (already terminal in a non-canceled state)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=MSG_HTTP_JOB_NOT_CANCELABLE.format(status=current_status),
         )
 
-    logger.info(MSG_JOB_CANCELED.format(job_id=job_id))
-    set_canceled(job_id)
+    # Successfully marked canceled; wake any waiting workers
+    logger.info(MSG_JOB_CANCELED.format(job_id=job_id_str))
+    set_canceled(job_id_str)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

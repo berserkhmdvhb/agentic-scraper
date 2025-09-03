@@ -336,6 +336,9 @@ MSG_JOB_SKIP_MARK_FAILED_TERMINAL = (
     "[API] [ROUTE] [SCRAPE] Job {job_id} already terminal ({status}); skipping FAILED."
 )
 
+# schemas/scrape.py
+MSG_ERROR_URLS_MUST_BE_LIST = "urls must be a list of URLs"
+
 # ---------------------------------------------------------------------
 # core/
 # ---------------------------------------------------------------------
@@ -397,7 +400,7 @@ MSG_INFO_NO_AUTHOR = "[PARSER] No author meta tag found."
 MSG_ERROR_SCREENSHOT_FAILED = "[SCREENSHOT] Failed to capture screenshot"
 MSG_INFO_SCREENSHOT_SAVED = "[SCREENSHOT] Screenshot saved: {path}"
 MSG_INFO_WORKER_POOL_START = "[SCREENSHOT] Running worker pool with screenshots enabled = {enabled}"
-MSG_ERROR_SCREENSHOT_FAILED = "[SCREENSHOT] Failed to capture screenshot"
+MSG_ERROR_SCREENSHOT_FAILED = "[SCREENSHOT] Failed to capture screenshot: {url}"
 MSG_INFO_SCREENSHOT_SAVED = "[SCREENSHOT] Screenshot saved to {path}"
 MSG_ERROR_INVALID_SCREENSHOT_URL = "[SCREENSHOT] Invalid URL passed to capture_screenshot: {url}"
 
@@ -586,6 +589,10 @@ MSG_DEBUG_RULE_BASED_VALIDATION_FAILED_FIELDS = (
 )
 MSG_ERROR_RULE_BASED_EXTRACTION_FAILED = "[AGENT] [RULE_BASED] Validation failed for URL: {url}"
 
+MSG_WARN_RULE_BASED_NO_FIELDS = (
+    "[AGENT] [RULE_BASED] Rule-based extraction produced no informative fields for {url}"
+)
+
 # llm_dynamic.py
 MSG_INFO_FIELD_DISCOVERY_SCORE = (
     "[AGENT] [LLM] [{url}] Field discovery score: "
@@ -593,7 +600,7 @@ MSG_INFO_FIELD_DISCOVERY_SCORE = (
 )
 MSG_DEBUG_LLM_PROMPT_WITH_URL = "[AGENT] [LLM] [{url}] Prompt sent to OpenAI:\n{prompt}"
 
-
+MSG_OPENAI_CLIENT_UNAVAILABLE = "[AGENT] [LLM] OpenAI client not available in this environment."
 # llm_dynamic_adaptive.py
 
 MSG_DEBUG_MISSING_IMPORTANT_FIELDS = (
@@ -687,10 +694,25 @@ MSG_ERROR_INVALID_AUTH0_ALGORITHMS = (
 )
 MSG_ERROR_EMPTY_AUTH0_ALGORITHMS = "[VALIDATION] auth0_algorithms must not be empty"
 MSG_ERROR_UNEXPECTED_EXCEPTION = "[VALIDATION] Unexpected error during token validation."
-MSG_INFO_USER_AUTHORIZED = "[VALIDATION] User successfully authenticated and authorized."
+MSG_INFO_USER_AUTHORIZED = "[VALIDATION] User {user_id} successfully authenticated and authorized."
+
 MSG_ERROR_USER_SCOPES_TYPE = (
-    "[VALIDATION] Expected 'user_scopes' to be a list of strings, got {type(user_scopes)}"
+    "[VALIDATION] Expected 'user_scopes' to be a list of strings, got {actual_type}"
 )
-
-
 MSG_ERROR_PRELOADING_JWKS = "[VALIDATION] Error occurred while preloading JWKS from Auth0"
+MSG_ERROR_INVALID_PROGRESS = "Progress must be between {min} and {max}, got {value}"
+MSG_ERROR_INVALID_UUID = "Invalid UUIDv4: {value}"
+MSG_ERROR_NAIVE_DATETIME = "Datetime must be timezone-aware (UTC)"
+
+MSG_ERROR_INVALID_URL = "Invalid URL: {value}"
+MSG_ERROR_INVALID_LIMIT = "Invalid limit: {value}. Allowed range is {min}..{max}."
+MSG_ERROR_INVALID_STATUS = "Invalid status: {value}. Allowed: {valid_options}."
+
+
+# ---------------------------------------------------------------------
+# tests/
+# ---------------------------------------------------------------------
+
+# conftest.py
+MSG_ERROR_NO_NETWORK = "Network disabled in tests"
+MSG_ERROR_INVALID_CIPHERTEXT = "Invalid ciphertext"

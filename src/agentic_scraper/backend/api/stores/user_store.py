@@ -15,11 +15,8 @@ import tempfile
 from pathlib import Path
 from typing import cast
 
-from fastapi import HTTPException
-
 from agentic_scraper.backend.config.messages import (
     MSG_ERROR_DECRYPTION_FAILED,
-    MSG_ERROR_INVALID_CREDENTIALS,
     MSG_ERROR_LOADING_USER_STORE,
     MSG_ERROR_SAVING_USER_STORE,
     MSG_INFO_CREDENTIALS_DELETED,
@@ -28,11 +25,17 @@ from agentic_scraper.backend.config.messages import (
 from agentic_scraper.backend.config.types import OpenAIConfig
 from agentic_scraper.backend.core.logger_setup import get_logger
 from agentic_scraper.backend.utils.crypto import decrypt, encrypt
+from agentic_scraper.backend.utils.validators import (
+    ensure_directory,
+    validate_openai_credentials_pair,
+    validate_user_id,
+)
 
 logger = get_logger()
 
 USER_STORE = Path(".cache/user_store.json")
-USER_STORE.parent.mkdir(parents=True, exist_ok=True)
+ensure_directory(USER_STORE.parent)
+
 
 if not USER_STORE.exists():
     USER_STORE.write_text("{}")
@@ -100,9 +103,12 @@ def save_user_credentials(user_id: str, api_key: str, project_id: str) -> None:
         api_key (str): OpenAI API key to encrypt and store.
         project_id (str): OpenAI project ID to encrypt and store.
 
-    Raises:
+     Raises:
+        ValueError: If inputs are invalid (via validators).
         HTTPException: If credentials cannot be saved or encrypted.
     """
+    user_id = validate_user_id(user_id)
+    api_key, project_id = validate_openai_credentials_pair(api_key, project_id)
     store = _load_store()
     try:
         store[user_id] = {
@@ -111,9 +117,10 @@ def save_user_credentials(user_id: str, api_key: str, project_id: str) -> None:
         }
         _save_store(store)
     except Exception as e:
-        error_message = MSG_ERROR_INVALID_CREDENTIALS.format(user_id=user_id, error=str(e))
+        # Surface as OSError so the route layer can convert to HTTP appropriately
+        error_message = MSG_ERROR_SAVING_USER_STORE.format(error=str(e))
         logger.exception(error_message, exc_info=e)
-        raise HTTPException(status_code=400, detail="Error saving credentials") from e
+        raise OSError(error_message) from e
 
 
 def load_user_credentials(user_id: str) -> OpenAIConfig | None:
@@ -126,9 +133,11 @@ def load_user_credentials(user_id: str) -> OpenAIConfig | None:
     Returns:
         OpenAIConfig | None: Decrypted credentials if available and valid, otherwise None.
 
-    Raises:
+     Raises:
+        ValueError: If inputs are invalid (via validators).
         Exception: If decryption fails internally (returns None but logs exception).
     """
+    user_id = validate_user_id(user_id)
     store = _load_store()
     user_data = store.get(user_id)
     if not user_data:
@@ -156,8 +165,10 @@ def delete_user_credentials(user_id: str) -> bool:
         bool: True if credentials were deleted, False if not found.
 
     Raises:
+        ValueError: If inputs are invalid (via validators).
         OSError: If deletion or saving fails due to file I/O issues.
     """
+    user_id = validate_user_id(user_id)
     store = _load_store()
 
     if user_id not in store:
@@ -186,5 +197,6 @@ def has_user_credentials(user_id: str) -> bool:
     Returns:
         bool: True if credentials exist, False otherwise.
     """
+    user_id = validate_user_id(user_id)
     store = _load_store()
     return user_id in store

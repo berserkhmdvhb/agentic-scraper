@@ -714,7 +714,7 @@ All scraping runs are tracked as **jobs** in the backend. Jobs provide real‑ti
 ### Job Lifecycle
 
 * Jobs are created with status `QUEUED` → `RUNNING` → `SUCCEEDED`/`FAILED`.
-* Progress (`0.0 – 1.0`) updates as items are processed.
+* Progress (`0.0 - 1.0`) updates as items are processed.
 * Cancel requests set status to `CANCELED` and prevent overwriting with success.
 * Each job stores results, errors, and execution stats.
 

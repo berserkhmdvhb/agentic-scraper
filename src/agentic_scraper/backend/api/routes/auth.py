@@ -1,22 +1,17 @@
 """
 OAuth2 callback route for handling Auth0 authorization code exchange.
 
-This module defines the `/callback` route, which is used in the Auth0 authorization
-code flow. When a user completes login on Auth0, they are redirected back to this
-endpoint with a `code` in the query string.
-
-This route then:
-- Exchanges the `code` for an access token via Auth0's `/oauth/token` endpoint.
-- If successful, redirects the user to the frontend with the token appended.
-- Logs errors and redirect with appropriate query parameters on failure.
-
-Usage:
-    Mounted under the API router (e.g., `/api/v1/auth/callback`) and triggered
-    after user authentication completes via Auth0.
+Flow:
+- Receives `code` as a query param after Auth0 login.
+- Exchanges `code` for an access token via Auth0 `/oauth/token`.
+- Redirects to the frontend with either `?token=...` or `?error=...`.
 """
+
+from __future__ import annotations
 
 import logging
 import time
+from typing import Final
 
 import httpx
 from fastapi import APIRouter, Request
@@ -41,33 +36,28 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+# Conservative network timeout for the token exchange
+_TOKEN_TIMEOUT_SECONDS: Final[float] = 10.0
+
+
+def _redirect_with_error(error_code: str) -> RedirectResponse:
+    return RedirectResponse(f"{settings.frontend_domain}/?error={error_code}")
+
 
 @router.get("/callback")
 async def auth_callback(request: Request) -> RedirectResponse:
     """
-    Handle the Auth0 OAuth2 callback by exchanging the code for a JWT token.
-
-    This route is hit after the user authenticates via Auth0 and is redirected
-    back to the app with a `code` query parameter. It attempts to exchange the
-    code for an access token, and then redirects the user back to the frontend
-    with the token (or an error if the exchange fails).
-
-    Args:
-        request (Request): The incoming HTTP request containing query params.
-
-    Returns:
-        RedirectResponse: Redirect to the frontend with token or error in the URL.
-
-    Raises:
-        None explicitly. Any exceptions are caught and logged, and a redirect is issued.
+    Handle the Auth0 OAuth2 callback by exchanging the `code` for an access token.
+    Always responds with a redirect to the frontend, carrying either ?token=... or ?error=...
     """
     start = time.perf_counter()
 
     code = request.query_params.get("code")
     if not code:
         logger.warning(MSG_WARNING_AUTH_CALLBACK_MISSING_CODE)
-        return RedirectResponse(f"{settings.frontend_domain}/?error=missing_code")
+        return _redirect_with_error("missing_code")
 
+    # Safe to log in DEBUG; code is short-lived
     logger.debug(MSG_DEBUG_AUTH_CALLBACK_CODE_RECEIVED.format(code=code))
 
     token_url = f"https://{settings.auth0_domain}/oauth/token"
@@ -80,8 +70,13 @@ async def auth_callback(request: Request) -> RedirectResponse:
     }
 
     try:
-        async with httpx.AsyncClient() as client:
-            res = await client.post(token_url, json=payload)
+        # OAuth2 token endpoints typically expect form-encoded bodies
+        async with httpx.AsyncClient(timeout=_TOKEN_TIMEOUT_SECONDS) as client:
+            res = await client.post(
+                token_url,
+                data=payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
 
             if res.status_code != HTTP_200_OK:
                 logger.exception(
@@ -89,22 +84,24 @@ async def auth_callback(request: Request) -> RedirectResponse:
                         status=res.status_code, body=res.text
                     )
                 )
-                return RedirectResponse(f"{settings.frontend_domain}/?error=token_exchange_failed")
+                return _redirect_with_error("token_exchange_failed")
 
             token = res.json().get("access_token")
 
         if not token:
             logger.exception(MSG_ERROR_AUTH_RESPONSE_MISSING_TOKEN)
-            return RedirectResponse(f"{settings.frontend_domain}/?error=missing_token")
+            return _redirect_with_error("missing_token")
 
-        logger.debug(MSG_DEBUG_AUTH_TOKEN_RECEIVED.format(token_preview=token[:10]))
+        logger.debug(MSG_DEBUG_AUTH_TOKEN_RECEIVED.format(token_preview=str(token)[:10]))
         redirect_url = f"{settings.frontend_domain}/?token={token}"
         logger.debug(MSG_DEBUG_AUTH_REDIRECT_URL.format(redirect_url=redirect_url))
         return RedirectResponse(redirect_url)
 
     except Exception:
+        # Broad catch to ensure we always redirect with an error
         logger.exception(MSG_EXCEPTION_AUTH_CALLBACK_FAILURE)
-        return RedirectResponse(f"{settings.frontend_domain}/?error=token_exchange_failed")
+        return _redirect_with_error("token_exchange_failed")
+
     finally:
         duration = time.perf_counter() - start
         logger.info(MSG_INFO_AUTH_CALLBACK_DURATION.format(duration=duration))

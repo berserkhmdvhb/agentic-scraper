@@ -31,7 +31,7 @@ class AuthUser(TypedDict):
     sub: OwnerSub
     email: str | None
     name: str | None
-    scope: str
+    scope: str | list[str] | None
 
 
 class RequiredScopes(Enum):
