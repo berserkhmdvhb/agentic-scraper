@@ -49,7 +49,7 @@ from agentic_scraper.frontend.ui_runner_helpers import (
 )
 
 settings = get_settings()
-_AUTO_REFRESH_SECONDS = 1
+_AUTO_REFRESH_SECONDS = 2
 
 
 # -------------------------
