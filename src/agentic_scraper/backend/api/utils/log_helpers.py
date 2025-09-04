@@ -1,3 +1,35 @@
+"""
+Logging and HTTPException helpers for authentication and authorization flows.
+
+Responsibilities:
+- Provide standardized logging + raising for common HTTP error cases (401/403/500).
+- Wrap JWT and scope validation errors into FastAPI `HTTPException`.
+- Expose lightweight log-only helpers for info/warning/error messages.
+- Record user authorization attempts consistently.
+
+Public API:
+- `raise_forbidden`: Raise 403 Forbidden due to missing scopes.
+- `raise_unauthorized`: Raise 401 Unauthorized due to JWT failure.
+- `raise_internal_error`: Raise 500 Internal Server Error for unexpected issues.
+- `log_raise_info`: Log info-level messages with context.
+- `log_raise_warning`: Log warning-level messages with context.
+- `log_raise_error`: Log error-level messages with context.
+- `log_raise_user_authorization`: Log success/failure of user authorization.
+
+Usage:
+    from agentic_scraper.backend.api.utils.log_helpers import raise_unauthorized
+
+    try:
+        ...
+    except JWTError as err:
+        raise_unauthorized(err)
+
+Notes:
+- All log messages are sourced from `config/messages.py` for consistency.
+- Logged exceptions include `exc_info` when relevant.
+- Returned `HTTPException` always includes `WWW-Authenticate: Bearer` header.
+"""
+
 import logging
 from typing import NoReturn
 
@@ -26,6 +58,9 @@ def raise_forbidden(required_scopes: list[str]) -> None:
 
     Args:
         required_scopes (list[str]): List of required scopes that the user needs.
+
+    Raises:
+        HTTPException: Always raised with 403 status and `WWW-Authenticate` header.
     """
     required_scopes_str = " ".join(required_scopes)
     logger.warning(MSG_WARNING_INSUFFICIENT_PERMISSIONS.format(scopes=required_scopes_str))
@@ -44,6 +79,9 @@ def raise_unauthorized(err: JWTError) -> None:
 
     Args:
         err (JWTError): The exception raised during the JWT verification process.
+
+    Raises:
+        HTTPException: Always raised with 401 status and `WWW-Authenticate` header.
     """
     logger.exception(MSG_ERROR_INVALID_TOKEN.format(error=str(err)))
     raise HTTPException(
@@ -61,7 +99,10 @@ def raise_internal_error(e: Exception) -> NoReturn:
     for unexpected issues.
 
     Args:
-        e (Exception): The exception encountered during the JWT verification process.
+        e (Exception): The exception encountered during token validation.
+
+    Raises:
+        HTTPException: Always raised with 500 status and `WWW-Authenticate` header.
     """
     logger.exception(MSG_ERROR_INTERNAL_SERVER.format(error=str(e)), exc_info=e)
     raise HTTPException(
@@ -77,7 +118,7 @@ def log_raise_info(message: str, **kwargs: object) -> None:
 
     Args:
         message (str): The message to log.
-        kwargs: Additional context to include in the log.
+        **kwargs: Additional context to include in the log.
     """
     logger.info(message, extra=kwargs)
 
@@ -88,7 +129,7 @@ def log_raise_warning(message: str, **kwargs: object) -> None:
 
     Args:
         message (str): The message to log.
-        kwargs: Additional context to include in the log.
+        **kwargs: Additional context to include in the log.
     """
     logger.warning(message, extra=kwargs)
 
@@ -99,7 +140,7 @@ def log_raise_error(message: str, **kwargs: object) -> None:
 
     Args:
         message (str): The message to log.
-        kwargs: Additional context to include in the log.
+        **kwargs: Additional context to include in the log.
     """
     logger.exception(message, extra=kwargs)
 

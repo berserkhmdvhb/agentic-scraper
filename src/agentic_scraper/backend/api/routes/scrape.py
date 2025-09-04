@@ -1,3 +1,42 @@
+"""
+Scrape job routes for creating, listing, fetching, and canceling scrapes.
+
+Endpoints / Dependencies:
+- `POST /scrapes` (`create_scrape_job`): Create a new scrape job and start it.
+- `GET  /scrapes/{job_id}` (`get_scrape_job`): Fetch a specific job (and result if done).
+- `GET  /scrapes` (`list_scrape_jobs`): List jobs with optional filters & pagination.
+- `DELETE /scrapes/{job_id}` (`cancel_scrape_job`): Cancel a queued/running job.
+
+Auth:
+- All endpoints require a valid JWT via `get_current_user`.
+- Scopes enforced per endpoint:
+  - create: `create:scrapes`
+  - read:    `read:scrapes`
+  - cancel:  `cancel:scrapes`
+
+Response Models:
+- `ScrapeJob` for single job responses.
+- `ScrapeList` for collection responses.
+- `POST /scrapes` responds 202 with a `Location` header pointing to the job URL.
+- `DELETE /scrapes/{job_id}` responds 204 on success (idempotent).
+
+Error Codes & Status:
+- 400: Invalid query params (limit/cursor/status).
+- 401/403: Auth/scope failures (raised by dependencies).
+- 404: Job not found.
+- 409: Job exists but is not cancelable (already terminal).
+
+Usage:
+    from fastapi import FastAPI
+    from agentic_scraper.backend.api.routes.scrape import router
+    app = FastAPI()
+    app.include_router(router)
+
+Notes:
+- Background execution is scheduled via `asyncio.create_task`; tasks are tracked and auto-pruned.
+- Cancelation is cooperative: a per-job `asyncio.Event` is used to signal running pipelines.
+"""
+
 import asyncio
 import logging
 from typing import Annotated
@@ -60,19 +99,38 @@ from agentic_scraper.backend.utils.validators import (
 router = APIRouter(prefix="/scrapes", tags=["Scrape"])
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "cancel_scrape_job",
+    "create_scrape_job",
+    "get_scrape_job",
+    "list_scrape_jobs",
+    "router",
+]
+
+# Inject current user via the shared dependency.
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
 
-# Keep a reference to background tasks (RUF006) and auto-clean when done
+# Keep a reference to background tasks (RUF006) and auto-clean when done.
 _pending_tasks: set[asyncio.Task[None]] = set()
 
 
 def _track_task(t: asyncio.Task[None]) -> None:
+    """
+    Track a background task and auto-remove it upon completion.
+
+    Args:
+        t (asyncio.Task[None]): The task to track.
+
+    Returns:
+        None
+    """
     _pending_tasks.add(t)
     t.add_done_callback(_pending_tasks.discard)
 
 
 async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser) -> None:
-    """Execute the scrape pipeline for a job and persist its final state.
+    """
+    Execute the scrape pipeline for a job and persist its final state.
 
     Flow:
         1) Mark RUNNING (skips if already terminal).
@@ -81,6 +139,17 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
         4) Merge runtime settings and run pipeline with cancel awareness.
         5) Finalize SUCCEEDED only if not canceled.
         6) Always cleanup the cancel registry entry.
+
+    Args:
+        job_id (str): The job identifier.
+        payload (ScrapeCreate): Validated creation request payload.
+        user (AuthUser): Authenticated user context.
+
+    Returns:
+        None
+
+    Notes:
+        - All failure paths are finalized as FAILED; KeyboardInterrupt/SystemExit are re-raised.
     """
     try:
         _mark_running(job_id)
@@ -90,14 +159,17 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
         if snapshot and snapshot["status"] == JobStatus.CANCELED:
             return
 
+        # Resolve credentials. For non-rule-based agents, creds are mandatory.
         creds = _resolve_openai_creds_or_fail(job_id, payload, user)
         if payload.agent_mode != AgentMode.RULE_BASED and creds is None:
             return
 
         merged_settings = _merge_runtime_settings(payload)
 
+        # Use an existing cancel event if any; otherwise register a fresh one.
         cancel_event = get_cancel_event(job_id) or register_cancel_event(job_id)
 
+        # Run the pipeline; the returned flag indicates if the run reported cancellation.
         result_model, was_canceled = await _run_pipeline_and_build_result(
             payload=payload,
             merged_settings=merged_settings,
@@ -106,14 +178,17 @@ async def _run_scrape_job(job_id: str, payload: ScrapeCreate, user: CurrentUser)
             job_id=job_id,
         )
 
+        # Only finalize as succeeded if the job didn't report cancellation.
         if not was_canceled:
             _finalize_success_if_not_canceled(job_id, result_model)
 
     except (KeyboardInterrupt, SystemExit):
+        # Propagate shutdown signals.
         raise
     except Exception as e:  # noqa: BLE001 - catch-all to ensure job is finalized as FAILED
         _finalize_failure(job_id, e)
     finally:
+        # Always remove the cancel event & pre-cancel mark for this job.
         cleanup(job_id)
 
 
@@ -127,29 +202,44 @@ async def create_scrape_job(
     user: CurrentUser,
     request: Request,
 ) -> ScrapeJob:
-    """Create a new scrape job. Returns 202 Accepted with Location to poll the job."""
+    """
+    Create a new scrape job and start it asynchronously.
+
+    Sets the `Location` header to the polling URL of the created job.
+
+    Args:
+        payload (ScrapeCreate): Validated request body.
+        response (Response): Outgoing response used to set headers.
+        user (AuthUser): Authenticated user (injected).
+        request (Request): Incoming request (used for building absolute Location URL).
+
+    Returns:
+        ScrapeJob: Initial job snapshot (QUEUED state).
+
+    Raises:
+        HTTPException: 401/403 if auth or scope checks fail.
+    """
     # Scope: create:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_CREATE})
 
-    # URLs are normalized/deduped/bounded by ScrapeCreate
+    # URLs are normalized/deduped/bounded by ScrapeCreate.
     logger.info(MSG_INFO_SCRAPE_REQUEST_RECEIVED.format(n=len(payload.urls)))
 
-    # Create queued job (record owner for authorization) using normalized payload
+    # Create queued job (record owner for authorization) using normalized payload.
     request_payload = payload.model_dump()
-
     job = create_job(request_payload, owner_sub=user["sub"])
     logger.info(MSG_JOB_CREATED.format(job_id=job["id"]))
 
-    # Register cancel event at creation to avoid cancel-before-register gaps
+    # Register cancel event at creation to avoid cancel-before-register gaps.
     register_cancel_event(job["id"])
 
-    # Schedule background execution explicitly as an asyncio task
+    # Schedule background execution explicitly as an asyncio task.
     task: asyncio.Task[None] = asyncio.create_task(
         _run_scrape_job(job["id"], payload, user), name=f"scrape-job-{job['id']}"
     )
     _track_task(task)
 
-    # Set Location header for polling (absolute)
+    # Set Location header for polling (absolute).
     response_url = str(request.url_for("get_scrape_job", job_id=job["id"]))
     response.headers["Location"] = response_url
     logger.info(MSG_HTTP_LOCATION_HEADER_SET.format(url=response_url))
@@ -161,7 +251,21 @@ async def create_scrape_job(
     "/{job_id}",
 )
 async def get_scrape_job(job_id: UUID, user: CurrentUser) -> ScrapeJob:
-    """Get a scrape job by id. Includes result when status == 'succeeded'."""
+    """
+    Get a scrape job by id (includes result when status == 'succeeded').
+
+    Args:
+        job_id (UUID): The job identifier.
+        user (AuthUser): Authenticated user (injected).
+
+    Returns:
+        ScrapeJob: Job snapshot (with result if available).
+
+    Raises:
+        HTTPException:
+            - 404 if the job does not exist.
+            - 403 if the job exists but is owned by a different user.
+    """
     # Scope: read:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_READ})
 
@@ -172,6 +276,7 @@ async def get_scrape_job(job_id: UUID, user: CurrentUser) -> ScrapeJob:
             status_code=status.HTTP_404_NOT_FOUND, detail=MSG_HTTP_JOB_NOT_FOUND_DETAIL
         )
 
+    # Ownership guard: only the creator may view the job.
     if job.get("owner_sub") and job["owner_sub"] != user["sub"]:
         logger.warning(
             MSG_HTTP_FORBIDDEN_JOB_ACCESS.format(user_sub=user["sub"], job_id=str(job_id))
@@ -196,17 +301,23 @@ async def list_scrape_jobs(
     List scrape jobs with optional filtering and pagination.
 
     Args:
-        status_ (str | None): Optional status filter (queued, running, succeeded, failed, canceled).
-        limit (int): Max number of jobs to return.
-        cursor (str | None): Opaque cursor for pagination.
+        user (AuthUser): Authenticated user (injected).
+        status_ (str | None): Optional filter
+            (`queued`, `running`, `succeeded`, `failed`, `canceled`).
+        limit (int): Maximum number of jobs to return.
+        cursor (str | None): Opaque cursor (job_id) for pagination.
 
     Returns:
         ScrapeList: Items and next_cursor.
+
+    Raises:
+        HTTPException:
+            - 400 on invalid `limit`, `cursor`, or `status_`.
     """
     # Scope: read:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_READ})
 
-    # Validate query params centrally
+    # Validate query params centrally (consistent error text via validators).
     try:
         safe_limit = validate_limit(
             limit,
@@ -226,10 +337,11 @@ async def list_scrape_jobs(
     status_filter: JobStatus | None = None
     if status_ is not None:
         try:
-            # Validate string choice centrally, but preserve existing API message on error
+            # Validate string choice centrally, but preserve existing API message on error.
             validate_job_status(status_.lower(), allowed={s.value for s in JobStatus})
             status_filter = JobStatus(status_.lower())
         except ValueError as err:
+            # Keep response text stable for clients/tests.
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=MSG_ERROR_INVALID_JOB_STATUS.format(status=status_),
@@ -237,7 +349,7 @@ async def list_scrape_jobs(
 
     logger.info(MSG_JOB_LIST_REQUESTED.format(status=status_, limit=safe_limit, cursor=safe_cursor))
 
-    # Filter by owner inside the store so pagination is correct
+    # Filter by owner inside the store so pagination is correct.
     items, next_cursor = list_jobs(
         status=status_filter, limit=safe_limit, cursor=safe_cursor, owner_sub=user["sub"]
     )
@@ -254,10 +366,20 @@ async def cancel_scrape_job(job_id: UUID, user: CurrentUser) -> Response:
     Cancel a queued or running scrape job.
 
     Returns:
-      - 204 on success (idempotent: also returns 204 if already canceled)
-      - 404 if the job does not exist
-      - 403 if the caller does not own the job
-      - 409 if the job exists but is not cancelable (e.g., succeeded/failed)
+        - 204 on success (idempotent: also returns 204 if already canceled)
+        - 404 if the job does not exist
+        - 403 if the caller does not own the job
+        - 409 if the job exists but is not cancelable (e.g., succeeded/failed)
+
+    Args:
+        job_id (UUID): The job identifier.
+        user (AuthUser): Authenticated user (injected).
+
+    Returns:
+        Response: Empty 204 NO CONTENT on success.
+
+    Raises:
+        HTTPException: On 404/403/409 conditions described above.
     """
     # Scope: cancel:scrapes
     check_required_scopes(user, {RequiredScopes.SCRAPES_CANCEL})
@@ -283,7 +405,7 @@ async def cancel_scrape_job(job_id: UUID, user: CurrentUser) -> Response:
             detail=MSG_HTTP_FORBIDDEN_JOB_ACCESS,
         )
 
-    # Normalize status to JobStatus (store should already give enum, but be defensive)
+    # Normalize status to JobStatus (store should already give enum, but be defensive).
     current_status = job.get("status")
     try:
         status_enum = (
@@ -292,23 +414,23 @@ async def cancel_scrape_job(job_id: UUID, user: CurrentUser) -> Response:
             else JobStatus(str(current_status).lower())
         )
     except ValueError:
-        # Unknown status value: treat as not cancelable
+        # Unknown status value: treat as not cancelable.
         status_enum = None
 
-    # Idempotency: if already canceled, still return 204 and signal waiters
+    # Idempotency: if already canceled, still return 204 and signal waiters.
     if status_enum is JobStatus.CANCELED:
         set_canceled(job_id_str)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    # Try to transition to CANCELED
+    # Try to transition to CANCELED; store enforces legal transitions.
     if not cancel_job(job_id_str, user_sub=user["sub"]):
-        # Not cancelable (already terminal in a non-canceled state)
+        # Not cancelable (already terminal in a non-canceled state).
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=MSG_HTTP_JOB_NOT_CANCELABLE.format(status=current_status),
         )
 
-    # Successfully marked canceled; wake any waiting workers
+    # Successfully marked canceled; wake any waiting workers.
     logger.info(MSG_JOB_CANCELED.format(job_id=job_id_str))
     set_canceled(job_id_str)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
