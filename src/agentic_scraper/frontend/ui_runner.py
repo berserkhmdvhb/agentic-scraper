@@ -1,11 +1,40 @@
 """
 UI runner for triggering and monitoring scraping via the backend REST API (job-based).
 
-Changes in this version:
-- Create jobs via POST /scrapes/ (202 + Location header)
-- Poll job status via GET /scrapes/{id} until terminal state
-- Optional cancel via DELETE /scrapes/{id}
-- Removed legacy synchronous /scrape/start flow and local pipeline hooks
+Responsibilities:
+- Create scrape jobs via `POST /scrapes/` and retrieve the assigned job ID.
+- Poll job status via `GET /scrapes/{id}` until a terminal state is reached.
+- Optionally cancel an in-flight job via `DELETE /scrapes/{id}`.
+- Validate URL input, attach optional LLM/OpenAI parameters, and surface UI feedback.
+- Provide a non-blocking submission helper used by the Streamlit UI layer.
+
+Public API:
+- `create_scrape_job`: Create a new scrape job and return `(job_id, Location)`.
+- `poll_scrape_job`: Poll a job until it is `succeeded`, `failed`, or `canceled`.
+- `cancel_scrape_job`: Attempt to cancel a running job (`204` indicates success).
+- `submit_scrape_job`: Validate input, create a job, and return its ID (UI helper).
+- `run_scraper_pipeline`: Legacy-compatible non-blocking entry; delegates to submission.
+
+Config:
+- Uses `api_base()` for the versioned API root.
+- Pulls required-LLM field names from `REQUIRED_CONFIG_FIELDS_FOR_LLM`.
+- Enforces auth via `st.session_state["jwt_token"]`.
+
+Operational:
+- Network: Uses `httpx.AsyncClient` with conservative timeouts; follows redirects.
+- Logging: Message constants for structured logs; response bodies are truncated in logs.
+- UI: Uses Streamlit for spinners, warnings, and error messaging; `st.rerun()` elsewhere in UI.
+
+Usage:
+    job_id = asyncio.run(create_scrape_job(urls, config))[0]
+    job = asyncio.run(poll_scrape_job(job_id, interval_sec=1.0, max_seconds=180))
+    if job.get("status") == "succeeded":
+        ...
+
+Notes:
+- This module intentionally avoids schema coercion of server responses; UI code decides how
+  to render `job["result"]`.
+- The previous synchronous `/scrape/start` flow is removed; the Jobs tab handles live updates.
 """
 
 from __future__ import annotations
@@ -66,17 +95,36 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Truncation limit for logging large payloads or error messages.
 _LOG_TRUNCATE = 500
 
 
 def _truncate(s: str, n: int = _LOG_TRUNCATE) -> str:
+    """
+    Truncate a string for compact logging.
+
+    Args:
+        s (str): Input string.
+        n (int): Maximum length before truncation.
+
+    Returns:
+        str: Original string if length <= n; otherwise a truncated string with an ellipsis.
+
+    Notes:
+        - Non-string inputs are stringified defensively.
+    """
     if not isinstance(s, str):
         return str(s)
     return s if len(s) <= n else s[:n] + "...(truncated)"
 
 
 class BackendNoJobIdError(ValueError):
-    """Raised when the backend response is missing the expected job id."""
+    """
+    Raised when the backend response is missing the expected job id.
+
+    Notes:
+        - Used as a specific failure to distinguish server success w/o job id.
+    """
 
     def __str__(self) -> str:  # ruff: TRY003-compliant
         return MSG_ERROR_BACKEND_NO_JOB_ID
@@ -86,11 +134,26 @@ class BackendNoJobIdError(ValueError):
 # Internal helpers
 # -------------------------
 def _request_base_url() -> str:
+    """
+    Resolve the API base URL for requests.
+
+    Returns:
+        str: Versioned API base URL.
+    """
     return api_base()
 
 
 def _build_request_body(urls: list[str], config: PipelineConfig) -> dict[str, Any]:
-    """Collect allowed fields and strip None values."""
+    """
+    Collect allowed request fields and strip out None values.
+
+    Args:
+        urls (list[str]): Validated URLs to process.
+        config (PipelineConfig): Pipeline settings from the UI.
+
+    Returns:
+        dict[str, Any]: Cleaned body with only non-None keys.
+    """
     body: dict[str, Any] = {
         "urls": urls,
         "agent_mode": getattr(config, "agent_mode", None),
@@ -105,13 +168,25 @@ def _build_request_body(urls: list[str], config: PipelineConfig) -> dict[str, An
 
 
 def _normalize_agent_mode(mode_val: AgentMode | str | None) -> AgentMode:
-    """Coerce agent_mode (string/enum) to AgentMode, raising with message constant on error."""
+    """
+    Coerce agent_mode (enum/string/None) into a concrete `AgentMode`.
+
+    Args:
+        mode_val (AgentMode | str | None): Value from UI/config.
+
+    Returns:
+        AgentMode: The resolved mode; defaults to `RULE_BASED` if None.
+
+    Raises:
+        RuntimeError: If a string is provided that does not map to a valid enum member.
+    """
     if isinstance(mode_val, AgentMode):
         return mode_val
     if isinstance(mode_val, str):
         try:
             return AgentMode(mode_val)
         except ValueError as err:
+            # Keep error message consistent with project constants.
             raise RuntimeError(MSG_ERROR_INVALID_AGENT_MODE.format(mode=mode_val)) from err
     return AgentMode.RULE_BASED
 
@@ -120,16 +195,38 @@ def _prepare_llm_fields(
     agent_mode: AgentMode, config: PipelineConfig, body: dict[str, Any]
 ) -> None:
     """
-    Rule-based: ensure LLM-only fields are stripped.
-    LLM modes : attach OpenAI config and validate required fields.
+    Prepare request body for the selected agent mode.
+
+    Rules:
+        - For `RULE_BASED`, strip any LLM-only fields.
+        - For LLM modes, attach inline OpenAI credentials (when safe) and verify
+          the presence of required LLM fields.
+
+    Args:
+        agent_mode (AgentMode): Selected mode (enum).
+        config (PipelineConfig): UI config for LLM params/creds.
+        body (dict[str, Any]): Request payload to mutate in-place.
+
+    Returns:
+        None
+
+    Raises:
+        RuntimeError: If required LLM fields are missing (excluding inline creds),
+            or if credentials are required but not provided.
+
+    Notes:
+        - `attach_openai_config` will omit masked creds and log an info message; stored backend
+          credentials may still be used server-side.
+        - We log which LLM fields are present or missing to aid debugging.
     """
     if agent_mode == AgentMode.RULE_BASED:
         for k in REQUIRED_CONFIG_FIELDS_FOR_LLM:
             body.pop(k, None)
         return
 
-    # LLM modes
+    # LLM modes: attach inline creds (if safe) and validate required fields.
     if not attach_openai_config(config, body):
+        # The helper currently always returns True, but keep the guard explicit.
         raise RuntimeError(MSG_ERROR_MISSING_OPENAI_CREDENTIALS)
 
     # Inline creds are optional when stored on backend; don't require them here.
@@ -153,10 +250,17 @@ def _safe_message(resp: httpx.Response) -> str:
     """
     Best-effort extraction of a human-readable error message from an HTTP response.
 
-    Tries JSON first:
-      - If JSON is a string, return it.
-      - If JSON is an object/array, return a compact JSON string.
-    Falls back to response text if JSON parsing fails or yields an unsupported type.
+    Strategy:
+        1) Try to parse `resp.json()`.
+            - If JSON is a string, return it directly.
+            - If JSON is an object/array, return a compact JSON string.
+        2) Fallback to `resp.text` on parse errors or unsupported JSON types.
+
+    Args:
+        resp (httpx.Response): The HTTP response to inspect.
+
+    Returns:
+        str: A compact, human-readable string representation of the error body.
     """
     try:
         data = resp.json()
@@ -175,6 +279,18 @@ def _safe_message(resp: httpx.Response) -> str:
 
 
 async def _auth_headers() -> dict[str, str]:
+    """
+    Build Authorization headers from the current session JWT.
+
+    Returns:
+        dict[str, str]: `{"Authorization": "Bearer <jwt>"}`
+
+    Raises:
+        RuntimeError: If the JWT is missing or blank.
+
+    Notes:
+        - Error is logged with a message constant to keep audit logs consistent.
+    """
     jwt = st.session_state.get("jwt_token")
     if not isinstance(jwt, str) or not jwt.strip():
         logger.error(MSG_ERROR_MISSING_JWT)
@@ -186,13 +302,31 @@ async def create_scrape_job(
     urls: list[str],
     config: PipelineConfig,
 ) -> tuple[str, str | None]:
-    """POST /scrapes/ to create a job. Returns (job_id, location_header)."""
+    """
+    Create a new scrape job with the backend (`POST /scrapes/`).
+
+    Args:
+        urls (list[str]): Valid, deduplicated URLs to scrape.
+        config (PipelineConfig): Pipeline configuration from the UI.
+
+    Returns:
+        tuple[str, str | None]: `(job_id, Location header or None)`
+
+    Raises:
+        httpx.HTTPStatusError: For non-202 responses (error message compacted).
+        BackendNoJobIdError: If the response JSON lacks an `id`.
+        RuntimeError: For invalid agent mode or missing required fields.
+
+    Notes:
+        - Uses `attach_openai_config` to include LLM params/creds when applicable.
+        - Logs payload keys and request target URL for observability.
+    """
     headers = await _auth_headers()
 
-    # Build request body
+    # Build request body from config (drop None-valued keys).
     body = _build_request_body(urls, config)
 
-    # Log payload shape & agent_mode type
+    # Log payload shape & agent_mode type (guarded).
     mode_val = getattr(config, "agent_mode", None)
     with suppress(Exception):
         logger.debug(
@@ -201,16 +335,19 @@ async def create_scrape_job(
             )
         )
 
-    # Attach inline OpenAI creds or strip LLM-only fields based on mode
+    # Attach inline OpenAI creds or strip LLM-only fields based on mode.
     agent_mode = _normalize_agent_mode(mode_val)
     _prepare_llm_fields(agent_mode, config, body)
 
+    # Log the merged (non-URL) config for debugging without leaking inputs.
     logger.debug(
         MSG_DEBUG_SCRAPE_CONFIG_MERGED.format(config={k: body[k] for k in body if k != "urls"})
     )
+
     base = _request_base_url()
     url = f"{base}/scrapes/"
     logger.debug(MSG_DEBUG_REQUEST_TARGET.format(method="POST", url=url))
+
     async with httpx.AsyncClient(follow_redirects=True) as client:
         resp = await client.post(
             url,
@@ -219,7 +356,7 @@ async def create_scrape_job(
             timeout=60,
         )
 
-    # Expect 202 Accepted
+    # Expect 202 Accepted with an `id` in the body (and optional Location header).
     if resp.status_code != status.HTTP_202_ACCEPTED:
         msg = _truncate(_safe_message(resp))
         logger.error(MSG_ERROR_HTTP_COMPACT.format(method="POST", url=url, error=msg))
@@ -247,6 +384,23 @@ async def create_scrape_job(
 async def poll_scrape_job(
     job_id: str, *, interval_sec: float = 1.2, max_seconds: float = 300.0
 ) -> dict[str, Any]:
+    """
+    Poll a scrape job until it reaches a terminal state or the timeout elapses.
+
+    Args:
+        job_id (str): The job identifier returned by `create_scrape_job`.
+        interval_sec (float): Delay between poll attempts.
+        max_seconds (float): Max wall-clock time to spend polling.
+
+    Returns:
+        dict[str, Any]: The final job payload. On timeout or certain errors,
+            a synthetic `{"status": "failed", "error": "..."}`
+            is returned instead of raising.
+
+    Notes:
+        - Emits debug logs for status transitions and item counts when available.
+        - Returns early on `404` and `403` with friendly messages.
+    """
     headers = await _auth_headers()
     deadline = time.perf_counter() + max_seconds
     logger.debug(
@@ -292,7 +446,19 @@ async def poll_scrape_job(
 
 
 async def cancel_scrape_job(job_id: str) -> bool:
-    """DELETE /scrapes/{id}. Returns True if 204."""
+    """
+    Attempt to cancel a running scrape job (`DELETE /scrapes/{id}`).
+
+    Args:
+        job_id (str): The job identifier.
+
+    Returns:
+        bool: True if cancellation succeeded (`204 No Content`), False otherwise.
+
+    Notes:
+        - If the job is not cancelable (`409 Conflict`), a friendly message is shown.
+        - Network/HTTP exceptions return False without raising to the UI.
+    """
     headers = await _auth_headers()
 
     try:
@@ -325,8 +491,26 @@ async def cancel_scrape_job(job_id: str) -> bool:
 # -------------------------
 
 
-# New: simple submit helper that only creates a job and returns its id
 def submit_scrape_job(raw_input: str, config: PipelineConfig) -> str | None:
+    """
+    Validate input and create a scrape job, returning its ID.
+
+    UI Flow:
+        1) Validate & deduplicate the raw URL input and render feedback sections.
+        2) Submit the job to the backend (spinner shown).
+        3) On success, store `last_job_id` in session state and show a success toast.
+
+    Args:
+        raw_input (str): Multi-line user input containing URLs.
+        config (PipelineConfig): Pipeline options.
+
+    Returns:
+        str | None: The created `job_id` on success; otherwise `None`.
+
+    Notes:
+        - Auth errors (401/403) are handled with friendly messages and session cleanup.
+        - Network errors and server errors are surfaced via Streamlit messages.
+    """
     urls, invalid_lines = validate_and_deduplicate_urls(raw_input)
     render_invalid_url_section(invalid_lines)
 
@@ -342,7 +526,7 @@ def submit_scrape_job(raw_input: str, config: PipelineConfig) -> str | None:
     except httpx.HTTPStatusError as e:
         resp = e.response
         code = getattr(resp, "status_code", None)
-        # Mirror the friendly handling you use in ui_jobs.py
+        # Mirror the friendly handling used in the Jobs UI for consistency.
         if code == status.HTTP_401_UNAUTHORIZED:
             if "jwt_token" in st.session_state:
                 del st.session_state["jwt_token"]
@@ -366,13 +550,25 @@ def submit_scrape_job(raw_input: str, config: PipelineConfig) -> str | None:
     return None
 
 
-# Replace the existing definition entirely
 def run_scraper_pipeline(
     raw_input: str, config: PipelineConfig
 ) -> tuple[list[dict[str, Any]], int]:
     """
-    Non-blocking: only submit a job and return immediately.
-    The Jobs tab is responsible for monitoring and displaying results.
+    Legacy-compatible, non-blocking entry point.
+
+    Behavior:
+        - Submits a scrape job and immediately returns without polling for results.
+        - The **Jobs** tab is responsible for monitoring and displaying results.
+
+    Args:
+        raw_input (str): Multi-line user input containing URLs.
+        config (PipelineConfig): Pipeline options (passed through to job creation).
+
+    Returns:
+        tuple[list[dict[str, Any]], int]: Always returns `([], 0)` to match previous signature.
+
+    Notes:
+        - Retained to avoid broad call-site changes while migrating to job-based flow.
     """
     submit_scrape_job(raw_input, config)
     # We no longer return extracted items here; results are shown in Jobs.

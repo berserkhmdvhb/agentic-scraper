@@ -1,14 +1,35 @@
 """
 Jobs tab for listing, inspecting, and cancelling scrape jobs.
 
-Endpoints used:
-- GET   /scrapes?status_=&limit=&cursor=
-- GET   /scrapes/{job_id}
-- DELETE /scrapes/{job_id}
+Responsibilities:
+- List recent jobs with filtering, pagination, and (optional) auto-refresh.
+- Inspect a single job, show progress, and display results/overview when complete.
+- Cancel queued/running jobs with friendly handling for edge cases.
+- Export a full job package (metadata + stats + results) including a frontend config snapshot.
 
-Prereqs:
-- User must be authenticated; JWT expected in st.session_state['jwt_token']
-- Backend domain configured in settings.backend_domain
+Public API:
+- `render_jobs_tab`: Render the Jobs tab UI (filters, list, details, cancel, export).
+
+Config:
+- Requires `settings.backend_domain` to be set (via `get_settings()`).
+- Auth: reads `st.session_state["jwt_token"]` to build Authorization headers.
+
+Operational:
+- Network: Uses synchronous `httpx.Client`; list fetches are cached briefly (`st.cache_data`).
+- Pagination: Cursor-based (`next_cursor`) with a simple stack for back/prev navigation.
+- Auto-refresh: Polls the list/detail every few seconds for active jobs.
+- Logging/UI: Errors surface as Streamlit messages; messages standardized via constants.
+
+Usage:
+    # In your Streamlit app:
+    render_jobs_tab()
+
+Notes:
+- Endpoints:
+  - GET    /scrapes?status_=&limit=&cursor=
+  - GET    /scrapes/{job_id}
+  - DELETE /scrapes/{job_id}
+- User must be authenticated; JWT expected in `st.session_state["jwt_token"]`.
 """
 
 from __future__ import annotations
@@ -51,6 +72,8 @@ from agentic_scraper.frontend.ui_runner_helpers import (
 settings = get_settings()
 _AUTO_REFRESH_SECONDS = 2
 
+__all__ = ["render_jobs_tab"]  # public surface for this module
+
 
 # -------------------------
 # HTTP helpers
@@ -59,19 +82,51 @@ _AUTO_REFRESH_SECONDS = 2
 
 @st.cache_data(ttl=2, show_spinner=False)
 def _get_cached(url: str, jwt: str, *, timeout: int = 30) -> httpx.Response:
+    """
+    Cached GET helper used by list/detail endpoints.
+
+    Args:
+        url (str): Absolute request URL.
+        jwt (str): Bearer token to include in headers.
+        timeout (int): Request timeout in seconds.
+
+    Returns:
+        httpx.Response: Raw response object (caller handles status/JSON).
+    """
     headers = {"Authorization": f"Bearer {jwt}"}
     with httpx.Client() as client:
         return client.get(url, headers=headers, timeout=timeout)
 
 
 def _delete(url: str, *, timeout: int = 30) -> httpx.Response:
+    """
+    Simple DELETE helper using the current session JWT.
+
+    Args:
+        url (str): Absolute request URL.
+        timeout (int): Request timeout in seconds.
+
+    Returns:
+        httpx.Response: Raw response object.
+    """
     headers = build_auth_headers()
     with httpx.Client() as client:
         return client.delete(url, headers=headers, timeout=timeout)
 
 
 def _safe_message(resp: httpx.Response) -> str:
-    """Extract best-effort message from a response."""
+    """
+    Extract a best-effort, human-readable message from an HTTP response.
+
+    Tries JSON first; returns strings directly or compacts non-string JSON via `json.dumps`.
+    Falls back to `resp.text` if parsing fails.
+
+    Args:
+        resp (httpx.Response): The HTTP response.
+
+    Returns:
+        str: A compact message suitable for display.
+    """
     try:
         data = resp.json()
     except ValueError:
@@ -94,16 +149,19 @@ def fetch_jobs(
     cursor: str | None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """
-    Fetch jobs from the backend.
+    Fetch a page of jobs from the backend.
+
+    Args:
+        status_filter (str | None): One of queued/running/succeeded/failed/canceled or "All"/None.
+        limit (int): Max number of jobs to return.
+        cursor (str | None): Pagination cursor.
 
     Returns:
-        (items, next_cursor)
-        - items: list of job dicts
-        - next_cursor: pagination cursor or None
+        tuple[list[dict[str, Any]], str | None]: (`items`, `next_cursor`)
 
     Notes:
-        - `status_filter` can be one of: queued/running/succeeded/failed/canceled or None/"All".
-        - Always call the trailing-slash endpoint to avoid redirects.
+        - Always calls the trailing-slash endpoint to avoid redirects.
+        - Handles 401 auth errors early to clear session and prompt login.
     """
     base = api_base()
     if not base:
@@ -153,13 +211,24 @@ def fetch_jobs(
 
 
 def fetch_job(job_id: str) -> dict[str, Any] | None:
-    """Fetch a single job by id. Returns the job dict or None on error/not-found."""
+    """
+    Fetch a single job by ID.
+
+    Args:
+        job_id (str): The job identifier.
+
+    Returns:
+        dict[str, Any] | None: The job payload on success, otherwise `None`.
+
+    Notes:
+        - Special-cases 404/403/401 with friendly messages (no exceptions raised).
+    """
     payload: dict[str, Any] | None = None
 
     base = api_base()
     if not base:
         st.error(MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED)
-        return None  # If you want literally one return, see alternative below.
+        return None
     jwt = st.session_state.get("jwt_token", "")
     try:
         resp = _get_cached(f"{base}/scrapes/{job_id}", jwt)
@@ -187,6 +256,18 @@ def fetch_job(job_id: str) -> dict[str, Any] | None:
 
 
 def cancel_job(job_id: str) -> bool:
+    """
+    Attempt to cancel a job (`DELETE /scrapes/{job_id}`).
+
+    Args:
+        job_id (str): The job identifier.
+
+    Returns:
+        bool: True if cancellation succeeded (`204`), False otherwise.
+
+    Notes:
+        - Handles 409 (not cancelable), 404, and 403 with user-friendly messages.
+    """
     base = api_base()
     if not base:
         st.error(MSG_ERROR_BACKEND_DOMAIN_NOT_CONFIGURED)
@@ -226,6 +307,15 @@ def cancel_job(job_id: str) -> bool:
 
 
 def _status_badge(status_: str) -> str:
+    """
+    Render a small colored badge (HTML) for the given status string.
+
+    Args:
+        status_(str): Status value (queued/running/succeeded/failed/canceled).
+
+    Returns:
+        str: HTML snippet (to be used with `unsafe_allow_html=True`).
+    """
     s = (status_ or "").upper()
     color = {
         "QUEUED": "gray",
@@ -246,7 +336,15 @@ def _status_badge(status_: str) -> str:
 
 
 def _job_package_download_button(job: dict[str, Any]) -> None:
-    """Download the full job payload (metadata + stats + raw results) with frontend config."""
+    """
+    Render a download button for the full job payload (JSON) + frontend config snapshot.
+
+    Args:
+        job (dict[str, Any]): Final job payload.
+
+    Returns:
+        None
+    """
     if (job.get("status") or "").lower() != "succeeded":
         return
     try:
@@ -271,6 +369,15 @@ def _job_package_download_button(job: dict[str, Any]) -> None:
 
 
 def _build_rows(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Convert raw job dicts into a compact tabular row shape for `st.dataframe`.
+
+    Args:
+        items (Iterable[dict[str, Any]]): Jobs returned by the list endpoint.
+
+    Returns:
+        list[dict[str, Any]]: Condensed rows with id/status/progress/timestamps.
+    """
     return [
         {
             "id": j.get("id"),
@@ -284,6 +391,12 @@ def _build_rows(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _render_filters() -> tuple[str, int, bool, bool]:
+    """
+    Render list filters and utility controls.
+
+    Returns:
+        tuple[str, int, bool, bool]: (status_filter, limit, auto_refresh, manual_refresh_clicked)
+    """
     col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
     with col1:
         status_filter = st.selectbox(
@@ -303,6 +416,17 @@ def _render_filters() -> tuple[str, int, bool, bool]:
 def _render_pagination_toolbar(
     cursor_stack_key: str, cursor: str | None, next_cursor: str | None
 ) -> None:
+    """
+    Render pagination controls (Prev / cursor label / Next).
+
+    Args:
+        cursor_stack_key (str): Session key holding a stack of cursors.
+        cursor (str | None): Current cursor (top of stack).
+        next_cursor (str | None): Cursor for the next page.
+
+    Returns:
+        None
+    """
     tcol1, tcol2, tcol3 = st.columns(3)
     with tcol1:
         if st.button("⬅️ Prev") and st.session_state[cursor_stack_key]:
@@ -317,6 +441,15 @@ def _render_pagination_toolbar(
 
 
 def _render_job_detail(job: dict[str, Any]) -> None:
+    """
+    Render the detail view for a single job, including progress and results.
+
+    Args:
+        job (dict[str, Any]): The job payload.
+
+    Returns:
+        None
+    """
     st.markdown(f"**Job ID:** `{job.get('id')}`")
     st.markdown(f"Status: {_status_badge(job.get('status', ''))}", unsafe_allow_html=True)
 
@@ -357,7 +490,7 @@ def _render_job_detail(job: dict[str, Any]) -> None:
                 st.caption(f"(Backend recorded was_canceled = {bool(stats.get('was_canceled'))})")
         render_job_error(job)
 
-    # Cancel button for queued/running
+    # Cancel button for queued/running jobs
     if status_lower in {"queued", "running"} and st.button(
         "🛑 Cancel Job", use_container_width=True
     ):
@@ -374,22 +507,55 @@ def _render_job_detail(job: dict[str, Any]) -> None:
 def _is_active(job: dict[str, Any]) -> bool:
     """
     Return True if a job is in an active state (queued or running).
+
+    Args:
+        job (dict[str, Any]): Job payload.
+
+    Returns:
+        bool: True if active; otherwise False.
     """
     status_lower = str(job.get("status") or "").lower()
     return status_lower in {"queued", "running"}
 
 
 def _init_and_get_cursor(cursor_key: str = "jobs_cursor_stack") -> str | None:
+    """
+    Initialize (if needed) and return the current page cursor.
+
+    Args:
+        cursor_key (str): Session key storing the cursor stack.
+
+    Returns:
+        str | None: Current cursor or None when on the first page.
+    """
     if cursor_key not in st.session_state:
         st.session_state[cursor_key] = []  # stack of cursors (for back navigation)
     return st.session_state[cursor_key][-1] if st.session_state[cursor_key] else None
 
 
 def _count_active(items: list[dict[str, Any]]) -> int:
+    """
+    Count currently active jobs in a list.
+
+    Args:
+        items (list[dict[str, Any]]): Job rows.
+
+    Returns:
+        int: Number of active (queued/running) jobs.
+    """
     return sum((str(j.get("status") or "").lower() in {"queued", "running"}) for j in items)
 
 
 def _render_jobs_table(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+    """
+    Render the jobs table and return the rows and their IDs.
+
+    Args:
+        items (list[dict[str, Any]]): Jobs to display.
+
+    Returns:
+        tuple[list[dict[str, Any]], list[str]]: (rows, job_ids)
+    """
     rows: list[dict[str, Any]] = _build_rows(items)
     st.dataframe(rows, use_container_width=True, hide_index=True)
     job_ids: list[str] = [str(r["id"]) for r in rows if r.get("id") is not None]
@@ -397,6 +563,16 @@ def _render_jobs_table(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]
 
 
 def _select_job(job_ids: list[str], preselect_job_id: str | None) -> str | None:
+    """
+    Render a selector for the job list and return the chosen job ID.
+
+    Args:
+        job_ids (list[str]): Available job IDs.
+        preselect_job_id (str | None): Job ID to preselect, if present.
+
+    Returns:
+        str | None: Selected job ID, or None when the list is empty.
+    """
     if not job_ids:
         return None
     default_index = job_ids.index(preselect_job_id) if preselect_job_id in job_ids else 0
@@ -404,6 +580,16 @@ def _select_job(job_ids: list[str], preselect_job_id: str | None) -> str | None:
 
 
 def _maybe_list_autorefresh(items: list[dict[str, Any]], *, enabled: bool) -> None:
+    """
+    Auto-refresh the jobs list when active jobs are present.
+
+    Args:
+        items (list[dict[str, Any]]): Current page of jobs.
+        enabled (bool): Whether auto-refresh is enabled.
+
+    Returns:
+        None
+    """
     if enabled and any(_is_active(j) for j in items):
         st_autorefresh(interval=_AUTO_REFRESH_SECONDS * 1000, key="jobs_list_auto_refresh")
 
@@ -414,6 +600,17 @@ def _handle_selected_job(
     auto_refresh: bool,
     manual_refresh_clicked: bool,
 ) -> None:
+    """
+    Render details for the selected job and manage per-item auto-refresh.
+
+    Args:
+        selected_id (str | None): ID of the selected job.
+        auto_refresh (bool): Whether auto-refresh is enabled.
+        manual_refresh_clicked (bool): Whether the user manually clicked Refresh.
+
+    Returns:
+        None
+    """
     if not selected_id:
         return
     job: dict[str, Any] | None = fetch_job(selected_id)
@@ -425,12 +622,25 @@ def _handle_selected_job(
             st.caption(f"🔄 Auto-refreshing every {_AUTO_REFRESH_SECONDS} seconds…")
             st_autorefresh(interval=_AUTO_REFRESH_SECONDS * 1000, key="jobs_auto_refresh")
         else:
+            # Give the user feedback and then rerun once to update the list view.
             _time.sleep(max(_AUTO_REFRESH_SECONDS, 2))
             st.rerun()
 
 
 def render_jobs_tab(preselect_job_id: str | None = None) -> None:
-    """Render the Jobs tab UI."""
+    """
+    Render the Jobs tab UI, including list, filters, selection, details, and cancel.
+
+    Args:
+        preselect_job_id (str | None): Optional job ID to preselect in the list.
+
+    Returns:
+        None
+
+    Notes:
+        - Requires authentication; prompts for login when JWT is missing/expired.
+        - Uses a short auto-refresh cadence to keep the view timely while jobs are active.
+    """
     st.header("🧭 Jobs")
 
     if "jwt_token" not in st.session_state:
@@ -462,8 +672,13 @@ def render_jobs_tab(preselect_job_id: str | None = None) -> None:
 
 
 def _current_run_config() -> dict[str, object]:
-    """Snapshot selected frontend config at time of export (no secrets).
+    """
+    Snapshot selected frontend config at time of export (no secrets).
+
     Prefers session (actual run-time choices), falls back to settings/env.
+
+    Returns:
+        dict[str, object]: Compact config fields included in the downloaded job package.
     """
     ss = st.session_state
 
