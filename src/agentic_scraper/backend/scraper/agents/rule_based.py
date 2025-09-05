@@ -1,18 +1,33 @@
 """
 Rule-based scraping agent for extracting structured data using regex heuristics.
 
-This module implements a lightweight fallback agent that infers fields like
-title, description, and price using simple text and regex rules, rather than LLMs.
-It is used when LLM usage is disabled or unavailable.
+Responsibilities:
+- Infer common fields (title, description, price) from plain text.
+- Use defensive, locale-tolerant regexes for currency/number patterns.
+- Optionally capture a screenshot via Playwright (delegated helper).
+- Validate and return a `ScrapedItem`, or `None` when nothing useful is found.
 
-Key Features:
-- Uses regular expressions to detect price patterns.
-- Extracts first non-empty line as title.
-- Extracts a medium-length paragraph as description.
-- Optionally captures a screenshot via Playwright.
-- Returns a validated `ScrapedItem`, or None if validation fails.
+Public API:
+- `extract_structured_data`: Main entry point; returns a validated `ScrapedItem | None`.
+- `guess_title`: First non-empty line heuristic.
+- `guess_description`: Medium-length paragraph heuristic (price tails removed).
+- `guess_price`: Regex-based price detection with fallbacks.
 
-Used in: scraper agent registry when `agent_mode=AgentMode.RULE_BASED` is selected.
+Operational:
+- Concurrency: Pure async; designed to be called by worker tasks.
+- Logging: Uses message constants; verbose logs include field previews.
+- Dependencies: Screenshotting is performed via helper if `take_screenshot=True`.
+
+Usage:
+    from agentic_scraper.backend.scraper.agent.rule_based import extract_structured_data
+
+    item = await extract_structured_data(request, settings=settings)
+    if item is not None:
+        print(item.model_dump())
+
+Notes:
+- Heuristics are intentionally conservative to avoid false positives.
+- Price parsing tolerates common thousands/decimal separators (',' vs '.').
 """
 
 import logging
@@ -48,18 +63,28 @@ __all__ = ["extract_structured_data"]
 
 logger = logging.getLogger(__name__)
 
-MIN_GROUPS_FOR_DECIMAL = 2
-TAIL_WINDOW = 6
+# ──────────────────────────────────────────────────────────────────────────────
+# Price-detection helpers & regexes
+# ──────────────────────────────────────────────────────────────────────────────
+# Heuristic knobs tuned by observation:
+MIN_GROUPS_FOR_DECIMAL = 2  # e.g., groups like ("12", "99") → "12.99"
+TAIL_WINDOW = 6  # how far to peek after a number for a fractional tail
+
+# Fallbacks for "$ 12.34" vs "12.34 $" when the primary project pattern misses.
+# Keep permissive groupings to accommodate "12,345.67" and "12.345,67".
 _FALLBACK_NUM_THEN_CURR = re.compile(r"(\d{1,3}(?:[.,]\d{3})*[.,]?\d{1,4})\s*[€$]")
 _FALLBACK_CURR_THEN_NUM = re.compile(r"[€$]\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]?\d{1,4})?)")
 
 
-# helpers kept local to this module
-
-
 def _search_price_match(text: str) -> re.Match[str] | None:
     """
-    Try the main project pattern, then common currency/number fallbacks.
+    Try the main project price pattern, then currency/number fallbacks.
+
+    Returns:
+        re.Match | None: First match if any; otherwise None.
+
+    Notes:
+        - Ordering matters: prefer project pattern to keep behavior stable.
     """
     m = re.search(REGEX_PRICE_PATTERN, text)
     if m:
@@ -69,8 +94,19 @@ def _search_price_match(text: str) -> re.Match[str] | None:
 
 def _best_candidate_from_match(m: re.Match[str], text: str) -> str | None:
     """
-    From a regex match, choose the most price-like string, optionally
-    synthesizing decimals from groups or a trailing fractional tail.
+    Choose the most price-like candidate from a regex match (group or whole).
+
+    Heuristics:
+    - Prefer tokens with separators and more digits.
+    - If groups resemble integer + fraction without a separator, synthesize one.
+    - If still no separator, peek a short tail to capture a fractional part.
+
+    Args:
+        m (re.Match): A match that likely contains a price.
+        text (str): Full text to allow post-match tail inspection.
+
+    Returns:
+        str | None: Best candidate string, or None if corrupted (e.g., "$12x34").
     """
     groups = [g for g in (m.groups() or ()) if g]
     candidates = [*groups, m.group(0)]
@@ -82,12 +118,13 @@ def _best_candidate_from_match(m: re.Match[str], text: str) -> str | None:
 
     best = max(candidates, key=_score)
 
-    # If groups look like integer + fraction without a separator, synthesize one.
+    # Synthesize decimal if groups look like integer + fractional without a separator
+    # e.g., ("12", "99") → "12.99".
     if len(groups) >= MIN_GROUPS_FOR_DECIMAL and ("." not in best and "," not in best):
         combined = f"{groups[0]}.{groups[1]}"
         best = max([*candidates, combined], key=_score)
 
-    # If we still lack a separator, peek right after the match for a fractional tail.
+    # If no separator yet, peek right after the match for a short fractional tail.
     if "." not in best and "," not in best:
         tail = text[m.end() : m.end() + TAIL_WINDOW]
         m_tail = re.match(r"\s*([.,])(\d{1,4})", tail)
@@ -95,7 +132,7 @@ def _best_candidate_from_match(m: re.Match[str], text: str) -> str | None:
             sep, frac = m_tail.groups()
             best = f"{best}{sep}{frac}"
         elif re.match(r"\s*[A-Za-z]", tail):
-            # Corrupted number like "$12x34" → bail out
+            # Corrupted number like "$12x34" → bail out.
             return None
 
     return best
@@ -103,23 +140,40 @@ def _best_candidate_from_match(m: re.Match[str], text: str) -> str | None:
 
 def _normalize_numeric_string(s: str) -> str | None:
     """
-    Keep only digits and separators, resolve thousands/decimal conventions.
+    Keep only digits and separators, then normalize separators.
+
+    Rules:
+    - If both ',' and '.' exist → assume ',' are thousands separators, strip them.
+    - Else: treat ',' as decimal separator and convert to '.'.
+
+    Returns:
+        str | None: Normalized numeric string or None if empty.
     """
     cleaned = re.sub(r"[^\d.,]", "", s)
     if not cleaned:
         return None
     if "," in cleaned and "." in cleaned:
-        # Assume commas are thousands separators if both present.
-        cleaned = cleaned.replace(",", "")
+        cleaned = cleaned.replace(",", "")  # favor '.' as decimal sep when both present
     else:
-        # Otherwise, comma acts as decimal separator.
-        cleaned = cleaned.replace(",", ".")
+        cleaned = cleaned.replace(",", ".")  # single ',' → decimal sep
     return cleaned
 
 
 def guess_price(text: str) -> float | None:
     """
-    Extract the first detected price-like pattern from the input text.
+    Extract the first detected price-like value from text.
+
+    Args:
+        text (str): Full page text.
+
+    Returns:
+        float | None: Parsed price in decimal form, or None if no reliable hit.
+
+    Examples:
+        >>> guess_price("Only $12.50 today!")
+        12.5
+        >>> guess_price("Preis: 1.234,99 €")
+        1234.99
     """
     match = _search_price_match(text)
     if not match:
@@ -136,18 +190,23 @@ def guess_price(text: str) -> float | None:
     try:
         return float(normalized)
     except ValueError:
+        # Defensive: if normalization still yields a non-float string, drop it.
         return None
 
 
 def guess_title(text: str) -> str | None:
     """
-    Extract the first non-empty line from the input text as a potential title.
+    Use the first non-empty line as a title candidate.
 
     Args:
-        text (str): The full text content of the webpage.
+        text (str): Full page text.
 
     Returns:
-        str | None: Title candidate, or None if no valid line found.
+        str | None: Title candidate or None.
+
+    Examples:
+        >>> guess_title("Hello\\nWorld")
+        'Hello'
     """
     for line in text.strip().splitlines():
         clean = line.strip()
@@ -158,7 +217,11 @@ def guess_title(text: str) -> str | None:
 
 def _strip_trailing_price_lines(s: str) -> str:
     """
-    Remove any trailing lines that look like a price (e.g., "Price: $12.5" or "19,99 €").
+    Remove trailing lines that look like prices (e.g., "19,99 €" at the end).
+
+    Rationale:
+        Product pages often terminate paragraphs with a price; this muddies
+        description quality for downstream LLMs, so we trim those tails.
     """
     lines = s.splitlines()
     while lines and re.search(REGEX_PRICE_PATTERN, lines[-1]):
@@ -168,7 +231,17 @@ def _strip_trailing_price_lines(s: str) -> str:
 
 def guess_description(text: str) -> str | None:
     """
-    Extract a paragraph of medium length from the text as a description.
+    Extract a medium-length paragraph as description.
+
+    Strategy:
+        Split by paragraph boundaries, trim price-like tails, and select the first
+        candidate whose length is within [DESCRIPTION_MIN_LENGTH, DESCRIPTION_MAX_LENGTH].
+
+    Args:
+        text (str): Full page text.
+
+    Returns:
+        str | None: Description paragraph or None if no suitable candidate.
     """
     paragraphs = re.split(REGEX_PARAGRAPH_SPLIT_PATTERN, text)
     for p in paragraphs:
@@ -184,17 +257,22 @@ async def extract_structured_data(
     settings: Settings,
 ) -> ScrapedItem | None:
     """
-    Perform rule-based extraction of structured data from a scrape request.
+    Perform rule-based extraction and return a validated `ScrapedItem`.
 
-    This function infers common metadata fields using simple regex or text-based
-    heuristics and returns a validated `ScrapedItem`. It also logs intermediate
-    values and optionally captures a screenshot.
+    Args:
+        request (ScrapeRequest): Prepared request (url, text, flags, creds).
+        settings (Settings): Global runtime settings (logging, screenshot flag, etc.).
 
     Returns:
-        ScrapedItem | None: Structured result if valid, otherwise None.
+        ScrapedItem | None: Structured item or None when no informative fields are found.
+
+    Notes:
+        - Screenshot capture is delegated and optional; failures are logged by the helper.
+        - Validation errors are logged with field previews in debug logs.
     """
     logger.debug(MSG_DEBUG_RULE_BASED_START.format(url=request.url))
 
+    # Field inference via simple text/regex heuristics.
     title = guess_title(request.text)
     description = guess_description(request.text)
     price = guess_price(request.text)
@@ -203,16 +281,18 @@ async def extract_structured_data(
     logger.debug(MSG_DEBUG_RULE_BASED_DESCRIPTION.format(description=description))
     logger.debug(MSG_DEBUG_RULE_BASED_PRICE.format(price=price))
 
-    # Rule-based agent - only “informativeness” guard:
-    # If we found nothing useful, skip constructing a ScrapedItem and return None.
+    # Informativeness guard: if *nothing* useful was found, prefer returning None
+    # over emitting an empty/low-signal item.
     if title is None and description is None and price is None:
         logger.warning(MSG_WARN_RULE_BASED_NO_FIELDS.format(url=request.url))
         return None
 
+    # Optional screenshot (best-effort).
     screenshot_path: str | None = None
     if request.take_screenshot:
         screenshot_path = await capture_optional_screenshot(request.url, settings)
 
+    # Structured log for quick inspection in verbose mode.
     log_structured_data(
         {
             "title": title,
@@ -225,6 +305,7 @@ async def extract_structured_data(
         settings,
     )
 
+    # Validate against internal schema; reject if coercion fails.
     try:
         item = ScrapedItem(
             url=request.url,

@@ -1,15 +1,34 @@
 """
 Sidebar controls for the Streamlit frontend of AgenticScraper.
 
-This module renders the interactive sidebar UI for:
-- Environment display and login/authentication
-- OpenAI credentials input (conditional on login)
-- Agent mode selection
-- Model selection and screenshot toggle
-- Advanced settings for concurrency, retries, and verbosity
-- Optional presets to quickly configure a sensible setup
+Responsibilities:
+- Render environment info and authentication controls.
+- Collect OpenAI credentials (when authenticated and using LLM agents).
+- Select agent mode and LLM model; toggle screenshots.
+- Configure advanced performance settings (concurrency, retries, verbosity).
+- Offer presets for quick, sensible configurations.
 
-Returns a `SidebarConfig` object with user-selected values to control scraping behavior.
+Public API:
+- `render_sidebar_controls`: Render the full sidebar and return a `SidebarConfig`.
+
+Config:
+- Reads defaults from `Settings` (e.g., `agent_mode`, `openai_model`,
+  `screenshot_enabled`, `max_concurrent_requests`, retry settings).
+- Uses constants from `backend.config.constants` (session keys, model options, thresholds).
+
+Operational:
+- Streamlit-only UI; persists selections in `st.session_state` for downstream use.
+- Avoids behavior changes by only adding docstrings and clarifying comments.
+
+Usage:
+    from agentic_scraper.frontend.ui_sidebar import render_sidebar_controls
+    config = render_sidebar_controls(settings)
+
+Notes:
+- The sidebar writes authoritative values into `st.session_state[...]` keys defined
+  by `SESSION_KEYS` so other pages (e.g., Jobs tab) can reference them reliably.
+- LLM-specific controls are hidden for `RULE_BASED` mode, but a valid `OpenAIModel`
+  is still returned for downstream logic that expects a value.
 """
 
 from __future__ import annotations
@@ -30,11 +49,24 @@ from agentic_scraper.frontend.models import SidebarConfig
 from agentic_scraper.frontend.ui_auth import login_ui
 from agentic_scraper.frontend.ui_auth_credentials import render_credentials_form
 
+__all__ = ["render_sidebar_controls"]  # public surface for this module
+
 
 # -------------------------
 # Module constants
 # -------------------------
 class PresetControls(NamedTuple):
+    """
+    Small container for live control values used to detect preset divergence.
+
+    Attributes:
+        fetch_conc (int): Current fetch concurrency.
+        llm_conc (int): Current LLM concurrency.
+        verbose (bool): Verbose logging toggle.
+        retry_attempts (int): Overall retry attempts.
+        llm_schema_retries (int): Schema retries for adaptive LLM agents.
+    """
+
     fetch_conc: int
     llm_conc: int
     verbose: bool
@@ -45,9 +77,19 @@ class PresetControls(NamedTuple):
 # -------------------------
 # Presets
 # -------------------------
-
-
 class Preset(TypedDict):
+    """
+    A preset defines a coherent set of sidebar control values.
+
+    Keys:
+        fetch_concurrency (int): Network concurrency.
+        llm_concurrency (int | None): LLM concurrency, or None → match fetch.
+        verbose (bool): Verbose logging.
+        retry_attempts (int): Retry attempts for failures.
+        llm_schema_retries (int): Schema retries for adaptive LLM agents.
+        screenshot_enabled (bool): Screenshot capture toggle.
+    """
+
     fetch_concurrency: int
     llm_concurrency: int | None  # None means "match fetch_concurrency"
     verbose: bool
@@ -98,18 +140,23 @@ PRESETS: dict[str, Preset] = {
 # -------------------------
 def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     """
-    Render sidebar controls for login, OpenAI credentials, agent mode, performance, and retries.
+    Render sidebar controls for login/auth, credentials, agent mode, model, and performance.
 
     Args:
-        settings: Global settings used to populate default control values.
+        settings (Settings): Global settings used to seed default control values.
 
     Returns:
         SidebarConfig: Parsed sidebar configuration to drive scraper behavior.
+
+    Notes:
+        - Persists authoritative values to `st.session_state[SESSION_KEYS[...]]`
+          so other views (e.g., Jobs tab) can consume them without re-opening the sidebar.
+        - LLM schema retries are always set in session to ensure a defined value even when hidden.
     """
     with st.sidebar:
         _render_header_chip_row(settings)
 
-        # Theme tip (built-in Streamlit theme switch lives in ••• menu → Settings)
+        # Theme tip (Streamlit has a built-in theme switch under ••• menu → Settings)
         st.caption("Theme: use ••• → Settings → Theme (Light/Dark/System).")
 
         st.divider()
@@ -148,7 +195,8 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
     st.session_state[SESSION_KEYS["agent_mode"]] = selected_agent_mode
     st.session_state[SESSION_KEYS["retry_attempts"]] = int(retry_attempts)
 
-    # Always set llm_schema_retries in session to a safe int value
+    # Always set llm_schema_retries in session to a safe int value,
+    # even when the control is hidden (non-adaptive agents).
     st.session_state[SESSION_KEYS["llm_schema_retries"]] = int(llm_schema_retries)
 
     return SidebarConfig(
@@ -166,12 +214,18 @@ def render_sidebar_controls(settings: Settings) -> SidebarConfig:
 # -------------------------
 # Sections
 # -------------------------
-
-
 def _render_header_chip_row(settings: Settings) -> None:
     """
-    Show compact chips for Auth, Environment, and a quick link area.
-    Full details are in an expander below.
+    Show compact chips for Auth, Environment, and quick links.
+
+    Displays:
+        - Auth state (✅/❌)
+        - Environment name (e.g., "local", "prod")
+        - An expander with log path, frontend, and backend URLs
+
+    Notes:
+        - We cache environment + log dir to avoid repeated filesystem calls.
+        - Mirrors environment details into `st.session_state` so other pages can read them.
     """
 
     @st.cache_resource
@@ -195,7 +249,8 @@ def _render_header_chip_row(settings: Settings) -> None:
             st.markdown(f"**Frontend:** [{settings.frontend_domain}]({settings.frontend_domain})")
         if getattr(settings, "backend_domain", None):
             st.markdown(f"**Backend:** [{settings.backend_domain}]({settings.backend_domain})")
-    # Make sure Jobs tab can read these even if the sidebar wasn't opened again
+
+    # Make sure Jobs tab can read these even if the sidebar wasn't opened again.
     st.session_state.setdefault("environment", env)
     if getattr(settings, "frontend_domain", None):
         st.session_state["frontend_domain"] = settings.frontend_domain
@@ -204,16 +259,37 @@ def _render_header_chip_row(settings: Settings) -> None:
 
 
 def _render_auth_and_env(agent_mode: AgentMode) -> None:
-    """Authentication UI and (conditional) OpenAI credentials form."""
+    """
+    Render authentication UI and (conditional) OpenAI credentials form.
+
+    Args:
+        agent_mode (AgentMode): Active mode—LLM modes show the credentials form.
+
+    Returns:
+        None
+    """
     st.subheader("Authentication", anchor=False)
     login_ui(agent_mode)
 
+    # Only show the credentials form when authenticated and LLM is required.
     if agent_mode != AgentMode.RULE_BASED and "jwt_token" in st.session_state:
         render_credentials_form()
 
 
 def _render_agent_mode_selector(settings: Settings) -> AgentMode:
-    """Agent Mode selection with concise help and an auth overlay toggle."""
+    """
+    Render the Agent Mode selector with concise help text.
+
+    Args:
+        settings (Settings): Global defaults (used to select initial agent mode).
+
+    Returns:
+        AgentMode: The user-selected agent mode.
+
+    Notes:
+        - Sets `st.session_state["show_auth_overlay"]` to guide the main pane
+          about whether to display an auth overlay (non-rule modes need auth).
+    """
     st.divider()
     st.subheader("🧠 Agent Mode", anchor=False)
 
@@ -245,7 +321,16 @@ def _render_agent_mode_selector(settings: Settings) -> AgentMode:
 
 
 def _render_preset_selector() -> str:
-    """Render a small Preset selector. Returns the selected preset name (or 'Custom')."""
+    """
+    Render a minimal preset selector.
+
+    Returns:
+        str: Selected preset name (or "Custom" when diverged).
+
+    Notes:
+        - Currently used as a lightweight hook; selection is compared
+          via `_compute_effective_preset` when controls change.
+    """
     st.subheader("Run Preset", anchor=False)
 
     # Initialize preset in session once
@@ -270,7 +355,15 @@ def _render_llm_controls(
 ) -> OpenAIModel:
     """
     Render model selection for LLM modes and the Screenshot toggle for all modes.
-    Ensures an OpenAIModel is always returned (uses settings default if hidden).
+
+    Ensures an `OpenAIModel` is always returned (uses settings default if hidden).
+
+    Args:
+        settings (Settings): Defaults for model and screenshot.
+        agent_mode (AgentMode): Determines whether to show model selection.
+
+    Returns:
+        OpenAIModel: The selected (or default) LLM model.
     """
     # Determine URL count if available to nudge screenshot choice (optional)
     url_count = int(st.session_state.get("url_count", 0))
@@ -301,7 +394,7 @@ def _render_llm_controls(
         # Rule-based mode does not expose a model picker; keep a valid value for downstream logic.
         selected_model = settings.openai_model
 
-    # Screenshot toggle (applies to all modes); simple defaulting (no presets)
+    # Screenshot toggle (applies to all modes); simple defaulting (no presets).
     initial_value = st.session_state.get(
         SESSION_KEYS["screenshot_enabled"], settings.screenshot_enabled
     )
@@ -328,7 +421,12 @@ def _render_advanced_settings(
     Render advanced performance and reliability settings inside a closed expander.
 
     Returns:
-        (fetch_concurrency, llm_concurrency, verbose, retry_attempts, llm_schema_retries)
+        tuple[int, int, bool, int, int]:
+            (fetch_concurrency, llm_concurrency, verbose, retry_attempts, llm_schema_retries)
+
+    Notes:
+        - When not in an LLM mode, the combined slider controls only fetch concurrency,
+          and LLM concurrency is fixed to 0 to reflect its irrelevance.
     """
     is_llm_agent = agent_mode != AgentMode.RULE_BASED
 
@@ -413,7 +511,15 @@ def _compute_effective_preset(
     selected_preset: str,
     controls: PresetControls,
 ) -> str:
-    """Return 'Custom' if current controls diverge from the selected preset."""
+    """
+    Compute whether the current controls still match the selected preset.
+
+    Returns:
+        str: The effective preset, or "Custom" if controls diverged.
+
+    Notes:
+        - Divergence includes screenshot toggle differences and any control value drift.
+    """
     if selected_preset == "Custom":
         return "Custom"
 
@@ -441,7 +547,13 @@ def _compute_effective_preset(
 
 
 def _render_jobs_footer() -> None:
-    """Compact jobs/status handoff at the bottom of the sidebar."""
+    """
+    Compact jobs/status handoff at the bottom of the sidebar.
+
+    Notes:
+        - Shows the last job id + status if available, with a hint to open the Jobs tab.
+        - Keeps the sidebar minimal; the Jobs tab owns monitoring UX.
+    """
     last_job_id = st.session_state.get("last_job_id")
     last_job_status = st.session_state.get("last_job_status")
 

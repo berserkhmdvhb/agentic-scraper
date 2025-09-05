@@ -1,3 +1,29 @@
+"""
+Centralized logging setup for Agentic Scraper.
+
+Responsibilities:
+- Provide a project-wide logger configured with environment-aware formatting.
+- Configure console and rotating file handlers with safe or JSON formatting.
+- Support resetting and tearing down loggers for tests or reinitialization.
+
+Public API:
+- `get_logger`: Retrieve the configured application logger.
+- `teardown_logger`: Flush and remove handlers from the logger.
+- `setup_logging`: Install console + rotating file handlers with structured formatting.
+
+Usage:
+    from agentic_scraper.backend.core.logger_setup import get_logger, setup_logging
+
+    setup_logging()
+    logger = get_logger()
+    logger.info("Hello, world!")
+
+Notes:
+- Console handler respects `verbose` flag (`DEBUG` vs configured level).
+- File handler always logs at DEBUG with rotation (size + backup count).
+- JSON formatting available via settings (`LOG_FORMAT=json`).
+"""
+
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -16,6 +42,12 @@ from agentic_scraper.backend.core.settings import (
     get_settings,
 )
 
+__all__ = [
+    "get_logger",
+    "setup_logging",
+    "teardown_logger",
+]
+
 
 def get_logger() -> logging.Logger:
     """
@@ -31,11 +63,11 @@ def teardown_logger(logger: logging.Logger | None = None) -> None:
     """
     Flush and remove all handlers from the specified logger.
 
-    This is useful for resetting the logger during testing or before reinitializing.
+    Useful for resetting the logger during testing or before reinitializing.
 
     Args:
-        logger (logging.Logger | None):
-            Logger instance to clean up. If None, uses the default application logger.
+        logger (logging.Logger | None): Logger instance to clean up.
+            If None, uses the default application logger.
     """
     logger = logger or get_logger()
     for handler in logger.handlers[:]:
@@ -50,26 +82,26 @@ def setup_logging(
     """
     Set up logging for both console and rotating file output with structured formatting.
 
-    This function initializes:
-    - A console stream handler (level based on settings or verbose mode)
-    - A rotating file handler (always logs DEBUG level)
+    Initializes:
+        - A console stream handler (level based on settings or verbose mode).
+        - A rotating file handler (always logs DEBUG level).
 
     Applies consistent formatting, environment tagging, and log rotation settings.
 
     Args:
-        reset (bool, optional): If True, clears existing handlers before setup. Defaults to False.
-        return_handlers (bool, optional):
-            If True, returns the installed handlers for testing or inspection.
+        reset (bool): If True, clears existing handlers before setup. Defaults to False.
+        return_handlers (bool): If True, returns the installed handlers for inspection.
 
     Returns:
-        list[logging.Handler] | None:
-            The created logging handlers if `return_handlers` is True, else None.
+        list[logging.Handler] | None: The created logging handlers if
+            `return_handlers` is True, else None.
     """
     logger = get_logger()
 
     if reset:
         teardown_logger(logger)
 
+    # Skip reconfiguration if handlers already exist (idempotent setup).
     if not reset and any(
         isinstance(h, (logging.StreamHandler, RotatingFileHandler)) for h in logger.handlers
     ):
@@ -97,7 +129,7 @@ def setup_logging(
     stream_handler.addFilter(env_filter)
     logger.addHandler(stream_handler)
 
-    # File handler (always debug for detailed logs)
+    # File handler (always DEBUG level for detailed logs)
     log_dir = get_log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "agentic_scraper.log"

@@ -1,13 +1,47 @@
 """
-Low-level auth helpers for the Streamlit frontend.
+Low-level authentication helpers for the Streamlit frontend.
 
-This module centralizes:
-- JWT extraction from URL/session
-- Building Authorization headers
-- Backend API base URL construction
-- Fetching the user profile and OpenAI credentials
+Responsibilities:
+- Extract a JWT from URL query parameters or Streamlit session state.
+- Build Authorization headers for backend calls.
+- Construct the backend API base URL (versioned).
+- Fetch authenticated user profile and (masked) OpenAI credentials.
+- Generate Auth0 login and logout URLs for the UI layer.
 
-UI-specific rendering (login/logout buttons, toasts) stays in `ui_auth.py`.
+Public API:
+- `ensure_https`: Normalize domains/hosts to https:// scheme.
+- `api_base`: Build the versioned backend API base URL.
+- `get_jwt_token_from_url_or_session`: Resolve/validate JWT and store in session.
+- `build_auth_headers`: Construct Authorization header from session JWT.
+- `fetch_user_profile`: Retrieve and stash user profile in session state.
+- `fetch_openai_credentials`: Retrieve masked OpenAI creds and stash a preview.
+- `fetch_openai_credentials_status`: Check whether creds exist (boolean).
+- `build_login_url` / `build_force_login_url`: Create Auth0 authorize URLs.
+- `build_logout_url`: Create Auth0 logout URL with optional federated flag.
+
+Config:
+- Uses values from `Settings` (`auth0_domain`, `auth0_client_id`, `auth0_api_audience`,
+  `auth0_redirect_uri`, `frontend_domain`, `backend_domain`, `is_verbose_mode`).
+- API version sourced from `agentic_scraper.__api_version__`.
+
+Operational:
+- Logging: Uses message constants and avoids leaking sensitive tokens (masked preview).
+- Network: Synchronous `httpx` calls with conservative timeouts; handled errors surface to UI.
+
+Usage:
+    # Resolve token and build headers
+    token = get_jwt_token_from_url_or_session()
+    headers = build_auth_headers()
+
+    # Fetch user info and masked OpenAI credentials
+    fetch_user_profile()
+    fetch_openai_credentials()
+
+Notes:
+- UI rendering and widget logic live in `ui_auth.py`;
+    this module intentionally avoids UI layout.
+- Query param handling clears the URL after processing
+    `?token=...` to prevent re-processing on reruns.
 """
 
 from __future__ import annotations
@@ -52,7 +86,25 @@ settings = get_settings()
 
 
 def ensure_https(domain: str) -> str:
-    """Ensure the given domain starts with https:// for secure links."""
+    """
+    Normalize a domain/host string to an HTTPS URL.
+
+    If the input already starts with `http://` or `https://`, it is returned unchanged.
+    Otherwise, `https://` is prepended. Empty inputs return an empty string.
+
+    Args:
+        domain (str): A domain, host, or URL (may be empty).
+
+    Returns:
+        str: The normalized URL (or an empty string if `domain` is empty).
+
+    Examples:
+        ensure_https("example.com")         # -> "https://example.com"
+        ensure_https("https://x.ngrok.app") # -> "https://x.ngrok.app"
+
+    Notes:
+        - This function does not validate the domain itself and does not append slashes.
+    """
     if not domain:
         return ""
     if domain.startswith(("http://", "https://")):
@@ -61,7 +113,19 @@ def ensure_https(domain: str) -> str:
 
 
 def api_base() -> str:
-    """Return the backend API base URL using backend_domain (not the Auth0 audience)."""
+    """
+    Build the versioned backend API base URL using `settings.backend_domain`.
+
+    Returns:
+        str: Base like "https://backend.example.com/api/v1"; empty string if not configured.
+
+    Examples:
+        # Assuming backend_domain="https://x.ngrok.app" and api_version="v1":
+        api_base()  # -> "https://x.ngrok.app/api/v1"
+
+    Notes:
+        - This function uses the runtime `api_version` constant imported from the package root.
+    """
     base = (settings.backend_domain or "").rstrip("/")
     if not base:
         return ""
@@ -72,33 +136,47 @@ def api_base() -> str:
 
 def get_jwt_token_from_url_or_session() -> str | None:
     """
-    Extract a JWT from the URL query (?token=...) or from Streamlit session state.
+    Extract a JWT from the URL query (`?token=...`) or from `st.session_state`.
 
-    If a token is found in the URL, this function:
-      - Validates the basic JWT shape (header.payload.signature)
-      - Saves it to `st.session_state["jwt_token"]`
-      - Sets `st.session_state["auth_pending"] = True` so the UI can hide the login button
-      - Clears the query params to avoid re-processing on rerun
-
-    If no token is found in the URL, it falls back to `st.session_state["jwt_token"]`.
+    Behavior:
+      - If a token is found in the URL, validate its shape (`header.payload.signature`),
+        set `st.session_state["auth_pending"] = True`, save it to `st.session_state["jwt_token"]`,
+        log a masked preview, and clear the query params (preventing re-processing on reruns).
+      - If no URL token exists, fall back to `st.session_state["jwt_token"]`.
+      - If nothing is found, a warning is logged and `None` is returned.
 
     Returns:
-        str | None: The JWT string if found and well-formed; otherwise None.
+        str | None: The JWT if found and well-formed; otherwise `None`.
+
+    Examples:
+        # On a first run with URL `...?token=eyJ...`
+        token = get_jwt_token_from_url_or_session()  # -> "eyJ..."
+
+        # On subsequent reruns (after clearing the URL), it is read from session_state
+        token = get_jwt_token_from_url_or_session()  # -> same token
+
+    Notes:
+        - Only a basic three-part check is performed;
+            cryptographic verification happens in the backend.
+        - Streamlit's `st.query_params.clear()`
+            is used to avoid repeated processing when the script reruns.
     """
     token = st.query_params.get("token")
 
     if token:
+        # Streamlit can provide query param as a list—normalize to a single string.
         jwt_token = token[0] if isinstance(token, list) else token
         if isinstance(jwt_token, str):
             jwt_token = jwt_token.strip()
 
+        # Basic shape check: "header.payload.signature"
         if isinstance(jwt_token, str) and len(jwt_token.split(".")) == EXPECTED_JWT_PARTS:
             st.session_state["auth_pending"] = True
             st.session_state["jwt_token"] = jwt_token
             # Log a masked preview to avoid leaking the full token
             preview = f"{jwt_token[:10]}…"
             logger.debug(MSG_DEBUG_JWT_FROM_URL.format(token=preview))
-            st.query_params.clear()
+            st.query_params.clear()  # prevent re-processing on rerun
             return jwt_token
 
         # Malformed token in URL
@@ -121,9 +199,22 @@ def get_jwt_token_from_url_or_session() -> str | None:
 
 
 def build_auth_headers() -> dict[str, str]:
-    """Build Authorization headers from session JWT, or raise RuntimeError."""
+    """
+    Construct Authorization headers from the session JWT.
+
+    Returns:
+        dict[str, str]: Headers containing `Authorization: Bearer <jwt>`.
+
+    Raises:
+        RuntimeError: If no JWT is present in `st.session_state["jwt_token"]`.
+
+    Examples:
+        headers = build_auth_headers()
+        # -> {"Authorization": "Bearer eyJ..."}
+    """
     jwt = st.session_state.get("jwt_token")
     if not jwt:
+        # Use a message constant for consistency with backend logging
         raise RuntimeError(MSG_ERROR_USER_NOT_AUTHENTICATED)
     return {"Authorization": f"Bearer {jwt}"}
 
@@ -133,8 +224,24 @@ def build_auth_headers() -> dict[str, str]:
 
 def fetch_user_profile(on_unauthorized: Callable[[], None] | None = None) -> None:
     """
-    Fetch /user/me and stash in session_state['user_info'].
-    If 401, optionally call `on_unauthorized()` (e.g., logout) and return.
+    Fetch the authenticated user's profile (`GET /user/me`) and stash it in session state.
+
+    On success:
+        Sets `st.session_state["user_info"] = <json response>` and logs success.
+
+    On 401:
+        Shows a warning, optionally invokes `on_unauthorized()`, and returns.
+
+    Args:
+        on_unauthorized (Callable[[], None] | None): Optional callback invoked when a 401
+            is returned (e.g., to clear state or redirect).
+
+    Returns:
+        None
+
+    Notes:
+        - Uses `build_auth_headers()` and `api_base()`; surfaces errors to the UI via `st.error()`.
+        - Network and HTTP errors are logged with message constants for consistency.
     """
     try:
         headers = build_auth_headers()
@@ -170,9 +277,22 @@ def fetch_user_profile(on_unauthorized: Callable[[], None] | None = None) -> Non
 
 def fetch_openai_credentials(on_unauthorized: Callable[[], None] | None = None) -> None:
     """
-    Fetch /user/openai-credentials and stash a **masked preview** in
-    session_state['openai_credentials_preview'] (do not overwrite real creds).
-    If 401, optionally call `on_unauthorized()` (e.g., logout) and return.
+    Fetch the user's OpenAI credentials preview (`GET /user/openai-credentials`).
+
+    Behavior:
+        - Writes a **masked preview** into `st.session_state["openai_credentials_preview"]`.
+        - Does **not** overwrite any real credentials stored elsewhere.
+        - On 401, shows a warning, optionally invokes `on_unauthorized()`, and returns.
+
+    Args:
+        on_unauthorized (Callable[[], None] | None): Optional callback invoked on 401.
+
+    Returns:
+        None
+
+    Notes:
+        - The API returns (possibly empty) keys; inputs are wrapped into `OpenAIConfig`.
+        - Network and HTTP errors are logged with message constants.
     """
     try:
         headers = build_auth_headers()
@@ -215,9 +335,23 @@ def fetch_openai_credentials_status(
     on_unauthorized: Callable[[], None] | None = None,
 ) -> dict[str, bool] | None:
     """
-    Fetch /user/openai-credentials/status and return {"has_credentials": bool}.
-    Does not modify UI directly; callers can set st.session_state flags as needed.
-    If 401, optionally call `on_unauthorized()` (e.g., logout) and return None.
+    Check whether OpenAI credentials exist (`GET /user/openai-credentials/status`).
+
+    Args:
+        on_unauthorized (Callable[[], None] | None): Optional callback invoked on 401.
+
+    Returns:
+        dict[str, bool] | None: A dict like `{"has_credentials": True/False}` if successful,
+            `None` on auth/network errors.
+
+    Examples:
+        status = fetch_openai_credentials_status()
+        if status and status.get("has_credentials"):
+            st.session_state["has_openai_creds"] = True
+
+    Notes:
+        - Does not mutate session state automatically; lets callers decide on flags/UX.
+        - JSON parsing errors are treated as "no credentials" rather than hard failures.
     """
     # Build headers or fail fast
     try:
@@ -274,8 +408,25 @@ def fetch_openai_credentials_status(
 
 def build_login_url(scope_list: list[str] | None = None, *, force_prompt: bool = False) -> str:
     """
-    Build an Auth0 /authorize URL using settings + provided scopes.
-    If force_prompt=True, adds prompt=login to require credentials even if SSO is active.
+    Build an Auth0 `/authorize` URL using settings and provided scopes.
+
+    Args:
+        scope_list (list[str] | None): Additional scopes to request. The base set
+            `["openid", "profile", "email"]` is always included; extras are de-duplicated
+            while preserving order.
+        force_prompt (bool): If True, appends `prompt=login` to force credentials entry
+            even if SSO is active.
+
+    Returns:
+        str: A fully formed Auth0 authorize URL.
+
+    Examples:
+        url = build_login_url(["read:user_profile"])
+        force_url = build_login_url(["read:user_profile"], force_prompt=True)
+
+    Notes:
+        - Audience must be configured correctly in settings (often requires trailing slash).
+        - In verbose mode, logs the final URL with a message constant.
     """
     domain = settings.auth0_domain
     audience = settings.auth0_api_audience  # already configured with trailing '/'
@@ -285,7 +436,7 @@ def build_login_url(scope_list: list[str] | None = None, *, force_prompt: bool =
     # Ensure openid/profile/email are present and preserve caller's order for extras.
     base_scopes = ["openid", "profile", "email"]
     extras = scope_list or []
-    # Deduplicate while preserving order
+    # Deduplicate while preserving order using dict insertion order.
     scopes = list(dict.fromkeys([*base_scopes, *extras]))
     scope = " ".join(scopes)
 
@@ -308,14 +459,42 @@ def build_login_url(scope_list: list[str] | None = None, *, force_prompt: bool =
 
 
 def build_force_login_url(scope_list: list[str] | None = None) -> str:
-    """Convenience wrapper for build_login_url(..., force_prompt=True)."""
+    """
+    Convenience wrapper to force an Auth0 credentials prompt.
+
+    Args:
+        scope_list (list[str] | None): Additional scopes to request.
+
+    Returns:
+        str: Same as `build_login_url(..., force_prompt=True)`.
+
+    Examples:
+        url = build_force_login_url(["read:user_profile"])
+    """
     return build_login_url(scope_list=scope_list, force_prompt=True)
 
 
 def build_logout_url(return_to: str | None = None, *, federated: bool = False) -> str:
     """
-    Build an Auth0 /v2/logout URL. Make sure `return_to` is in Auth0 'Allowed Logout URLs'.
-    If federated=True, append federated=true to attempt IdP logout as well (if supported).
+    Build an Auth0 `/v2/logout` URL.
+
+    Args:
+        return_to (str | None): Destination URL after logout. Must be whitelisted under
+            "Allowed Logout URLs" in the Auth0 application settings. If not provided,
+            falls back to `settings.frontend_domain` or `settings.auth0_redirect_uri`.
+        federated (bool): When True, appends `federated=true` to also attempt IdP logout,
+            if supported by the identity provider.
+
+    Returns:
+        str: A fully formed Auth0 logout URL.
+
+    Examples:
+        url = build_logout_url("https://app.example.com")
+        fed = build_logout_url("https://app.example.com", federated=True)
+
+    Notes:
+        - `return_to` is normalized with `ensure_https`.
+        - In verbose mode, logs the final URL using a message constant.
     """
     dest = return_to or settings.frontend_domain or settings.auth0_redirect_uri
     client_id = settings.auth0_client_id

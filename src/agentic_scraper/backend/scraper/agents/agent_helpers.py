@@ -1,15 +1,41 @@
 """
 Shared utility functions for LLM-based scraping agents in AgenticScraper.
 
-This module provides reusable helpers to support adaptive and static scraping agents.
-It includes functionality for:
-- Parsing and validating LLM JSON output
-- Structured error logging (OpenAI, decoding, validation)
-- Screenshot capture for debugging
-- Extraction of contextual hints from HTML
-- Scoring and selecting retry candidates for adaptive extraction
+Responsibilities:
+- Parse and (lightly) repair LLM JSON output before validation.
+- Validate structured data against internal schemas and log summaries.
+- Capture screenshots (best-effort) for debugging/archiving.
+- Extract contextual hints from HTML/URL to enrich LLM prompts.
+- Score non-empty fields and decide on early-exit across retries.
+- Normalize and verify OpenAI credentials (defense-in-depth).
 
-Used primarily by llm_dynamic.py, llm_dynamic_adaptive.py, and related agents.
+Public API:
+- `parse_llm_response`: Safe JSON parse with common-repair fallback.
+- `capture_optional_screenshot`: Best-effort screenshot capture.
+- `handle_openai_exception`: Verbosity-aware OpenAI error logging.
+- `log_structured_data`: Debug log + optional JSON dump of fields.
+- `extract_context_hints`: HTML/URL breadcrumbs/meta hints.
+- `try_validate_scraped_item`: Schema validation → ScrapedItem | None.
+- `score_and_log_fields`: Weighted field scoring with debug logs.
+- `retrieve_openai_credentials`: Validate & extract API key/project.
+- `should_exit_early`: Retry loop short-circuit decision helper.
+
+Operational:
+- Concurrency: All helpers are pure or async and safe to call from worker tasks.
+- Logging: Uses message constants; verbose mode increases detail and dumps JSON.
+- Privacy: Explicitly avoids logging secrets; detects masked API keys.
+
+Usage:
+    from agentic_scraper.backend.scraper.agents.agent_helpers import (
+        parse_llm_response, try_validate_scraped_item
+    )
+
+    data = parse_llm_response(llm_text, url, settings)
+    item = try_validate_scraped_item(data or {}, url, settings)
+
+Notes:
+- JSON “repair” aims for common LLM artifacts only; it is intentionally conservative.
+- Screenshotting requires Playwright runtime; failures are logged and ignored.
 """
 
 import json
@@ -83,7 +109,18 @@ MASK_WORDS: set[str] = {"redacted", "masked", "hidden"}
 
 
 def _is_masked_secret(s: str | None) -> bool:
-    """Return True if the string looks redacted/masked."""
+    """
+    Heuristically detect masked/redacted secrets.
+
+    Args:
+        s (str | None): Candidate secret.
+
+    Returns:
+        bool: True if the value looks masked (e.g., contains '****' or 'redacted').
+
+    Notes:
+        - This is best-effort to prevent accidentally accepting placeholder keys.
+    """
     if not isinstance(s, str) or not s:
         return False
     if any(ch in s for ch in MASK_CHARS):
@@ -99,18 +136,20 @@ def _is_masked_secret(s: str | None) -> bool:
 
 def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, Any] | None:
     """
-    Safely parse LLM JSON content. Logs errors and returns None on failure.
+    Parse LLM JSON content safely, with conservative auto-repair on failure.
 
     Args:
-        content (str): JSON string returned by the LLM.
-        url (str): The source URL being processed.
-        settings (Settings): Runtime config controlling verbosity and error logging.
+        content (str): JSON string returned by the LLM (may include minor formatting issues).
+        url (str): The source URL being processed (used for logs).
+        settings (Settings): Runtime config controlling verbosity and dumps.
 
     Returns:
         dict[str, Any] | None: Parsed dictionary if successful, else None.
 
-    Raises:
-        None
+    Notes:
+        - On initial parse failure, attempts cheap repairs (e.g., strip ``` fences,
+          fix quotes/trailing commas/unquoted keys) before giving up.
+        - Does not raise; callers should handle None.
     """
     try:
         return cast("dict[str, Any]", json.loads(content))
@@ -119,7 +158,7 @@ def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, 
         if settings.is_verbose_mode:
             logger.debug(MSG_ERROR_LLM_JSON_DECODE_LOG.format(exc=e, url=url))
 
-        # Attempt repair
+        # Attempt repair of common LLM formatting artifacts.
         fixed = _try_fix_and_parse_json(content)
         if fixed is not None:
             logger.debug(MSG_DEBUG_LLM_JSON_REPAIRED.format(url=url))
@@ -130,17 +169,18 @@ def parse_llm_response(content: str, url: str, settings: Settings) -> dict[str, 
 
 async def capture_optional_screenshot(url: str, settings: Settings) -> str | None:
     """
-    Attempt to capture a screenshot of the URL. Logs errors and returns None on failure.
+    Best-effort screenshot capture; returns None on failure.
 
     Args:
-        url (str): The URL to screenshot.
-        settings (Settings): Runtime config including screenshot path.
+        url (str): The URL to capture.
+        settings (Settings): Runtime config (screenshot directory, etc.).
 
     Returns:
         str | None: Path to saved screenshot if successful, otherwise None.
 
-    Raises:
-        None
+    Notes:
+        - Exceptions from Playwright or filesystem are swallowed and logged.
+        - Keeps pipeline resilient when headless browser is unavailable.
     """
     try:
         return await capture_screenshot(url, output_dir=Path(settings.screenshot_dir))
@@ -151,7 +191,7 @@ async def capture_optional_screenshot(url: str, settings: Settings) -> str | Non
 
 def handle_openai_exception(e: OpenAIErrorT, url: str, settings: Settings) -> None:
     """
-    Log and handle OpenAI-related errors with verbosity-aware logging.
+    Log OpenAI-related errors with verbosity-aware detail.
 
     Args:
         e (OpenAIErrorT): The OpenAI exception raised.
@@ -160,6 +200,9 @@ def handle_openai_exception(e: OpenAIErrorT, url: str, settings: Settings) -> No
 
     Returns:
         None
+
+    Notes:
+        - Keeps non-verbose logs concise, but adds details when verbose.
     """
     if isinstance(e, RateLimitErrorT):
         logger.warning(MSG_ERROR_RATE_LIMIT_LOG_WITH_URL.format(url=url))
@@ -183,7 +226,7 @@ def handle_openai_exception(e: OpenAIErrorT, url: str, settings: Settings) -> No
 
 def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
     """
-    Log a summary of structured LLM-extracted data, and optionally dump full JSON.
+    Log a compact summary of structured data and optionally dump full JSON.
 
     Args:
         data (dict[str, Any]): Validated structured data from the LLM.
@@ -192,20 +235,22 @@ def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
     Returns:
         None
 
-    Raises:
-        None
+    Notes:
+        - Uses `settings.verbose` rather than `is_verbose_mode` to honor explicit user intent.
+        - Dumps full JSON to `dump_llm_json_dir` when configured.
     """
-    # Honor the explicit verbose flag used in tests/config to control dumping.
-    # Some environments may compute is_verbose_mode differently (e.g., via log level),
-    # so we use the explicit flag to avoid unexpected dumps.
+    # Honor explicit verbose flag to avoid accidental data dumps.
     if not getattr(settings, "verbose", False):
         return
+
+    # Summarize values without leaking large bodies.
     summary = {
         k: f"str({len(v)})" if isinstance(v, str) else "None" if v is None else type(v).__name__
         for k, v in data.items()
     }
     logger.debug(MSG_DEBUG_PARSED_STRUCTURED_DATA.format(data=summary))
 
+    # Optional structured dump for debugging/inspection.
     if settings.dump_llm_json_dir:
         dump_dir = Path(settings.dump_llm_json_dir)
         dump_dir.mkdir(parents=True, exist_ok=True)
@@ -224,20 +269,22 @@ def log_structured_data(data: dict[str, Any], settings: Settings) -> None:
 
 def extract_context_hints(html: str, url: str) -> dict[str, str]:
     """
-    Extract contextual hints from the HTML and URL for better LLM prompt construction.
+    Extract simple contextual hints from HTML and URL to enrich prompts.
 
     Args:
         html (str): Raw HTML content of the page.
         url (str): Source URL of the page.
 
     Returns:
-        dict[str, str]: Dictionary of contextual elements (meta tags, breadcrumbs, segments, etc.).
+        dict[str, str]: Compact summary of meta tags, breadcrumbs, URL segments, etc.
 
-    Raises:
-        None
+    Notes:
+        - Prioritizes a small, stable set of hints to reduce token usage.
+        - Deduplicates breadcrumbs across common class/id patterns.
     """
     soup = BeautifulSoup(html, "html.parser")
 
+    # Small curated set of meta properties likely useful for prompts.
     useful_meta_keys = {
         "title",
         "description",
@@ -261,6 +308,7 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
     }
     meta_summary = "; ".join(f"{k}={v}" for k, v in meta_tags.items())
 
+    # Breadcrumb heuristics across typical class/id patterns.
     breadcrumb_selectors = [
         '[class*="breadcrumb"]',
         '[id*="breadcrumb"]',
@@ -276,22 +324,26 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
                 breadcrumb_texts.append(text)
                 seen_breadcrumbs.add(text)
 
+    # ARIA breadcrumb fallback.
     if not breadcrumb_texts:
         nav_breadcrumb = soup.select_one("nav[aria-label='breadcrumb']")
         if nav_breadcrumb:
             breadcrumb_texts.append(nav_breadcrumb.get_text(strip=True))
 
+    # Basic URL-derived hints.
     breadcrumbs = " > ".join(breadcrumb_texts)
     parsed = urlparse(url)
     url_segments = " / ".join(filter(None, parsed.path.split("/")))
     domain = parsed.netloc.lower()
     last_segment = parsed.path.rstrip("/").split("/")[-1]
 
+    # Title/H1 as lightweight signals.
     page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
     h1 = soup.find("h1")
     first_h1 = h1.get_text(strip=True) if h1 else ""
 
     # ─── Naive Page Type Inference ─────────────────────────────────────────────
+    # Keeps the prompt compact while hinting at likely schema.
     lower_url = url.lower()
     lower_title = page_title.lower()
     lower_h1 = first_h1.lower()
@@ -322,7 +374,7 @@ def extract_context_hints(html: str, url: str) -> dict[str, str]:
         "url_last_segment": last_segment,
         "page_title": page_title,
         "first_h1": first_h1,
-        "page": page_type,  # Included for prompt_helpers.py
+        "page": page_type,  # consumed by prompt_helpers.py
     }
 
 
@@ -335,15 +387,18 @@ def try_validate_scraped_item(
     data: dict[str, Any], url: str, settings: Settings
 ) -> ScrapedItem | None:
     """
-    Attempt to validate the scraped data against the ScrapedItem schema.
+    Validate `data` against `ScrapedItem` and log outcome.
 
     Args:
         data (dict[str, Any]): Raw JSON-like dict from LLM output.
-        url (str): The URL where the data came from.
+        url (str): Source URL (for logs).
         settings (Settings): Runtime config used for logging.
 
     Returns:
-        ScrapedItem | None: Validated item or None if validation failed.
+        ScrapedItem | None: Validated item, or None when validation fails.
+
+    Notes:
+        - Emits a concise success log; dumps fields when verbose.
     """
     if not data:
         return None
@@ -366,13 +421,29 @@ def score_and_log_fields(
     url: str,
     raw_data: dict[str, Any] | None = None,
 ) -> float:
+    """
+    Compute a weighted completeness score for fields and log details.
+
+    Args:
+        fields (set[str]): Field names considered in the attempt.
+        attempt (int): Attempt counter (1-based).
+        url (str): Source URL for logs.
+        raw_data (dict[str, Any] | None): Optional raw key→value mapping; used to
+            determine non-emptiness and compute the score precisely.
+
+    Returns:
+        float: Normalized score in [0.0, 1.0].
+
+    Notes:
+        - Uses project weights (FIELD_WEIGHTS) and clamps to [0,1] for stability.
+    """
     nonempty_keys = {
         k
         for k, v in (raw_data.items() if raw_data else [(f, "nonempty") for f in fields])
         if v not in [None, ""]
     }
 
-    # Base score may exceed 1.0 depending on weights; normalize to [0.0, 1.0].
+    # Base score may exceed 1.0 depending on weights; normalize to [0, 1].
     base_score = score_nonempty_fields(raw_data or dict.fromkeys(nonempty_keys, "nonempty"))
     score = max(0.0, min(1.0, float(base_score)))
 
@@ -390,22 +461,25 @@ def score_and_log_fields(
 
 def retrieve_openai_credentials(config: OpenAIConfig | None) -> tuple[str, str]:
     """
-    Validate and extract OpenAI credentials from the config.
+    Validate and extract OpenAI credentials from `OpenAIConfig`.
 
     Args:
         config (OpenAIConfig | None): The OpenAI credentials configuration.
 
     Returns:
-        tuple[str, str]: A tuple of (api_key, project_id).
+        tuple[str, str]: `(api_key, project_id)` if valid.
 
     Raises:
-        ValueError: If config is None or required fields are missing.
+        ValueError: If `config` is None, fields are missing, or API key looks masked.
+
+    Notes:
+        - Masked detection prevents accidentally accepting placeholders from UIs.
     """
     if config is None:
         raise ValueError(MSG_ERROR_MISSING_OPENAI_CONFIG)
     if not config.api_key:
         raise ValueError(MSG_ERROR_MISSING_OPENAI_API_KEY)
-    # Defensive: refuse obviously masked keys
+    # Defensive: refuse obviously masked keys (e.g., "sk-****").
     if _is_masked_secret(config.api_key):
         raise ValueError(MSG_ERROR_MASKED_OPENAI_API_KEY)
     if not config.project_id:
@@ -422,22 +496,26 @@ def should_exit_early(
     url: str,
 ) -> bool:
     """
-    Decide whether to stop retrying based on whether any useful progress was made.
+    Decide whether retry loop should stop based on marginal progress.
 
     Args:
         item (ScrapedItem | None): The current validated item (if any).
-        raw_data (dict[str, Any]): Raw normalized fields from current attempt.
-        best_fields (dict[str, Any] | None): Best fields seen so far across attempts.
+        raw_data (dict[str, Any]): Normalized fields from the current attempt.
+        best_fields (dict[str, Any] | None): Best fields across previous attempts.
         missing (set[str]): Required fields still missing.
-        url (str): The URL being scraped, used for logging.
+        url (str): Source URL (for logs).
 
     Returns:
-        bool: True if we should exit early, False to continue retrying.
+        bool: True to stop retrying, False to continue.
+
+    Notes:
+        - First success never triggers early exit (always retry once).
+        - Stops when no new fields are gained and no required field was newly filled.
     """
     if item is None:
         return False
 
-    # Prevent early exit on first result (always retry once)
+    # Prevent early exit on first result (always retry once).
     if not best_fields:
         return False
 
@@ -464,25 +542,32 @@ def should_exit_early(
 
 def _try_fix_and_parse_json(bad_json: str) -> dict[str, Any] | None:
     """
-    Attempt to repair common formatting issues in LLM JSON and re-parse.
+    Attempt to repair common LLM JSON formatting issues and re-parse.
+
     Fixes:
-        - Single quotes to double quotes
-        - Unquoted property names
-        - Trailing commas
-        - Strips ```json markdown fences
+        - Strips ```json fences.
+        - Single quotes → double quotes.
+        - Trailing commas before ']' or '}'.
+        - Quotes unquoted property names (`foo: 1` → `"foo": 1`).
+
+    Args:
+        bad_json (str): Original malformed JSON text.
 
     Returns:
         dict[str, Any] | None: Parsed JSON if successful, else None.
+
+    Notes:
+        - Intentionally conservative; avoids heavy-weight “JSONC” parsing.
     """
     cleaned = bad_json.strip().removeprefix("```json").removesuffix("```").strip()
 
-    # Replace single quotes with double quotes
+    # Replace single quotes with double quotes (common markdown/LLM artifact).
     cleaned = cleaned.replace("'", '"')
 
-    # Remove trailing commas before object/array close
+    # Remove trailing commas before object/array close.
     cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
 
-    # Quote unquoted keys
+    # Quote unquoted keys: { a: 1 } → { "a": 1 }.
     cleaned = re.sub(r"([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*):", r'\1"\2"\3:', cleaned)
 
     try:

@@ -1,12 +1,45 @@
 """
 Helper functions for the Streamlit scraper runner (REST job flow).
 
-This module now focuses on:
-- Input URL validation and deduplication
-- Optional OpenAI config attachment (when overriding stored creds)
-- Parsing final job results into ScrapedItem objects
-- UI feedback for valid/invalid inputs and terminal job errors
-- Quick result summaries
+Responsibilities:
+- Validate and deduplicate user-entered URLs.
+- Attach optional inline OpenAI credentials and LLM parameters to job requests.
+- Parse final job payloads into plain dictionaries suitable for UI display/export.
+- Render UI feedback for invalid inputs and terminal job errors.
+- Provide quick, human-friendly result summaries.
+
+Public API:
+- `validate_and_deduplicate_urls`: Clean, validate, and dedupe raw URL input.
+- `extract_domain_icon`: Return an emoji for common domains (purely cosmetic).
+- `summarize_results`: Render quick metrics + extracted URL list.
+- `render_invalid_url_section`: Display expandable UI for invalid URLs.
+- `render_valid_url_feedback`: Show UI feedback for detected valid URLs.
+- `attach_openai_config`: Insert inline OpenAI/LLM settings into request body.
+- `parse_job_result`: Convert a final job payload into (items, skipped, duration).
+- `render_job_error`: Render a terminal job error/cancellation message.
+
+Config:
+- Uses message constants from `backend.config.messages` for consistent logging/UI text.
+- Reads required LLM fields list via `REQUIRED_CONFIG_FIELDS_FOR_LLM` for debug tracing.
+
+Operational:
+- Logging: Debug logs are guarded with minimal overhead; sensitive secrets are not written.
+- UI: Streamlit-based rendering; errors and warnings are surfaced via `st.error/warning/info`.
+
+Usage:
+    urls, bad = validate_and_deduplicate_urls(user_text)
+    render_valid_url_feedback(urls)
+    render_invalid_url_section(bad)
+
+    body = {"inputs": urls}
+    attach_openai_config(config, body)  # adds optional LLM + credentials if safe
+
+    items, skipped, duration = parse_job_result(job)
+    summarize_results(items, skipped, start_time)
+
+Notes:
+- Inline credential attachment is *conditional*: masked values are detected and omitted.
+- `parse_job_result` preserves dynamic fields by avoiding schema coercion when possible.
 """
 
 from __future__ import annotations
@@ -53,6 +86,7 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+# Cosmetic domain → emoji mapping for quick visual scanning in results.
 DOMAIN_EMOJIS = {
     "youtube.com": "🎮",
     "github.com": "💻",
@@ -62,17 +96,29 @@ DOMAIN_EMOJIS = {
     "google.com": "🔎",
 }
 
+# Heuristic mask detection for inline secret override avoidance.
 MASK_CHARS: set[str] = {"*", "•", "●", "·"}
 MASK_WORDS: set[str] = {"redacted", "masked", "hidden"}
 
-
+# Truncation limit for debug/preview logs.
 PREVIEW_LIMIT = 10
 
 
 def _looks_masked(s: str | None) -> bool:
     """
     Heuristically detect redacted/masked secrets.
+
     Flags common mask characters (*, •, ●, ·) or placeholder words.
+
+    Args:
+        s (str | None): Candidate value to inspect.
+
+    Returns:
+        bool: True if the value appears masked; False otherwise.
+
+    Examples:
+        _looks_masked("sk-****abcd")  # -> True
+        _looks_masked("sk-live-xyz")  # -> False
     """
     if not isinstance(s, str) or not s:
         return False
@@ -83,7 +129,29 @@ def _looks_masked(s: str | None) -> bool:
 
 
 def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]:
-    """Clean and deduplicate user input URLs, separating valid and invalid ones."""
+    """
+    Clean and deduplicate user input URLs, separating valid from invalid lines.
+
+    Process:
+        1) Split non-empty lines and trim whitespace.
+        2) Use `clean_input_urls` to filter valid URLs.
+        3) Anything not in the valid set is considered invalid.
+        4) Deduplicate valid URLs via `deduplicate_urls`.
+
+    Args:
+        raw_input (str): The raw multi-line user input.
+
+    Returns:
+        tuple[list[str], list[str]]: (`deduped_valid_urls`, `invalid_lines`)
+
+    Examples:
+        valid, invalid = validate_and_deduplicate_urls("https://a.com\\nnot-a-url")
+        # valid  -> ["https://a.com"]
+        # invalid-> ["not-a-url"]
+
+    Notes:
+        - Debug logs summarize counts and include a truncated preview of invalid lines.
+    """
     all_lines = [line.strip() for line in raw_input.strip().splitlines() if line.strip()]
     valid_urls = clean_input_urls(raw_input)
     invalid_lines = [line for line in all_lines if line not in valid_urls]
@@ -106,7 +174,19 @@ def validate_and_deduplicate_urls(raw_input: str) -> tuple[list[str], list[str]]
 
 
 def extract_domain_icon(url: str) -> str:
-    """Return an emoji icon representing a known domain, defaulting to a link icon."""
+    """
+    Return an emoji icon representing a known domain (cosmetic helper).
+
+    Args:
+        url (str): The URL string.
+
+    Returns:
+        str: A representative emoji or a default link icon.
+
+    Examples:
+        extract_domain_icon("https://github.com")  # -> "💻"
+        extract_domain_icon("https://unknown.tld") # -> "🔗"
+    """
     for domain, emoji in DOMAIN_EMOJIS.items():
         if domain in url:
             return emoji
@@ -114,7 +194,21 @@ def extract_domain_icon(url: str) -> str:
 
 
 def summarize_results(items: Sequence[Mapping[str, Any]], skipped: int, start_time: float) -> None:
-    """Display scraping performance metrics and a quick view of results."""
+    """
+    Display scraping performance metrics and a quick view of results.
+
+    Args:
+        items (Sequence[Mapping[str, Any]]): Extracted items (already plain dict-like).
+        skipped (int): Number of inputs that failed or were skipped.
+        start_time (float): A perf_counter timestamp taken at job start.
+
+    Returns:
+        None
+
+    Notes:
+        - Adds a short metrics header and a compact list of extracted URLs (with emojis).
+        - Emits a debug decision log when no items are present.
+    """
     elapsed = round(time.perf_counter() - start_time, 2)
 
     if not items:
@@ -145,7 +239,18 @@ def summarize_results(items: Sequence[Mapping[str, Any]], skipped: int, start_ti
 
 
 def render_invalid_url_section(invalid_lines: list[str]) -> None:
-    """Show an expandable UI section listing invalid input URLs."""
+    """
+    Show an expandable UI section listing invalid input URLs.
+
+    Args:
+        invalid_lines (list[str]): Lines from user input that did not parse as URLs.
+
+    Returns:
+        None
+
+    Notes:
+        - Traces invalid count via debug logs; list is fully rendered in the expander.
+    """
     if invalid_lines:
         with suppress(Exception):
             body = f"invalid_count={len(invalid_lines)}"
@@ -156,7 +261,19 @@ def render_invalid_url_section(invalid_lines: list[str]) -> None:
 
 
 def render_valid_url_feedback(urls: list[str]) -> None:
-    """Show feedback in the UI when valid URLs are detected."""
+    """
+    Show sidebar/body feedback when valid URLs are detected.
+
+    Args:
+        urls (list[str]): Valid, deduplicated URLs.
+
+    Returns:
+        None
+
+    Notes:
+        - Stores the validated list on `st.session_state.valid_urls` for downstream usage.
+        - Emits a compact debug log with valid count.
+    """
     if not urls:
         st.warning(MSG_INFO_NO_VALID_URLS)
     else:
@@ -170,9 +287,30 @@ def render_valid_url_feedback(urls: list[str]) -> None:
 
 def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     """
-    Attach inline OpenAI credentials only if present and unmasked.
-    Always attach LLM params; if creds are masked/missing, omit them so the backend
-    can use stored credentials.
+    Attach inline OpenAI credentials and LLM params to a job request body.
+
+    Rules:
+        - If the local session holds *unmasked* credentials, attach them as
+          `body["openai_credentials"] = {...}` to override stored backend creds.
+        - If the local key appears masked or missing, **do not** attach, letting
+          the backend fall back to stored credentials (logs an info message).
+        - Always attach LLM parameters (`openai_model`, `llm_concurrency`, `llm_schema_retries`)
+          when present in the `config`.
+
+    Args:
+        config (PipelineConfig): Current UI config/state to pull LLM params from.
+        body (dict[str, Any]): The outbound request payload to mutate.
+
+    Returns:
+        bool: Always True (the body is mutated in-place).
+
+    Examples:
+        body = {"inputs": urls}
+        attach_openai_config(config, body)
+
+    Notes:
+        - This function avoids writing masked/unusable secrets to the request.
+        - A debug log lists which LLM-related fields were attached.
     """
     openai_credentials = st.session_state.get("openai_credentials")
 
@@ -207,7 +345,7 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
     if llm_schema_retries is not None:
         body["llm_schema_retries"] = llm_schema_retries
 
-    # Debug which fields we actually attached
+    # Debug which fields we actually attached (sourced from REQUIRED_CONFIG_FIELDS_FOR_LLM).
     fields = [k for k in REQUIRED_CONFIG_FIELDS_FOR_LLM if k in body]
     logger.debug(MSG_DEBUG_LLM_FIELDS_ATTACHED.format(fields=fields))
 
@@ -219,11 +357,21 @@ def attach_openai_config(config: PipelineConfig, body: dict[str, Any]) -> bool:
 # -------------------------
 def parse_job_result(job: dict[str, Any]) -> tuple[list[dict[str, Any]], int, float]:
     """
-    Convert a final job payload (status == succeeded) into plain dict items + stats.
+    Convert a final job payload (status == 'succeeded') into plain dict items + stats.
+
+    Args:
+        job (dict[str, Any]): Final job payload (should contain `result` with `items` and `stats`).
 
     Returns:
-        (items, skipped, duration_sec)
-        - items: list[dict[str, Any]] with ALL fields preserved (including dynamic extras)
+        tuple[list[dict[str, Any]], int, float]: (`items`, `skipped`, `duration_sec`)
+            - `items`: `list[dict[str, Any]]` with ALL fields preserved (including dynamic extras).
+            - `skipped`: Count of failed items (`stats.num_failed`).
+            - `duration_sec`: Job wall-clock duration in seconds (`stats.duration_sec`).
+
+    Notes:
+        - Items that are already dicts are preserved as-is.
+        - For Pydantic-like objects, `model_dump()` / `dict()` is used to produce a plain dict.
+        - Unexpected types or attribute errors are warned and skipped (with UI + log).
     """
     result = (job or {}).get("result") or {}
     raw_items = result.get("items", [])
@@ -279,7 +427,19 @@ def parse_job_result(job: dict[str, Any]) -> tuple[list[dict[str, Any]], int, fl
 
 
 def render_job_error(job: dict[str, Any]) -> None:
-    """Render a terminal job error or cancellation message in the UI."""
+    """
+    Render a terminal job error or cancellation message in the UI.
+
+    Args:
+        job (dict[str, Any]): Final job payload that includes `status` and optional `error`.
+
+    Returns:
+        None
+
+    Notes:
+        - If canceled, shows a friendly info message.
+        - If failed, renders an error from `error.message` when available; otherwise a fallback.
+    """
     status_ = (job.get("status") or "").lower()
     if status_ == "canceled":
         st.info(MSG_INFO_JOB_CANCELED)

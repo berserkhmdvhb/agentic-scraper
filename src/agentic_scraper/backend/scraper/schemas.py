@@ -1,10 +1,35 @@
+"""
+Schemas for structured scraper outputs and pipeline execution stats.
+
+Responsibilities:
+- Define the internal shape of a scraped item (`ScrapedItem`).
+- Capture aggregated metrics for a scrape run (`PipelineStats`).
+- Provide a standardized envelope for scraper results (`PipelineOutput`).
+
+Models:
+- `ScrapedItem`: Structured data for one page (url, title, description, price, etc.).
+- `PipelineStats`: Execution counters and duration.
+- `PipelineOutput`: Container for items + stats.
+
+Validation:
+- URLs validated/normalized (http/https only).
+- Empty strings normalized to `None` for optional text fields.
+- Price values parsed from text and enforced to be non-negative.
+- Stat counters must be non-negative ints; duration must be non-negative float.
+
+Usage:
+    from agentic_scraper.backend.scraper.schemas import ScrapedItem, PipelineOutput
+
+    item = ScrapedItem(url="https://example.com", title="Sample")
+    stats = PipelineStats(total_urls=1, succeeded=1, failed=0, duration_sec=0.5)
+    output = PipelineOutput(items=[item], stats=stats)
+"""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from agentic_scraper.backend.config.messages import (
-    MSG_ERROR_INVALID_LIMIT,
-)
+from agentic_scraper.backend.config.messages import MSG_ERROR_INVALID_LIMIT
 from agentic_scraper.backend.utils.validators import (
     clean_price,
     validate_optional_str,
@@ -12,14 +37,25 @@ from agentic_scraper.backend.utils.validators import (
     validate_url,
 )
 
+__all__ = ["PipelineOutput", "PipelineStats", "ScrapedItem"]
+
 
 class ScrapedItem(BaseModel):
     """
     Internal representation of structured data extracted from a single web page.
 
+    Attributes:
+        url (str): Page URL (validated to http/https).
+        title (str | None): Main title or heading.
+        description (str | None): Short description or summary.
+        price (float | None): Numeric price if detected.
+        author (str | None): Author or content source.
+        date_published (str | None): Publication date string, if known.
+        screenshot_path (str | None): Optional screenshot file path.
+
     Notes:
-        - URL is a `str` for consistency across the scraper layer and is validated to be http(s).
         - Extra keys are allowed to accommodate dynamic agent outputs.
+        - Empty strings are normalized to `None` for optionals.
     """
 
     url: str
@@ -61,6 +97,12 @@ class ScrapedItem(BaseModel):
 class PipelineStats(BaseModel):
     """
     Aggregated execution stats for a scrape pipeline run.
+
+    Attributes:
+        total_urls (int): Total number of URLs processed.
+        succeeded (int): Count of successful extractions.
+        failed (int): Count of failed extractions.
+        duration_sec (float): Duration in seconds.
     """
 
     total_urls: int
@@ -86,8 +128,11 @@ class PipelineStats(BaseModel):
 class PipelineOutput(BaseModel):
     """
     Standardized pipeline result shape used internally by the scraper layer.
+
+    Attributes:
+        items (list[ScrapedItem]): The list of structured items extracted.
+        stats (PipelineStats): Aggregated execution statistics.
     """
 
     items: list[ScrapedItem]
     stats: PipelineStats
-    # Optionally enforce invariants later with a model_validator.
